@@ -199,7 +199,7 @@ struct TripView: View {
         let trip = detail.trip
         Section(trip.vehicleSnapshot.name) {
           LabeledContent("Employee", value: trip.employeeSnapshot.name)
-          LabeledContent("Charter", value: trip.employeeSnapshot.charter)
+          LabeledContent("Charter", value: trip.employeeSnapshot.displayedCharter)
           LabeledContent("Status", value: humanize(trip.status))
           LabeledContent("Checked out", value: displayDate(trip.checkoutAt))
           LabeledContent("Due", value: displayDate(trip.projectedReturnAt))
@@ -320,7 +320,8 @@ struct TripView: View {
     defer { busy = false }
     do {
       preview = try await store.api.file(
-        "/api/trips/\(tripID)/report?stage=\(stage)", name: "fleet-\(tripID)-\(stage).pdf")
+        "/api/trips/\(tripID)/report?stage=\(stage)",
+        name: detail?.reportFilenames?[stage] ?? "fleet-\(tripID)-\(stage).pdf")
     } catch { self.error = error.localizedDescription }
   }
   func photoFile(_ photo: FleetPhoto) async {

@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer';
 import { createHash } from 'node:crypto';
 import { createReport } from './reports.js';
+import { reportFilename } from './report-filename.js';
 
 const time = () => new Date().toISOString();
 const safeError = (error) =>
@@ -130,7 +131,7 @@ export async function processNotification({ store, notificationId, send, report 
       text: `${label}\nTrip: ${trip.id}\nEmployee: ${trip.employeeSnapshot.name}\nVehicle: ${trip.vehicleSnapshot.name}\n\n${row.stage === 'return' ? 'Attached: both completed forms (checkout front and check-in back), signatures, damage marks, and checkout and return photos.' : 'Attached: the completed checkout front, the check-in back marked "Not yet returned," signatures, damage marks, and checkout photos.'}\n\nThis message contains private workplace records.`,
       attachments: [
         {
-          filename: `fleet-${trip.id}-${row.stage}.pdf`,
+          filename: reportFilename(trip, row.stage),
           content: pdf,
           contentType: 'application/pdf',
         },

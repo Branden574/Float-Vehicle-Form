@@ -60,7 +60,7 @@ An organization representative should complete the following on an actual manage
 - [ ] Host-specific photo codec support, disk monitoring, backup scheduling, encrypted off-device storage and a restore rehearsal on the deployed operating system.
 - [ ] Fleet/staff master records, driver eligibility, review responsibility and retention policy approved by the organization.
 
-SSO, confirmed-delivery webhooks, future reservations, automatic retention deletion, native iOS/App Store distribution and physical odometer integration are not implemented or claimed. They are unnecessary for the delivered invited-account, immediate checkout/return workflow. One active-trip odometer replacement event is supported per trip. Load/scale, high availability and a formal independent penetration test have not been performed.
+SSO, confirmed-delivery webhooks, future reservations, automatic retention deletion, App Store distribution and physical odometer integration are not implemented or claimed. Native iOS implementation and its separate acceptance boundary are documented below. One active-trip odometer replacement event is supported per trip. Load/scale, high availability and a formal independent penetration test have not been performed.
 
 ## Reproduce
 
@@ -123,3 +123,9 @@ Full local web regression after resend: 26 browser tests passed, one existing We
 The same four native tests also passed on iPhone 17 Pro / iOS 26.5. An unsigned Release archive for real iOS devices compiled successfully; unsigned archives cannot be installed through TestFlight or the App Store. The native sign-in screen was opened manually in the iPad simulator, requested the real account code successfully, and visibly unlocked Resend code after its countdown. Authenticated native UI acceptance is awaiting the user entering that code.
 
 Native follow-up: all five XCTest cases passed on iPhone 17 Pro after adding automatic damage-region mapping and pre-submission photo preview. The first native GitHub job [42694839802](https://github.com/Branden574/Float-Vehicle-Form/actions/runs/42694839802) passed on Xcode 26.3 with the initial four tests. A second unattended backup and restore [42694979302](https://github.com/Branden574/fleet-checkout-backups/actions/runs/42694979302) also passed after pinning the scheduler to application commit `648e255`.
+
+Native historical-record compatibility: the signed-in iPad exposed an older trip snapshot without a charter field. Native trip snapshots now accept that historical shape and display its saved department as the legacy charter fallback, matching the PDF renderer. No signed data is rewritten, and current account decoding remains strict. Six XCTest cases passed on the iPad simulator, including list/detail decoding of the pre-charter record. The updated native dashboard, persisted sign-in, saved profile and existing trip loaded successfully against production.
+
+## Descriptive PDF filenames
+
+Report downloads and notification attachments share one server-generated filename built from the signed employee name, signed vehicle name and the checkout date in the saved fleet timezone. Completed return bundles also include the return date and `Checkout-and-Check-in`. Web and native clients use those same names. Names are bounded and safe for file paths and headers; private immutable R2 object keys remain unchanged. Existing cached PDFs receive the new download label without rewriting signed evidence. Previously delivered emails and already downloaded files retain their original names.

@@ -3,9 +3,11 @@ import assert from 'node:assert/strict';
 import { fixture, signature } from './helpers.js';
 import { processNotification, createEmailSender } from '../server/notifications.js';
 import { PDFDocument } from 'pdf-lib';
+import { reportFilename } from '../server/report-filename.js';
+import { createReport } from '../server/reports.js';
 
 test('assistant recipients receive checkout and check-in PDFs; settings persist and staff cannot edit them', async (t) => {
-  const f = await fixture(t);
+  const f = await fixture(t, { reports: true });
   const recipients = ['assistant.one@example.test', 'assistant.two@example.test'];
   const body = {
     notificationRecipients: recipients,
@@ -36,6 +38,7 @@ test('assistant recipients receive checkout and check-in PDFs; settings persist 
   await processNotification({ store: f.store, notificationId: checkoutNotification.id, send });
   assert.deepEqual(messages[0].to, [...recipients, f.staff.email]);
   assert.match(messages[0].text, /Not yet returned/);
+  assert.equal(messages[0].attachments[0].filename, reportFilename(checkout.data.trip, 'checkout'));
   const checkoutPdf = await PDFDocument.load(messages[0].attachments[0].content);
   assert.ok(checkoutPdf.getPageCount() >= 4, 'two original-layout forms and photo appendix');
   const returned = await f.returnTrip(f.s, checkout.data.trip);
@@ -47,7 +50,35 @@ test('assistant recipients receive checkout and check-in PDFs; settings persist 
   assert.equal(messages.length, 2);
   assert.deepEqual(messages[1].to, [...recipients, f.staff.email]);
   assert.match(messages[1].text, /both completed forms/);
-  assert.match(messages[1].attachments[0].filename, /return\.pdf$/);
+  const expectedName = reportFilename(returned.data.trip, 'return');
+  assert.equal(messages[1].attachments[0].filename, expectedName);
+  const detail = await f.s.request(`/trips/${checkout.data.trip.id}`);
+  assert.equal(detail.data.reportFilenames.return, expectedName);
+  const downloaded = await f.s.request(`/trips/${checkout.data.trip.id}/report?stage=return`);
+  assert.equal(
+    downloaded.headers.get('content-disposition'),
+    `attachment; filename="${expectedName}"`,
+  );
+  // Cached cloud copies receive the same friendly label without renaming storage objects.
+  let signedName;
+  await createReport({
+    store: {
+      ...f.store,
+      evidence: {
+        ...f.store.evidence,
+        cloud: true,
+        signedRead: async (key, name) => {
+          assert.match(key, /^reports\/[a-f0-9-]+-return-[a-f0-9]+\.pdf$/);
+          signedName = name;
+          return 'https://storage.example.test/report';
+        },
+      },
+    },
+    tripId: checkout.data.trip.id,
+    stage: 'return',
+    download: true,
+  });
+  assert.equal(signedName, expectedName);
   const returnPdf = await PDFDocument.load(messages[1].attachments[0].content);
   assert.ok(
     returnPdf.getPageCount() > checkoutPdf.getPageCount(),

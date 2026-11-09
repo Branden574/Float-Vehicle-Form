@@ -203,11 +203,14 @@ struct FleetError: LocalizedError {
     guard data.count <= 120 * 1024 * 1024 else {
       throw FleetError(message: "File is too large to preview.")
     }
-    let root = Self.privateFiles
+    let root = Self.privateFiles.appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(
       at: root, withIntermediateDirectories: true,
       attributes: [.protectionKey: FileProtectionType.complete])
-    let output = root.appendingPathComponent(name.replacingOccurrences(of: "/", with: "_"))
+    let safeName = name.replacingOccurrences(
+      of: "[^a-zA-Z0-9_.-]", with: "_", options: .regularExpression)
+    let output = root.appendingPathComponent(
+      safeName.isEmpty || safeName == "." || safeName == ".." ? "Fleet-document" : safeName)
     try data.write(to: output, options: [.atomic, .completeFileProtection])
     return output
   }

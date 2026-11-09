@@ -84,6 +84,17 @@ struct OdometerReplacement: Codable {
   var newReading: Int
   var reason: String
 }
+/// Signed snapshots can predate saved charter profiles. Never replace their
+/// historical values with the employee's current account information.
+struct EmployeeSnapshot: Codable {
+  var name: String
+  var department: String
+  var charter: String?
+  var displayedCharter: String {
+    guard let charter, !charter.isEmpty else { return department }
+    return charter
+  }
+}
 struct Trip: Codable, Identifiable {
   var id: String
   var vehicleId: String
@@ -95,7 +106,7 @@ struct Trip: Codable, Identifiable {
   var startingMileage: Int
   var endingMileage: Int?
   var tripMileage: Int?
-  var employeeSnapshot: FleetUser
+  var employeeSnapshot: EmployeeSnapshot
   var vehicleSnapshot: Vehicle
   var checkoutInspection: Inspection
   var returnInspection: Inspection?
@@ -133,6 +144,7 @@ struct MileageRevision: Decodable, Identifiable {
   var acknowledgedAt: String?
 }
 struct TripDetail: Decodable {
+  var reportFilenames: [String: String]?
   var trip: Trip
   var photos: [FleetPhoto]
   var reviews: [Review]

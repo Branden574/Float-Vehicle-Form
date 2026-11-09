@@ -3,6 +3,20 @@ import XCTest
 @testable import FleetCheckout
 
 final class FleetCheckoutTests: XCTestCase {
+  func testHistoricalTripWithoutCharterLoadsInListAndDetail() throws {
+    let oldTrip = Self.tripJSON.replacingOccurrences(of: "\"charter\":\"Testing\",", with: "")
+    let list = try JSONDecoder().decode(
+      TripList.self, from: Data("{\"trips\":[\(oldTrip)]}".utf8))
+    XCTAssertEqual(list.trips.count, 1)
+    XCTAssertNil(list.trips[0].employeeSnapshot.charter)
+    XCTAssertEqual(list.trips[0].employeeSnapshot.displayedCharter, "Testing")
+    let detail = try JSONDecoder().decode(
+      TripDetail.self,
+      from: Data("{\"trip\":\(oldTrip),\"photos\":[],\"reviews\":[],\"revisions\":[]}".utf8))
+    XCTAssertEqual(detail.trip.employeeSnapshot.name, "Test Driver")
+    let current = try JSONDecoder().decode(Trip.self, from: Data(Self.tripJSON.utf8))
+    XCTAssertEqual(current.employeeSnapshot.charter, "Testing")
+  }
   func testTripMileageIncludesDocumentedReplacement() throws {
     var trip = try JSONDecoder().decode(Trip.self, from: Data(Self.tripJSON.utf8))
     XCTAssertEqual(trip.distance(ending: 43125), 125)

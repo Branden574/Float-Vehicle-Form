@@ -165,7 +165,10 @@ test('administrator setup, staff checkout/return, photos, signatures, PDF and sh
     page.waitForEvent('download'),
     page.getByRole('link', { name: 'Both forms & photos' }).click(),
   ]);
-  expect(download.suggestedFilename()).toMatch(/return\.pdf$/);
+  expect(download.suggestedFilename()).toMatch(
+    /_Out-\d{4}-\d{2}-\d{2}_In-\d{4}-\d{2}-\d{2}_Checkout-and-Check-in\.pdf$/,
+  );
+  expect(download.suggestedFilename()).toContain(name.replace(/[^a-zA-Z0-9]+/g, '-'));
   await signOut(page);
   await login(page);
   await page.getByLabel('Search vehicles', { exact: true }).fill(name);

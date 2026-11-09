@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { reportFilename } from './report-filename.js';
 import { z } from 'zod';
 import { hash, now } from './store.js';
 import {
@@ -72,6 +73,10 @@ export function installTrips(app, store, { reportService } = {}) {
   app.get('/api/trips/:id', async (req, res) => {
     await requireTripAccess(store, req, req.params.id);
     const bundle = await store.getTripBundle(req.params.id);
+    bundle.reportFilenames = {
+      checkout: reportFilename(bundle.trip, 'checkout'),
+      ...(bundle.trip.returnedAt ? { return: reportFilename(bundle.trip, 'return') } : {}),
+    };
     bundle.photos = bundle.photos.map(store.publicPhoto);
     delete bundle.settings;
     if (req.user.role !== 'admin')
@@ -334,7 +339,7 @@ export function installTrips(app, store, { reportService } = {}) {
     if (typeof buffer === 'string') return res.redirect(303, buffer);
     res
       .type('pdf')
-      .set('Content-Disposition', `attachment; filename="fleet-${trip.id}-${stage}.pdf"`)
+      .set('Content-Disposition', `attachment; filename="${reportFilename(trip, stage)}"`)
       .send(buffer);
   });
   app.post('/api/trips/:id/review', requireAdmin, async (req, res) => {

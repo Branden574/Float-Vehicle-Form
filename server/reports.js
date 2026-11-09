@@ -2,6 +2,7 @@ import PDFDocument from 'pdfkit';
 import { originalForms, templateHash } from './original-forms.js';
 import { createHash } from 'node:crypto';
 import { inspectionFlags } from './validation.js';
+import { reportFilename } from './report-filename.js';
 
 const INK = '#1e302c';
 const GREEN = '#17664e';
@@ -59,7 +60,7 @@ export async function createReport({ store, tripId, stage = 'return', download =
   const filename = `reports/${trip.id}-${stage}-${digest}.pdf`;
   const resultFor = async (buffer) =>
     download && store.evidence.cloud
-      ? store.evidence.signedRead(filename, `fleet-${trip.id}-${stage}.pdf`)
+      ? store.evidence.signedRead(filename, reportFilename(trip, stage))
       : buffer;
   try {
     return await resultFor(await store.evidence.read(filename));

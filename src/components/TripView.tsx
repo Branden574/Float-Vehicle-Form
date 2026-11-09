@@ -117,7 +117,11 @@ export function TripView({
           href={`/api/trips/${id}/report?stage=checkout`}
           aria-disabled={downloading}
           onClick={(e) =>
-            void download(e, `/api/trips/${id}/report?stage=checkout`, `fleet-${id}-checkout.pdf`)
+            void download(
+              e,
+              `/api/trips/${id}/report?stage=checkout`,
+              data.reportFilenames?.checkout || `fleet-${id}-checkout.pdf`,
+            )
           }
         >
           <Download size={17} /> Checkout PDF
@@ -128,7 +132,11 @@ export function TripView({
             href={`/api/trips/${id}/report?stage=return`}
             aria-disabled={downloading}
             onClick={(e) =>
-              void download(e, `/api/trips/${id}/report?stage=return`, `fleet-${id}-return.pdf`)
+              void download(
+                e,
+                `/api/trips/${id}/report?stage=return`,
+                data.reportFilenames?.return || `fleet-${id}-return.pdf`,
+              )
             }
           >
             <Download size={17} /> Both forms & photos

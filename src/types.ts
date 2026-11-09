@@ -150,6 +150,7 @@ export type Audit = {
   after?: unknown;
 };
 export type TripDetail = {
+  reportFilenames?: { checkout: string; return?: string };
   trip: Trip;
   photos: Photo[];
   reviews: Review[];
