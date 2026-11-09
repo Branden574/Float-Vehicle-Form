@@ -50,7 +50,7 @@ A physical return can be complete while the vehicle remains **Pending Review** o
 
 Reloading, closing Safari, browser eviction, signing out or session expiry may clear the unfinished form. No reliable iPad background sync is claimed. Uploaded draft photos remain private on the server; losing the browser form does not secretly finalize a trip or delete signed evidence.
 
-Always use **Sign out** before handing over the iPad. Local private UI is cleared immediately; server sign-out is then confirmed. If offline, the login screen states that server sign-out is pending. Reconnect and let sign-out complete before handover. Never share passwords or select another person's name as authentication. Sessions also expire after configured inactivity and an absolute eight-hour limit.
+Always use **Sign out** before handing over the iPad. Local private UI is cleared immediately across open tabs on the same site; server sign-out is then confirmed. If offline, the login screen states that server sign-out is pending. Reconnect and let sign-out complete before handover. Never share passwords or select another person's name as authentication. Sessions also expire after configured inactivity and an absolute eight-hour limit.
 
 If camera permission was denied, enable Camera for the approved website in Safari settings and retry. If a HEIC upload is rejected by the server codec, use live camera capture or JPEG. The app records device-reported capture/file times separately from server receipt time; neither timestamps nor watermarks prove when the scene was photographed.
 

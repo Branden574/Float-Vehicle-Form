@@ -208,7 +208,8 @@ export default function App() {
     setMessage(note);
     clearPrivateState();
   }
-  function accept(s: Session) {
+  function accept(s: Session, broadcast = false) {
+    if (broadcast) localStorage.setItem('fleet-session-change', crypto.randomUUID());
     setCsrf(s.csrfToken);
     setSession(s);
     setMessage('');
@@ -254,10 +255,18 @@ export default function App() {
     const expire = () =>
       erase('Your session expired. Sign in again. Unsubmitted form details were cleared.');
     const network = () => setOnline(navigator.onLine);
+    const changed = (event: StorageEvent) => {
+      if (event.key === 'fleet-signout-pending' && event.newValue === '1')
+        erase('Signed out in another tab. Private details were cleared.');
+      if (event.key === 'fleet-session-change' && event.newValue)
+        erase('The account changed in another tab. Private details were cleared.');
+    };
+    window.addEventListener('storage', changed);
     window.addEventListener('session-expired', expire);
     window.addEventListener('online', network);
     window.addEventListener('offline', network);
     return () => {
+      window.removeEventListener('storage', changed);
       window.removeEventListener('session-expired', expire);
       window.removeEventListener('online', network);
       window.removeEventListener('offline', network);
@@ -324,7 +333,7 @@ export default function App() {
         <p>Opening fleet workspace…</p>
       </div>
     );
-  if (!session) return <Login onSession={accept} message={message} />;
+  if (!session) return <Login onSession={(s) => accept(s, true)} message={message} />;
   const { user, settings } = session;
   const available = vehicles.filter((v) => v.status === 'available').length;
   const active = trips.filter((t) => t.status === 'active' || t.status === 'pending_checkout');

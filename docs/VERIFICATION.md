@@ -38,7 +38,7 @@ The browser suite's WebKit offline-reload attempt returned **“WebKit encounter
 
 The complete visible path creates a vehicle as administrator, switches to an invited staff account, checks it out, answers every inspection question, uploads four views, draws a pointer signature, returns it with four new views, downloads both forms and confirms mileage carry-forward.
 
-Additional checks cover an interrupted photo upload and explicit retry, a denied camera permission response, offline sign-out clearing the form, a different staff account not inheriting the previous draft, and delayed responses from a signed-out administrator being discarded after the account switch. Layout checks found no horizontal overflow at the tested viewport widths. PWA cache inspection confirmed no `/api/` entries.
+Additional checks cover an interrupted photo upload and explicit retry, a denied camera permission response, offline sign-out clearing the form, sign-out clearing other open tabs, a different staff account not inheriting the previous draft, and delayed responses from a signed-out administrator being discarded after the account switch. Layout checks found no horizontal overflow at the tested viewport widths. PWA cache inspection confirmed no `/api/` entries.
 
 These tests use browser automation, pointer-generated signatures and synthetic uploaded images. They **do not establish that physical camera capture, finger input, iPadOS installation or managed-device behavior passed**.
 

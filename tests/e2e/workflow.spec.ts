@@ -227,6 +227,12 @@ test('denied camera access and offline sign-out do not expose a previous draft',
   await login(page, 'driver@example.test');
   await expect(page.locator('.workflow')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Administration', exact: false })).toHaveCount(0);
+  const otherTab = await context.newPage();
+  await otherTab.goto('/');
+  await expect(otherTab.getByRole('heading', { name: 'Find your next vehicle.' })).toBeVisible();
+  await signOut(page);
+  await expect(otherTab.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
+  await otherTab.close();
 });
 
 test.describe('public PWA shell', () => {
@@ -270,6 +276,22 @@ test('late responses from a signed-out administrator are discarded after staff s
   page,
 }) => {
   await login(page);
+  const initial = await (await page.request.get('/api/auth/me')).json();
+  const created = await page.request.post('/api/admin/vehicles', {
+    headers: { 'X-CSRF-Token': initial.csrfToken },
+    data: {
+      name: 'QA response isolation',
+      make: 'Ford',
+      model: 'Escape',
+      year: 2024,
+      plate: 'QA-RACE',
+      vinLast4: '9876',
+      site: 'QA',
+      currentMileage: 1000,
+      status: 'available',
+    },
+  });
+  expect(created.status()).toBe(201);
   let release!: () => void, started!: () => void;
   const gate = new Promise<void>((resolve) => (release = resolve)),
     waiting = new Promise<void>((resolve) => (started = resolve));
