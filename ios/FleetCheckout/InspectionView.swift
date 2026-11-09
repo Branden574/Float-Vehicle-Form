@@ -1,4 +1,5 @@
 import PhotosUI
+import QuickLook
 import SwiftUI
 
 struct InspectionView: View {
@@ -32,6 +33,7 @@ struct InspectionView: View {
   @State private var ownerSession: UUID?
   @State private var error = ""
   @State private var cancel = false
+  @State private var preview: URL?
   @State private var completed: Trip?
   var returning: Bool { trip != nil }
   var stage: String { returning ? "return" : "checkout" }
@@ -144,6 +146,7 @@ struct InspectionView: View {
       }
     }.navigationTitle(returning ? "Return vehicle" : "Check out vehicle")
       .navigationBarTitleDisplayMode(.inline)
+      .quickLookPreview($preview)
       .toolbar {
         if completed == nil { Button("Cancel") { cancel = true }.disabled(busy || loadingPhoto) }
       }
@@ -223,7 +226,7 @@ struct InspectionView: View {
             "Amber C marks are the original checkout damage. Add only new damage in blue. Original marks remain on the form."
           ).font(.footnote)
         }
-        Picker("Damage area", selection: $area) {
+        Picker("Area for list-only damage", selection: $area) {
           ForEach(
             ["front", "rear", "driver", "passenger", "roof", "interior", "windshield", "wheels"],
             id: \.self
@@ -294,6 +297,15 @@ struct InspectionView: View {
         HStack {
           Label(humanize(photo.view), systemImage: "checkmark.circle.fill").foregroundStyle(.green)
           Spacer()
+          Button("Preview") {
+            Task {
+              busy = true
+              defer { busy = false }
+              do { preview = try await store.api.file(photo.url, name: "\(photo.id).jpg") } catch {
+                self.error = error.localizedDescription
+              }
+            }
+          }
           Button("Remove", role: .destructive) { photos.removeAll { $0.id == photo.id } }
         }
       }

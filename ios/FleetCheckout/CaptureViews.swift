@@ -149,11 +149,8 @@ struct DamageDiagram: View {
           SpatialTapGesture().onEnded { tap in
             guard editable, isEnabled, marks.count < 40 else { return }
             marks.append(
-              Damage(
-                area: selectedArea, type: selectedType,
-                position: DamagePosition(
-                  x: max(0, min(1, tap.location.x / width)),
-                  y: max(0, min(1, tap.location.y / height)))))
+              Damage.placed(
+                x: tap.location.x / width, y: tap.location.y / height, type: selectedType))
           }
         )
         .accessibilityLabel(

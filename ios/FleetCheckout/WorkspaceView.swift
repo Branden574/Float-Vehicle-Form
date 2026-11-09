@@ -237,7 +237,15 @@ struct TripView: View {
           Text(
             trip.checkoutInspection.notes.isEmpty
               ? "No checkout notes." : trip.checkoutInspection.notes)
+          ForEach(Array(trip.checkoutInspection.damage.enumerated()), id: \.offset) { index, mark in
+            Text("C\(index + 1): \(humanize(mark.area)) · \(humanize(mark.type)) · \(mark.notes)")
+              .font(.caption)
+          }
           if let inspection = trip.returnInspection {
+            ForEach(Array(inspection.damage.enumerated()), id: \.offset) { index, mark in
+              Text("N\(index + 1): \(humanize(mark.area)) · \(humanize(mark.type)) · \(mark.notes)")
+                .font(.caption)
+            }
             Text(inspection.notes.isEmpty ? "No return notes." : inspection.notes)
           }
         }

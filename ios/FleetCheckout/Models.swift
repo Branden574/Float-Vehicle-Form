@@ -54,6 +54,19 @@ struct Damage: Codable, Equatable {
   var notes = ""
   var position: DamagePosition?
 }
+extension Damage {
+  /// Uses the same region boundaries and edge padding as the web diagram.
+  static func placed(x: Double, y: Double, type: String) -> Damage {
+    let area =
+      y < 0.17
+      ? "front"
+      : y > 0.84
+        ? "rear" : x < 0.3 ? "driver" : x > 0.7 ? "passenger" : y < 0.42 ? "windshield" : "roof"
+    return Damage(
+      area: area, type: type,
+      position: DamagePosition(x: min(0.98, max(0.02, x)), y: min(0.98, max(0.02, y))))
+  }
+}
 struct Inspection: Codable {
   var fuelFull: Bool
   var interiorClean: Bool

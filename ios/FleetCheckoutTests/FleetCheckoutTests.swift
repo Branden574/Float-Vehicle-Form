@@ -10,6 +10,14 @@ final class FleetCheckoutTests: XCTestCase {
       id: "replacement", oldReading: 43050, newReading: 10, reason: "Replaced instrument cluster")
     XCTAssertEqual(trip.distance(ending: 85), 125)
   }
+  func testDiagramRegionsMatchWebAndMarksStayInsidePage() {
+    XCTAssertEqual(Damage.placed(x: 0.8, y: 0.5, type: "dent").area, "passenger")
+    XCTAssertEqual(Damage.placed(x: 0.2, y: 0.5, type: "dent").area, "driver")
+    XCTAssertEqual(Damage.placed(x: 0.5, y: 0.3, type: "chip").area, "windshield")
+    XCTAssertEqual(Damage.placed(x: 0.5, y: 0.6, type: "scratch").area, "roof")
+    XCTAssertEqual(Damage.placed(x: 0.5, y: 1, type: "dent").position?.y, 0.98)
+    XCTAssertEqual(Damage.placed(x: -0.1, y: 0, type: "dent").position?.x, 0.02)
+  }
   func testDamageRoundTripPreservesPDFCoordinatesAndStage() throws {
     let inspection = Inspection(
       fuelFull: true, interiorClean: true, gasCard: true, receiptReceived: true, keyReturned: true,
