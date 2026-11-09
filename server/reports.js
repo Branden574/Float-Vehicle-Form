@@ -45,7 +45,7 @@ export async function createReport({ store, tripId, stage = 'return', download =
   const { trip, photos, reviews, revisions } = bundle;
   const settings = trip.checkoutSettings || bundle.settings;
   const reportData = {
-    version: 5,
+    version: 6,
     templateHash,
     stage,
     trip,
@@ -298,10 +298,12 @@ export async function createReport({ store, tripId, stage = 'return', download =
   }
 
   const relevantPhotos = photos.filter((p) => stage === 'return' || p.stage === 'checkout');
+  let photoSlots = 0;
   for (let index = 0; index < relevantPhotos.length; index++) {
     const photo = relevantPhotos[index];
-    if (index % 2 === 0) {
-      page('Condition photo appendix');
+    const receipt = photo.view === 'receipt';
+    if (receipt || photoSlots % 2 === 0) {
+      page(receipt ? 'Fuel receipt' : 'Condition photo appendix');
       text(
         `Times shown in ${zone}. Device-reported times and camera labels are not proof of the true capture time. Original image bytes are stored privately.`,
         { size: 9, color: MUTED },
@@ -312,7 +314,7 @@ export async function createReport({ store, tripId, stage = 'return', download =
     );
     try {
       doc.image(await store.evidence.read(photo.displayPath), 42, y, {
-        fit: [width, 180],
+        fit: [width, receipt ? 450 : 180],
         align: 'center',
         valign: 'center',
       });
@@ -321,7 +323,8 @@ export async function createReport({ store, tripId, stage = 'return', download =
         'Photo viewing copy is unavailable. Contact an administrator; the record references the original photo below.',
       );
     }
-    y += 186;
+    y += receipt ? 456 : 186;
+    photoSlots = receipt ? 0 : photoSlots + 1;
     text(
       `Device reported: ${timestamp(photo.deviceCapturedAt, zone)}\nServer received: ${timestamp(photo.receivedAt, zone)}\nPhoto ${photo.id}`,
       { size: 8, color: MUTED },

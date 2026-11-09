@@ -24,6 +24,17 @@ struct FleetView: View {
   var body: some View {
     List {
       if !store.error.isEmpty { Text(store.error).foregroundStyle(.red) }
+      if !store.pendingReturns.isEmpty {
+        Section("Returns awaiting your review") {
+          ForEach(store.pendingReturns) { trip in
+            NavigationLink {
+              TripView(tripID: trip.id)
+            } label: {
+              TripRow(trip: trip)
+            }
+          }
+        }
+      }
       Section("My current checkouts") {
         let current = store.trips.filter {
           $0.employeeId == store.session?.user.id
@@ -252,8 +263,11 @@ struct TripView: View {
         }
         if trip.status == "active" && trip.employeeId == store.session?.user.id {
           Button("Return this vehicle") { returning = true }.buttonStyle(.borderedProminent)
+            .foregroundStyle(Color("FleetOnAccent"))
         }
-        if store.session?.user.role == "admin", trip.employeeId != store.session?.user.id,
+        if trip.status == "returned"
+          ? detail.canReviewReturn == true : store.session?.user.role == "admin",
+          trip.employeeId != store.session?.user.id,
           ["pending_checkout", "returned"].contains(trip.status),
           !detail.reviews.contains(where: {
             $0.stage == (trip.status == "returned" ? "return" : "checkout")

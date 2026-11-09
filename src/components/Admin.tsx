@@ -36,6 +36,7 @@ export function Admin({
     [reason, setReason] = useState(''),
     [replacement, setReplacement] = useState(false),
     [invitation, setInvitation] = useState('');
+  const [reviewers, setReviewers] = useState((settings.returnReviewerEmails || []).join('\n'));
   const [config, setConfig] = useState(settings),
     [recipients, setRecipients] = useState<string[]>(
       settings.notificationRecipients.length ? settings.notificationRecipients : [''],
@@ -154,7 +155,7 @@ export function Admin({
         <ShieldCheck size={32} strokeWidth={1.4} />
       </div>
       <div className="admin-tabs" role="tablist">
-        {['vehicles', 'staff', 'settings', 'notifications', 'audit'].map((value) => (
+        {['vehicles', 'staff', 'reviewers', 'settings', 'notifications', 'audit'].map((value) => (
           <button
             key={value}
             role="tab"
@@ -414,6 +415,62 @@ export function Admin({
                 </form>
               )}
             </>
+          )}
+          {tab === 'reviewers' && (
+            <form
+              className="form-card"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void perform(async () => {
+                  const returnReviewerEmails = [
+                    ...new Set(
+                      reviewers
+                        .split(/[\n,;]/)
+                        .map((email) => email.trim().toLowerCase())
+                        .filter(Boolean),
+                    ),
+                  ];
+                  const result = await patch<{ settings: Settings }>('/admin/settings', {
+                    returnReviewerEmails,
+                    reason: 'Administrator updated assigned return reviewers',
+                  });
+                  setReviewers((result.settings.returnReviewerEmails || []).join('\n'));
+                  setConfig(result.settings);
+                  onSettings(result.settings);
+                  setNotice(
+                    'Return reviewers saved. New returns require their signed approval before the vehicle is available.',
+                  );
+                });
+              }}
+            >
+              <h2>Return reviewers</h2>
+              <p>
+                Assign the people who inspect and approve vehicle returns. They sign in with an
+                email code and receive a review request when a vehicle is checked in.
+              </p>
+              <label>
+                Reviewer email addresses
+                <textarea
+                  rows={5}
+                  value={reviewers}
+                  onChange={(e) => setReviewers(e.target.value)}
+                  placeholder="reviewer@school.org"
+                />
+              </label>
+              <p className="fine">
+                One email per line, up to 20. Reviewers can view returned-trip records and approve
+                or hold vehicles, without full administrator access. They cannot approve their own
+                returns. Assign at least two if reviewers also drive.
+              </p>
+              <p className="fine">
+                With reviewers assigned, every new return waits for approval. Removing everyone
+                restores administrator review under the existing inspection policy. Form-copy
+                recipients are managed separately under Form emails.
+              </p>
+              <button className="button primary" disabled={busy}>
+                Save return reviewers
+              </button>
+            </form>
           )}
           {tab === 'staff' && (
             <>

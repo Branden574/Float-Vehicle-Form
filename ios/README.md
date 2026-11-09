@@ -20,6 +20,9 @@ When the shared diagram changes, run `python3 scripts/generate-native-diagram.py
 
 - Email code sign-in with a server-enforced 60-second resend cooldown; profile reuse and current checkouts.
 - Native vehicle and trip lists, checkout/return inspection forms, camera capture and optional system photo picker.
+- Apple VisionKit document scanning for gas receipts during return: multi-page scans attach as receipt evidence, with one full-size PDF page per receipt page. Failed uploads remain queued in the open draft for retry.
+- Device-controlled light/dark appearance, including diagram colors and signature surfaces; exported signatures stay black on white.
+- Assigned return reviewers, a pending-return queue, authenticated approval/hold signatures and administrator reviewer-email editing. Reviewer accounts do not need administrator or driver permission.
 - The same normalized vehicle diagram coordinates as the web/PDF renderer. Amber checkout marks remain visible while new return marks are added separately.
 - Touch/Apple Pencil signature drawing and private PDF/photo previews with the system sharing menu.
 - Server-calculated mileage, documented odometer replacement and signed mileage-correction acknowledgment, required-photo checks and stable idempotency keys for uncertain submissions.
@@ -27,7 +30,7 @@ When the shared diagram changes, run `python3 scripts/generate-native-diagram.py
 
 Sessions are stored in this-device-only Keychain storage. HTTP response caching and shared cookies are disabled; credentials are removed on cross-host PDF redirects. Downloaded private files use complete file protection and are removed at sign-out. In-flight operations are invalidated on session changes. A privacy cover hides app content when inactive. Drafts stay in memory and must be submitted online; force-quitting discards unfinished drafts.
 
-The simulator has no camera. Real iPad acceptance must cover camera permission/denial, all required views, Apple Pencil, background/resume, photo picker restrictions, private PDF sharing and a full checkout/return.
+The simulator has no camera. Real iPad acceptance must cover camera permission/denial, document scanner crop/multiple pages/cancel/denial, receipt readability and interrupted upload retry, all required views, Apple Pencil, background/resume, photo picker restrictions, private PDF sharing and a full checkout/return.
 
 ## Before TestFlight / App Store
 

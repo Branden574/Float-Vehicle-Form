@@ -32,6 +32,7 @@ struct FleetSettings: Codable {
   var site: String
   var timezone: String
   var notificationRecipients: [String]?
+  var returnReviewerEmails: [String]?
   var employeeCopy: Bool
   var reviewMode: String
   var allowPhotoImports: Bool
@@ -144,6 +145,7 @@ struct MileageRevision: Decodable, Identifiable {
   var acknowledgedAt: String?
 }
 struct TripDetail: Decodable {
+  var canReviewReturn: Bool?
   var reportFilenames: [String: String]?
   var trip: Trip
   var photos: [FleetPhoto]
@@ -151,7 +153,10 @@ struct TripDetail: Decodable {
   var revisions: [MileageRevision]
 }
 struct VehicleList: Decodable { var vehicles: [Vehicle] }
-struct TripList: Decodable { var trips: [Trip] }
+struct TripList: Decodable {
+  var trips: [Trip]
+  var pendingReturns: [Trip]?
+}
 struct TripResult: Decodable { var trip: Trip }
 struct PhotoResult: Decodable { var photo: FleetPhoto }
 struct CodeChallenge: Decodable {

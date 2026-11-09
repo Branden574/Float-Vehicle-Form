@@ -6,6 +6,7 @@ export type User = {
   charter: string;
   manager: string;
   role: 'staff' | 'admin';
+  canReviewReturns?: boolean;
   authorizedDriver: boolean;
   active: boolean;
 };
@@ -32,6 +33,7 @@ export type Settings = {
   accentColor: string;
   logoUrl: string;
   notificationRecipients: string[];
+  returnReviewerEmails?: string[];
   employeeCopy: boolean;
   reviewMode: 'self_service' | 'representative';
   allowPhotoImports: boolean;
@@ -150,6 +152,7 @@ export type Audit = {
   after?: unknown;
 };
 export type TripDetail = {
+  canReviewReturn?: boolean;
   reportFilenames?: { checkout: string; return?: string };
   trip: Trip;
   photos: Photo[];

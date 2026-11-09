@@ -1,6 +1,7 @@
 import PhotosUI
 import SwiftUI
 import UIKit
+import VisionKit
 
 struct SignaturePad: UIViewRepresentable {
   @Binding var signature: String
@@ -14,6 +15,7 @@ struct SignaturePad: UIViewRepresentable {
   func updateUIView(_ view: SignatureCanvas, context: Context) {
     view.changed = { signature = $0 }
     view.isUserInteractionEnabled = context.environment.isEnabled
+    view.setNeedsDisplay()
     if view.clearID != clearID {
       view.clearID = clearID
       view.lines = []
@@ -27,7 +29,11 @@ final class SignatureCanvas: UIView {
   var clearID = UUID()
   override init(frame: CGRect) {
     super.init(frame: frame)
-    backgroundColor = .white
+    backgroundColor = .secondarySystemGroupedBackground
+    registerForTraitChanges([UITraitUserInterfaceStyle.self]) {
+      (view: SignatureCanvas, _: UITraitCollection) in
+      view.setNeedsDisplay()
+    }
     isMultipleTouchEnabled = false
     accessibilityLabel = "Signature drawing area"
     accessibilityHint = "Draw your signature with your finger or Apple Pencil."
@@ -47,10 +53,11 @@ final class SignatureCanvas: UIView {
   }
   override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) { publish() }
   override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) { publish() }
-  private func render(_ context: CGContext, size: CGSize) {
-    context.setFillColor(UIColor.white.cgColor)
+  private func render(_ context: CGContext, size: CGSize, exporting: Bool = false) {
+    context.setFillColor(
+      (exporting ? UIColor.white : UIColor.secondarySystemGroupedBackground).cgColor)
     context.fill(CGRect(origin: .zero, size: size))
-    context.setStrokeColor(UIColor.black.cgColor)
+    context.setStrokeColor((exporting ? UIColor.black : UIColor.label).cgColor)
     context.setLineWidth(2.5)
     context.setLineCap(.round)
     context.setLineJoin(.round)
@@ -69,14 +76,19 @@ final class SignatureCanvas: UIView {
       changed("")
       return
     }
+    if let data = signatureImage().pngData() {
+      changed("data:image/png;base64," + data.base64EncodedString())
+    }
+  }
+  func signatureImage() -> UIImage {
+    // Paper exports always use black ink, independently of the device appearance.
     // A fixed export scale keeps signatures below the API's 400 KB cap on large iPads.
     let format = UIGraphicsImageRendererFormat()
     format.scale = 1
     format.opaque = true
-    let image = UIGraphicsImageRenderer(size: bounds.size, format: format).image {
-      render($0.cgContext, size: bounds.size)
+    return UIGraphicsImageRenderer(size: bounds.size, format: format).image {
+      render($0.cgContext, size: bounds.size, exporting: true)
     }
-    if let data = image.pngData() { changed("data:image/png;base64," + data.base64EncodedString()) }
   }
 }
 struct CameraCapture: UIViewControllerRepresentable {
@@ -107,6 +119,60 @@ struct CameraCapture: UIViewControllerRepresentable {
     }
   }
 }
+struct ReceiptScanner: UIViewControllerRepresentable {
+  let remainingPages: Int
+  let onScan: ([Data]) -> Void
+  let onError: (String) -> Void
+  @Environment(\.dismiss) private var dismiss
+  func makeCoordinator() -> Coordinator { Coordinator(self) }
+  func makeUIViewController(context: Context) -> VNDocumentCameraViewController {
+    let controller = VNDocumentCameraViewController()
+    controller.delegate = context.coordinator
+    return controller
+  }
+  func updateUIViewController(_ controller: VNDocumentCameraViewController, context: Context) {}
+  final class Coordinator: NSObject, VNDocumentCameraViewControllerDelegate {
+    let parent: ReceiptScanner
+    init(_ parent: ReceiptScanner) { self.parent = parent }
+    func documentCameraViewControllerDidCancel(_ controller: VNDocumentCameraViewController) {
+      parent.dismiss()
+    }
+    func documentCameraViewController(
+      _ controller: VNDocumentCameraViewController, didFailWithError error: Error
+    ) {
+      parent.dismiss()
+      parent.onError("Could not scan the receipt. \(error.localizedDescription)")
+    }
+    func documentCameraViewController(
+      _ controller: VNDocumentCameraViewController, didFinishWith scan: VNDocumentCameraScan
+    ) {
+      defer { parent.dismiss() }
+      do {
+        let pages = try receiptScanPages(count: scan.pageCount, limit: parent.remainingPages) {
+          scan.imageOfPage(at: $0)
+        }
+        parent.onScan(pages)
+      } catch { parent.onError(error.localizedDescription) }
+    }
+  }
+}
+
+func receiptScanPages(count: Int, limit: Int, imageAt: (Int) -> UIImage) throws -> [Data] {
+  guard count > 0, count <= limit else {
+    throw FleetError(
+      message:
+        "Scan up to \(max(0, limit)) receipt pages. Each inspection allows 30 photos and receipt pages combined."
+    )
+  }
+  return try (0..<count).map { index in
+    guard let data = cameraJPEG(imageAt(index)), data.count <= 12 * 1024 * 1024 else {
+      throw FleetError(
+        message: "Could not prepare receipt page \(index + 1). Please scan it again.")
+    }
+    return data
+  }
+}
+
 func cameraJPEG(_ image: UIImage) -> Data? {
   let factor = min(1, 2400 / max(image.size.width, image.size.height))
   let format = UIGraphicsImageRendererFormat()
@@ -135,16 +201,22 @@ struct DamageDiagram: View {
       Canvas { context, size in
         var scaled = context
         scaled.scaleBy(x: size.width / 360, y: size.height / 560)
-        scaled.stroke(vehicleDiagramPath(), with: .color(.gray), lineWidth: 1.5)
+        scaled.stroke(
+          vehicleDiagramPath(), with: .color(Color(uiColor: .secondaryLabel)), lineWidth: 1.5)
         for (index, damage) in previous.enumerated() {
-          draw(damage, index: index, prefix: "C", color: .orange, context: &context, size: size)
+          draw(
+            damage, index: index, prefix: "C", color: Color("DamageCheckout"), context: &context,
+            size: size)
         }
         for (index, damage) in marks.enumerated() {
           draw(
-            damage, index: index, prefix: currentPrefix, color: .blue, context: &context, size: size
+            damage, index: index, prefix: currentPrefix, color: Color("DamageReturn"),
+            context: &context, size: size
           )
         }
-      }.frame(width: width, height: height).background(.white).contentShape(Rectangle())
+      }.frame(width: width, height: height).background(
+        Color(uiColor: .secondarySystemGroupedBackground)
+      ).contentShape(Rectangle())
         .gesture(
           SpatialTapGesture().onEnded { tap in
             guard editable, isEnabled, marks.count < 40 else { return }
@@ -172,10 +244,12 @@ struct DamageDiagram: View {
     let point = CGPoint(x: position.x * size.width, y: position.y * size.height)
     let circle = Path(ellipseIn: CGRect(x: point.x - 9, y: point.y - 9, width: 18, height: 18))
     context.fill(circle, with: .color(color))
-    context.stroke(circle, with: .color(.white), lineWidth: 1)
+    context.stroke(
+      circle, with: .color(Color(uiColor: .secondarySystemGroupedBackground)), lineWidth: 1)
     let symbol = damage.type == "dent" ? "×" : damage.type == "scratch" ? "~" : "•"
     context.draw(
-      Text(symbol).font(.system(size: 16, weight: .bold)).foregroundColor(.white), at: point)
+      Text(symbol).font(.system(size: 16, weight: .bold)).foregroundColor(Color("FleetOnAccent")),
+      at: point)
     context.draw(
       Text("\(prefix)\(index + 1)").font(.system(size: 10, weight: .bold)).foregroundColor(color),
       at: CGPoint(x: point.x + 16, y: point.y - 12))

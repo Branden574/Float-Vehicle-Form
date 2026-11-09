@@ -120,8 +120,8 @@ export function DamageDiagram({
           place(point.x / diagram.width, point.y / diagram.height);
         }}
       >
-        <rect width="360" height="560" fill="#fff" />
-        <g fill="none" stroke="#65716c" strokeWidth="1.5">
+        <rect width="360" height="560" fill="var(--diagram-paper)" />
+        <g fill="none" stroke="var(--diagram-line)" strokeWidth="1.5">
           {diagram.paths.map((d, i) => (
             <path key={i} d={d} />
           ))}
@@ -136,7 +136,7 @@ export function DamageDiagram({
             cy={cursor.y * 560}
             r="10"
             fill="none"
-            stroke="#126b61"
+            stroke="var(--accent)"
             strokeDasharray="3 3"
           />
         )}
@@ -153,20 +153,20 @@ export function DamageDiagram({
                   cy={d.position.y * 560}
                   r="14"
                   fill="none"
-                  stroke="#975712"
+                  stroke="var(--damage-old)"
                   strokeDasharray="3 3"
                 />
                 <path
                   d={diagram.marks[d.type]}
                   transform={`translate(${d.position.x * 360} ${d.position.y * 560})`}
                   fill="none"
-                  stroke="#975712"
+                  stroke="var(--damage-old)"
                   strokeWidth="2"
                 />
                 <text
                   x={d.position.x * 360 + 11}
                   y={d.position.y * 560 - 9}
-                  fill="#975712"
+                  fill="var(--damage-old)"
                   fontSize="13"
                   fontWeight="700"
                 >
@@ -194,8 +194,8 @@ export function DamageDiagram({
                     cx={d.position.x * 360}
                     cy={d.position.y * 560}
                     r="20"
-                    fill="#126b611a"
-                    stroke="#126b61"
+                    fill="var(--selection-wash)"
+                    stroke="var(--accent)"
                   />
                 )}
                 <circle cx={d.position.x * 360} cy={d.position.y * 560} r="20" fill="transparent" />
@@ -203,13 +203,13 @@ export function DamageDiagram({
                   d={diagram.marks[d.type]}
                   transform={`translate(${d.position.x * 360} ${d.position.y * 560})`}
                   fill="none"
-                  stroke="#143d81"
+                  stroke="var(--damage-new)"
                   strokeWidth="2"
                 />
                 <text
                   x={d.position.x * 360 + 11}
                   y={d.position.y * 560 - 9}
-                  fill="#143d81"
+                  fill="var(--damage-new)"
                   fontSize="13"
                   fontWeight="700"
                 >

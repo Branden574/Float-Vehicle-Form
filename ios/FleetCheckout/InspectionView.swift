@@ -1,6 +1,8 @@
+import AVFoundation
 import PhotosUI
 import QuickLook
 import SwiftUI
+import VisionKit
 
 struct InspectionView: View {
   @EnvironmentObject var store: FleetStore
@@ -22,6 +24,8 @@ struct InspectionView: View {
   @State private var viewName = "front"
   @State private var selectedPhoto: PhotosPickerItem?
   @State private var camera = false
+  @State private var receiptScanner = false
+  @State private var pendingReceiptPages: [Data] = []
   @State private var signature = ""
   @State private var clearID = UUID()
   @State private var acknowledgments: [String: Bool] = [:]
@@ -88,7 +92,8 @@ struct InspectionView: View {
           ).multilineTextAlignment(.center)
           Text("Configured recipients receive the forms after any required representative review.")
             .font(.footnote).foregroundStyle(.secondary)
-          Button("Done") { dismiss() }.buttonStyle(.borderedProminent)
+          Button("Done") { dismiss() }.buttonStyle(.borderedProminent).foregroundStyle(
+            Color("FleetOnAccent"))
         }.padding(32)
       } else {
         Form {
@@ -161,6 +166,16 @@ struct InspectionView: View {
       }
       .sheet(isPresented: $camera) {
         CameraCapture { data in Task { await upload(data, source: "camera") } }.ignoresSafeArea()
+      }
+      .fullScreenCover(isPresented: $receiptScanner) {
+        ReceiptScanner(remainingPages: max(0, 30 - photos.count)) { pages in
+          pendingReceiptPages = pages
+          loadingPhoto = true
+          Task { await uploadReceiptPages() }
+        } onError: {
+          error = $0
+        }
+        .ignoresSafeArea()
       }
       .onChange(of: selectedPhoto) { _, item in
         guard let item else { return }
@@ -280,6 +295,40 @@ struct InspectionView: View {
           ).sorted(), id: \.self
         ) { Text(humanize($0)).tag($0) }
       }
+      if returning {
+        if VNDocumentCameraViewController.isSupported {
+          Button("Scan gas receipt", systemImage: "doc.viewfinder") {
+            let permission = AVCaptureDevice.authorizationStatus(for: .video)
+            if permission == .denied || permission == .restricted {
+              error =
+                "Camera access is unavailable. Allow Fleet Checkout to use the camera in Settings to scan receipts."
+            } else {
+              receiptScanner = true
+            }
+          }.disabled(busy || loadingPhoto || photos.count >= 30 || !pendingReceiptPages.isEmpty)
+          Text(
+            "Use Apple's scanner to crop and capture each receipt page. Saved scans attach to this return and its emailed form package."
+          )
+          .font(.footnote).foregroundStyle(.secondary)
+        } else {
+          Text(
+            "Receipt scanning requires a supported iPhone or iPad camera. You can also select Receipt and take a photo, or choose a photo when imports are allowed."
+          )
+          .font(.footnote).foregroundStyle(.secondary)
+        }
+        if !pendingReceiptPages.isEmpty {
+          Text(
+            "\(pendingReceiptPages.count) scanned receipt pages waiting to upload. Keep this draft open."
+          )
+          Button("Retry receipt uploads") {
+            loadingPhoto = true
+            Task { await uploadReceiptPages() }
+          }.disabled(busy || loadingPhoto)
+          Button("Remove unsaved receipt scans", role: .destructive) {
+            pendingReceiptPages = []
+          }.disabled(busy || loadingPhoto)
+        }
+      }
       if UIImagePickerController.isSourceTypeAvailable(.camera) {
         Button("Take photo", systemImage: "camera") { camera = true }.disabled(
           busy || photos.count >= 30)
@@ -292,7 +341,7 @@ struct InspectionView: View {
         { Label("Choose photo", systemImage: "photo") }.disabled(
           busy || loadingPhoto || photos.count >= 30)
       }
-      if busy { ProgressView("Storing photograph…") }
+      if busy || loadingPhoto { ProgressView("Storing photos and receipt pages…") }
       ForEach(photos) { photo in
         HStack {
           Label(humanize(photo.view), systemImage: "checkmark.circle.fill").foregroundStyle(.green)
@@ -351,6 +400,9 @@ struct InspectionView: View {
     }
   }
   func validate(_ index: Int) -> String {
+    if index == 2 && !pendingReceiptPages.isEmpty {
+      return "Upload or remove the remaining scanned receipt pages before continuing."
+    }
     if index == 0 {
       guard let value = Int(mileage), value >= 0, value <= 9_999_999 else {
         return "Enter a valid whole-number odometer reading."
@@ -378,17 +430,29 @@ struct InspectionView: View {
     }
     return ""
   }
-  func upload(_ data: Data, source: String) async {
-    guard !busy, ownerSession == store.revision, store.session != nil else { return }
+  func uploadReceiptPages() async {
+    defer { loadingPhoto = false }
+    while let page = pendingReceiptPages.first {
+      guard await upload(page, source: "camera", view: "receipt") else { return }
+      pendingReceiptPages.removeFirst()
+    }
+  }
+  @discardableResult
+  func upload(_ data: Data, source: String, view: String? = nil) async -> Bool {
+    guard !busy, ownerSession == store.revision, store.session != nil else { return false }
+    guard photos.count < 30 else {
+      error = "Each inspection allows 30 photos and receipt pages combined."
+      return false
+    }
     guard data.count <= 12 * 1024 * 1024 else {
       error = "Photographs must be no larger than 12 MB."
-      return
+      return false
     }
     busy = true
     error = ""
     defer { busy = false }
     var metadata: [String: Any] = [
-      "vehicleId": vehicle.id, "stage": stage, "view": viewName, "draftId": draftID,
+      "vehicleId": vehicle.id, "stage": stage, "view": view ?? viewName, "draftId": draftID,
       "source": source,
     ]
     if source == "camera" {
@@ -397,13 +461,18 @@ struct InspectionView: View {
     if let trip { metadata["tripId"] = trip.id }
     do {
       let photo = try await store.api.upload(data, metadata: metadata)
+      guard ownerSession == store.revision, store.session != nil else { return false }
       if !photos.contains(where: { $0.id == photo.id }) { photos.append(photo) }
       if let next = requiredViews.first(where: { required in
         !photos.contains(where: { $0.view == required })
       }) {
         viewName = next
       }
-    } catch { self.error = error.localizedDescription }
+      return true
+    } catch {
+      self.error = error.localizedDescription
+      return false
+    }
   }
   func submit() async {
     guard !busy, ownerSession == store.revision, store.session != nil else { return }

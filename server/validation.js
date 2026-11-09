@@ -104,6 +104,7 @@ export const settingsSchema = z.object({
   accentColor: z.string().regex(/^#[a-fA-F0-9]{6}$/),
   logoUrl: safeImageUrl,
   notificationRecipients: z.array(z.email().max(254)).max(20),
+  returnReviewerEmails: z.array(z.email().max(254)).max(20),
   employeeCopy: z.boolean(),
   reviewMode: z.enum(['self_service', 'representative']),
   allowPhotoImports: z.boolean(),

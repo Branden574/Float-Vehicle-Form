@@ -5,6 +5,7 @@ import SwiftUI
   @Published var session: FleetSession?
   @Published var vehicles: [Vehicle] = []
   @Published var trips: [Trip] = []
+  @Published var pendingReturns: [Trip] = []
   @Published var error = ""
   @Published var restoring = true
   @Published var revision = UUID()
@@ -31,9 +32,11 @@ import SwiftUI
     do {
       async let fleet: VehicleList = api.request("/api/vehicles")
       async let history: TripList = api.request("/api/trips")
-      let result = try await (fleet.vehicles, history.trips)
+      let result = try await (fleet.vehicles, history)
       guard started == revision else { return }
-      (vehicles, trips) = result
+      vehicles = result.0
+      trips = result.1.trips
+      pendingReturns = result.1.pendingReturns ?? []
       error = ""
     } catch { self.error = error.localizedDescription }
   }
@@ -46,6 +49,7 @@ import SwiftUI
     session = nil
     vehicles = []
     trips = []
+    pendingReturns = []
     error = ""
     revision = UUID()
   }
@@ -72,7 +76,7 @@ import SwiftUI
           SignInView()
         }
       }
-      .environmentObject(store).tint(Color(red: 0.12, green: 0.34, blue: 0.28))
+      .environmentObject(store).tint(Color("FleetAccent"))
       .task { await store.restore() }
       .onReceive(NotificationCenter.default.publisher(for: .fleetSessionExpired)) { _ in
         store.clear()
@@ -141,7 +145,9 @@ struct SignInView: View {
                   Spacer()
                   Image(systemName: "arrow.right")
                 }
-              }.buttonStyle(.borderedProminent).controlSize(.large).disabled(
+              }.buttonStyle(.borderedProminent).foregroundStyle(Color("FleetOnAccent")).controlSize(
+                .large
+              ).disabled(
                 busy || email.isEmpty || (challenge.isEmpty && remaining > 0)
                   || (!challenge.isEmpty && code.count != 6))
               if !challenge.isEmpty {

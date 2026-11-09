@@ -4,6 +4,7 @@ struct AdminView: View {
   @EnvironmentObject var store: FleetStore
   @State private var overview: AdminOverview?
   @State private var recipients = ""
+  @State private var reviewers = ""
   @State private var employeeCopy = true
   @State private var message = ""
   @State private var busy = false
@@ -22,6 +23,19 @@ struct AdminView: View {
       } footer: {
         Text(
           "Enter one email per line, up to 20. These recipients receive the checkout and check-in PDF forms, including front, back and photos, after any required representative review."
+        )
+      }
+      Section {
+        TextField("Reviewer email addresses", text: $reviewers, axis: .vertical)
+          .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.emailAddress)
+          .lineLimit(3...8)
+        Button(busy ? "Saving…" : "Save return reviewers") { Task { await saveReviewers() } }
+          .disabled(busy)
+      } header: {
+        Text("Return reviewers")
+      } footer: {
+        Text(
+          "One email per line, up to 20. Assigned reviewers receive a review request and approve or hold returns without full admin access. Every new return waits for their signed approval. Nobody can approve their own return; assign at least two reviewers if they also drive. Clearing this list restores administrator review under the existing inspection policy."
         )
       }
       if let overview {
@@ -68,6 +82,29 @@ struct AdminView: View {
       overview = result
       recipients = (result.settings.notificationRecipients ?? []).joined(separator: "\n")
       employeeCopy = result.settings.employeeCopy
+      reviewers = (result.settings.returnReviewerEmails ?? []).joined(separator: "\n")
+    } catch { message = error.localizedDescription }
+  }
+  func saveReviewers() async {
+    busy = true
+    defer { busy = false }
+    let emails = Array(
+      Set(
+        reviewers.components(separatedBy: CharacterSet(charactersIn: ",;\n")).map {
+          $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        }.filter { !$0.isEmpty })
+    ).sorted()
+    do {
+      let result: SettingsResult = try await store.api.request(
+        "/api/admin/settings", method: "PATCH",
+        body: [
+          "returnReviewerEmails": emails,
+          "reason": "Administrator updated assigned return reviewers in the native app",
+        ])
+      store.session?.settings = result.settings
+      reviewers = (result.settings.returnReviewerEmails ?? []).joined(separator: "\n")
+      message = "Return reviewers saved. New returns require their signed approval."
+      await store.refresh()
     } catch { message = error.localizedDescription }
   }
   func saveRecipients() async {

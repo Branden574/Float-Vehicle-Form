@@ -3,6 +3,42 @@ import XCTest
 @testable import FleetCheckout
 
 final class FleetCheckoutTests: XCTestCase {
+  @MainActor func testReceiptScanKeepsAllPagesAndBoundsUploadSize() throws {
+    let format = UIGraphicsImageRendererFormat()
+    format.scale = 1
+    let page = UIGraphicsImageRenderer(size: CGSize(width: 1200, height: 3000), format: format)
+      .image {
+        UIColor.white.setFill()
+        $0.fill(CGRect(x: 0, y: 0, width: 1200, height: 3000))
+        UIColor.black.setFill()
+        $0.fill(CGRect(x: 40, y: 50, width: 500, height: 30))
+      }
+    var readPages: [Int] = []
+    let pages = try receiptScanPages(count: 2, limit: 3) { index in
+      readPages.append(index)
+      return page
+    }
+    XCTAssertEqual(readPages, [0, 1])
+    XCTAssertEqual(pages.count, 2)
+    let decoded = try XCTUnwrap(UIImage(data: pages[0]))
+    XCTAssertEqual(decoded.size.height, 2400)
+    XCTAssertLessThan(pages[0].count, 12 * 1024 * 1024)
+    XCTAssertThrowsError(
+      try receiptScanPages(count: 4, limit: 3) { _ in
+        XCTFail("Oversized scans must not partially process or silently lose pages")
+        return page
+      })
+    XCTAssertThrowsError(try receiptScanPages(count: 0, limit: 3) { _ in page })
+  }
+  @MainActor func testSignatureExportDoesNotChangeWithDeviceAppearance() throws {
+    let canvas = SignatureCanvas(frame: CGRect(x: 0, y: 0, width: 300, height: 120))
+    canvas.lines = [[CGPoint(x: 20, y: 80), CGPoint(x: 70, y: 30), CGPoint(x: 110, y: 90)]]
+    canvas.overrideUserInterfaceStyle = .light
+    let light = try XCTUnwrap(canvas.signatureImage().pngData())
+    canvas.overrideUserInterfaceStyle = .dark
+    let dark = try XCTUnwrap(canvas.signatureImage().pngData())
+    XCTAssertEqual(light, dark, "The signed PDF must retain black-on-white ink in both themes")
+  }
   func testHistoricalTripWithoutCharterLoadsInListAndDetail() throws {
     let oldTrip = Self.tripJSON.replacingOccurrences(of: "\"charter\":\"Testing\",", with: "")
     let list = try JSONDecoder().decode(

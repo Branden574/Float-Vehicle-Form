@@ -83,7 +83,7 @@ export function TripView({
   const { trip, photos, reviews, revisions, notifications } = data;
   const stage = trip.status === 'pending_checkout' ? 'checkout' : 'return';
   const canReview =
-    user.role === 'admin' &&
+    (stage === 'return' ? data.canReviewReturn : user.role === 'admin') &&
     user.id !== trip.employeeId &&
     (trip.status === 'pending_checkout' || trip.status === 'returned') &&
     !reviews.some((r) => r.stage === stage);

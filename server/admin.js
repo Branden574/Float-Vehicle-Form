@@ -152,7 +152,8 @@ export function installAdmin(app, store, { notificationService } = {}) {
         if (
           data.status === 'available' &&
           latestTrip?.status === 'returned' &&
-          latestTrip.returnReviewMode === 'representative' &&
+          (latestTrip.returnReviewMode === 'representative' ||
+            (await store.getSettings()).returnReviewerEmails.length > 0) &&
           !(await store.getReviews(latestTrip.id)).some((r) => r.stage === 'return')
         )
           fail(409, 'Complete the representative return signature before releasing this vehicle.');
@@ -296,6 +297,9 @@ export function installAdmin(app, store, { notificationService } = {}) {
       { reason: _reason, ...changes } = req.body;
     const before = await store.getSettings(),
       settings = validate(settingsSchema.strict(), { ...before, ...changes });
+    settings.returnReviewerEmails = [
+      ...new Set(settings.returnReviewerEmails.map((email) => email.trim().toLowerCase())),
+    ];
     settings.requiredPhotoViews = [
       ...new Set(['front', 'rear', 'driver', 'passenger', ...(settings.requiredPhotoViews || [])]),
     ];
@@ -326,10 +330,12 @@ export function installAdmin(app, store, { notificationService } = {}) {
           fail(409, 'This notification is already queued or sending.');
         const signedTrip = await store.getTrip(row.trip_id);
         const needsSignature =
-          row.stage === 'checkout'
-            ? signedTrip.status === 'pending_checkout'
-            : signedTrip.returnReviewMode === 'representative' &&
-              !(await store.getReviews(row.trip_id)).some((review) => review.stage === 'return');
+          row.stage === 'return_review'
+            ? false
+            : row.stage === 'checkout'
+              ? signedTrip.status === 'pending_checkout'
+              : signedTrip.returnReviewMode === 'representative' &&
+                !(await store.getReviews(row.trip_id)).some((review) => review.stage === 'return');
         if (needsSignature)
           fail(409, 'Complete the required representative signature before sending this report.');
         const resend = ['accepted', 'delivered', 'unknown'].includes(row.status);
@@ -340,8 +346,15 @@ export function installAdmin(app, store, { notificationService } = {}) {
           : 'Administrator retried a failed notification';
         const settings = await store.getSettings(),
           trip = await store.getTrip(row.trip_id),
-          recipients = [...settings.notificationRecipients];
-        if (settings.employeeCopy) recipients.push(trip.employeeSnapshot.email);
+          employee = await store.getUser(trip.employeeId),
+          recipients =
+            row.stage === 'return_review'
+              ? [...settings.returnReviewerEmails].filter(
+                  (email) => email !== employee?.email?.toLowerCase(),
+                )
+              : [...settings.notificationRecipients];
+        if (row.stage !== 'return_review' && settings.employeeCopy)
+          recipients.push(trip.employeeSnapshot.email);
         if (!recipients.length) fail(400, 'Configure notification recipients before retrying.');
         await db
           .prepare(

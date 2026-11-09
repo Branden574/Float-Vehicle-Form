@@ -1,3 +1,4 @@
+import { mayReviewReturns } from './reviewers.js';
 import { randomUUID } from 'node:crypto';
 import { reportFilename } from './report-filename.js';
 import { z } from 'zod';
@@ -58,21 +59,37 @@ export function installTrips(app, store, { reportService } = {}) {
       ).map(store.mapVehicle),
     }),
   );
-  app.get('/api/trips', async (req, res) =>
-    res.json({
-      trips: await Promise.all(
-        (req.user.role === 'admin'
-          ? await db.prepare('SELECT * FROM trips ORDER BY checkout_at DESC').all()
+  app.get('/api/trips', async (req, res) => {
+    const canReviewReturns = mayReviewReturns(req.user, await store.getSettings());
+    const rows =
+      req.user.role === 'admin'
+        ? await db.prepare('SELECT * FROM trips ORDER BY checkout_at DESC').all()
+        : canReviewReturns
+          ? await db
+              .prepare(
+                "SELECT * FROM trips WHERE employee_id=? OR status='returned' ORDER BY checkout_at DESC",
+              )
+              .all(req.user.id)
           : await db
               .prepare('SELECT * FROM trips WHERE employee_id=? ORDER BY checkout_at DESC')
-              .all(req.user.id)
-        ).map(store.mapTrip),
-      ),
-    }),
-  );
+              .all(req.user.id);
+    const pending = canReviewReturns
+      ? await db
+          .prepare(
+            "SELECT t.* FROM trips t JOIN vehicles v ON v.id=t.vehicle_id WHERE t.status='returned' AND v.status='pending_review' AND t.employee_id<>? AND NOT EXISTS (SELECT 1 FROM reviews r WHERE r.trip_id=t.id AND r.stage='return') AND NOT EXISTS (SELECT 1 FROM trips newer WHERE newer.vehicle_id=t.vehicle_id AND newer.vehicle_mileage_version>t.vehicle_mileage_version) ORDER BY t.returned_at ASC",
+          )
+          .all(req.user.id)
+      : [];
+    res.json({
+      trips: await Promise.all(rows.map(store.mapTrip)),
+      pendingReturns: await Promise.all(pending.map(store.mapTrip)),
+      canReviewReturns,
+    });
+  });
   app.get('/api/trips/:id', async (req, res) => {
     await requireTripAccess(store, req, req.params.id);
     const bundle = await store.getTripBundle(req.params.id);
+    bundle.canReviewReturn = mayReviewReturns(req.user, await store.getSettings());
     bundle.reportFilenames = {
       checkout: reportFilename(bundle.trip, 'checkout'),
       ...(bundle.trip.returnedAt ? { return: reportFilename(bundle.trip, 'return') } : {}),
@@ -276,14 +293,17 @@ export function installTrips(app, store, { reportService } = {}) {
         if (distance > settings.largeMileageThreshold)
           flags.push('Unusually large mileage increase');
         if (current.odometerReplacement) flags.push('Documented odometer replacement');
-        const hold = settings.reviewMode === 'representative' || flags.length > 0;
+        const returnReviewMode = settings.returnReviewerEmails.length
+          ? 'representative'
+          : settings.reviewMode;
+        const hold = returnReviewMode === 'representative' || flags.length > 0;
         const signed = {
           inspection: b.inspection,
           signature: b.signature,
           acknowledgments,
           odometerReplacement: current.odometerReplacement,
           signedAt: time,
-          reviewMode: settings.reviewMode,
+          reviewMode: returnReviewMode,
           settings: {
             appName: settings.appName,
             organizationName: settings.organizationName,
@@ -314,7 +334,9 @@ export function installTrips(app, store, { reportService } = {}) {
             .prepare('UPDATE photos SET finalized=1 WHERE id=? AND finalized=0')
             .run(photo.id);
         await store.enqueueNotification(trip.id, 'return');
-        if (settings.reviewMode === 'representative')
+        if (hold && settings.returnReviewerEmails.length)
+          await store.enqueueNotification(trip.id, 'return_review');
+        if (returnReviewMode === 'representative')
           await db
             .prepare(
               "UPDATE notifications SET status='awaiting_review',error='Awaiting authenticated representative signature' WHERE trip_id=? AND stage='return'",
@@ -342,7 +364,7 @@ export function installTrips(app, store, { reportService } = {}) {
       .set('Content-Disposition', `attachment; filename="${reportFilename(trip, stage)}"`)
       .send(buffer);
   });
-  app.post('/api/trips/:id/review', requireAdmin, async (req, res) => {
+  app.post('/api/trips/:id/review', async (req, res) => {
     const b = validate(
       z
         .object({
@@ -360,11 +382,14 @@ export function installTrips(app, store, { reportService } = {}) {
       .transaction(async () => {
         const trip = await store.getTrip(req.params.id);
         if (!trip) fail(404, 'Trip not found.');
+        const reviewer = await store.getUser(req.user.id);
+        const allowed =
+          b.stage === 'return'
+            ? mayReviewReturns(reviewer, await store.getSettings())
+            : reviewer?.active && reviewer.role === 'admin';
+        if (!allowed) fail(403, 'Only an assigned reviewer can approve this inspection.');
         if (trip.employeeId === req.user.id)
-          fail(
-            403,
-            'A different administrator must provide representative review for your own trip.',
-          );
+          fail(403, 'A different assigned reviewer must approve your own trip.');
         if (
           await db
             .prepare('SELECT 1 FROM reviews WHERE trip_id=? AND stage=?')

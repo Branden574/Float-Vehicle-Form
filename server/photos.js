@@ -315,8 +315,15 @@ export function installPhotos(app, store) {
   app.get('/api/photos/:id', async (req, res) => {
     const photo = await store.getPhoto(req.params.id);
     if (!photo) fail(404, 'Photo not found.');
-    if (photo.stage !== 'vehicle' && req.user.role !== 'admin' && photo.employeeId !== req.user.id)
-      fail(403, 'You can only view your own inspection photographs.');
+    if (
+      photo.stage !== 'vehicle' &&
+      req.user.role !== 'admin' &&
+      photo.employeeId !== req.user.id
+    ) {
+      if (!photo.finalized || !photo.tripId)
+        fail(403, 'You can only view your own inspection photographs.');
+      await requireTripAccess(store, req, photo.tripId);
+    }
     res.set('X-Content-Type-Options', 'nosniff');
     if (req.query.original === '1') {
       res.type(photo.mimeType);

@@ -1,3 +1,4 @@
+import { mayReviewReturns } from './reviewers.js';
 import { rateLimitStore } from './rate-limits.js';
 import { createEmailSender } from './notifications.js';
 import { signInEmail } from './sign-in-email.js';
@@ -19,11 +20,11 @@ export async function installAuth(
   const { db } = store;
   const cookieOptions = { httpOnly: true, secure: secureCookies, sameSite: 'strict', path: '/' };
   const publicSettings = async () => {
-    const { notificationRecipients, ...s } = await store.getSettings();
+    const { notificationRecipients, returnReviewerEmails, ...s } = await store.getSettings();
     return s;
   };
   const response = async (user, csrfToken) => ({
-    user,
+    user: { ...user, canReviewReturns: mayReviewReturns(user, await store.getSettings()) },
     csrfToken,
     settings: user.role === 'admin' ? await store.getSettings() : await publicSettings(),
   });
@@ -314,7 +315,7 @@ export async function installAuth(
     await db
       .prepare('UPDATE sessions SET last_seen_at=? WHERE token_hash=?')
       .run(now(), hash(token));
-    req.user = user;
+    req.user = { ...user, canReviewReturns: mayReviewReturns(user, await store.getSettings()) };
     req.session = session;
     next();
   });
@@ -371,7 +372,11 @@ export function requireAdmin(req, res, next) {
 export async function requireTripAccess(store, req, id) {
   const trip = await store.getTrip(id);
   if (!trip) fail(404, 'Trip not found.');
-  if (req.user.role !== 'admin' && trip.employeeId !== req.user.id)
+  if (
+    req.user.role !== 'admin' &&
+    trip.employeeId !== req.user.id &&
+    !(trip.status === 'returned' && mayReviewReturns(req.user, await store.getSettings()))
+  )
     fail(403, 'You can only access your own trips.');
   return trip;
 }

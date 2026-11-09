@@ -41,7 +41,22 @@ test('assistant recipients receive checkout and check-in PDFs; settings persist 
   assert.equal(messages[0].attachments[0].filename, reportFilename(checkout.data.trip, 'checkout'));
   const checkoutPdf = await PDFDocument.load(messages[0].attachments[0].content);
   assert.ok(checkoutPdf.getPageCount() >= 4, 'two original-layout forms and photo appendix');
-  const returned = await f.returnTrip(f.s, checkout.data.trip);
+  const receiptDraft = await f.draft(f.s, vehicle, {
+    stage: 'return',
+    tripId: checkout.data.trip.id,
+  });
+  for (let page = 0; page < 2; page++) {
+    const receipt = await f.upload(f.s, vehicle.id, {
+      stage: 'return',
+      tripId: checkout.data.trip.id,
+      draftId: receiptDraft.draftId,
+      view: 'receipt',
+      source: 'camera',
+    });
+    assert.equal(receipt.status, 201);
+    receiptDraft.photoIds.push(receipt.data.photo.id);
+  }
+  const returned = await f.returnTrip(f.s, checkout.data.trip, receiptDraft);
   assert.equal(returned.status, 201);
   const returnNotification = (await f.store.listNotifications(checkout.data.trip.id)).find(
     (row) => row.stage === 'return',
@@ -54,6 +69,10 @@ test('assistant recipients receive checkout and check-in PDFs; settings persist 
   assert.equal(messages[1].attachments[0].filename, expectedName);
   const detail = await f.s.request(`/trips/${checkout.data.trip.id}`);
   assert.equal(detail.data.reportFilenames.return, expectedName);
+  assert.equal(
+    detail.data.photos.filter((p) => p.view === 'receipt' && p.stage === 'return').length,
+    2,
+  );
   const downloaded = await f.s.request(`/trips/${checkout.data.trip.id}/report?stage=return`);
   assert.equal(
     downloaded.headers.get('content-disposition'),
@@ -81,8 +100,8 @@ test('assistant recipients receive checkout and check-in PDFs; settings persist 
   assert.equal(signedName, expectedName);
   const returnPdf = await PDFDocument.load(messages[1].attachments[0].content);
   assert.ok(
-    returnPdf.getPageCount() > checkoutPdf.getPageCount(),
-    'return adds its own inspection and photo evidence',
+    returnPdf.getPageCount() >= checkoutPdf.getPageCount() + 4,
+    'return adds two photo pages and a full page for each scanned receipt',
   );
 });
 

@@ -61,10 +61,21 @@ async function photos(page: Page, offset: number) {
   await expect(page.locator('.photo-label').filter({ hasText: 'Stored' })).toHaveCount(4);
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
 }
-async function signAndSubmit(page: Page, returning = false) {
+async function signAndSubmit(page: Page, returning = false, checkAppearance = false) {
   const checks = page.locator('.workflow-main input[type=checkbox]:visible');
   for (let i = 0; i < (await checks.count()); i++) await checks.nth(i).check();
   await draw(page);
+  if (checkAppearance) {
+    const canvas = page.locator('canvas:visible').last();
+    const original = await canvas.evaluate((element: HTMLCanvasElement) => element.toDataURL());
+    await page.emulateMedia({ colorScheme: 'light' });
+    await expect(canvas).toHaveCSS('filter', 'none');
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await expect(canvas).toHaveCSS('filter', 'invert(1) grayscale(1)');
+    expect(await canvas.evaluate((element: HTMLCanvasElement) => element.toDataURL())).toBe(
+      original,
+    );
+  }
   await page
     .getByRole('button', {
       name: returning ? 'Submit vehicle return' : 'Submit checkout',
@@ -76,6 +87,7 @@ async function signAndSubmit(page: Page, returning = false) {
 test('administrator setup, staff checkout/return, photos, signatures, PDF and shared-device switch', async ({
   page,
 }, testInfo) => {
+  await page.emulateMedia({ colorScheme: 'dark' });
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/');
@@ -98,6 +110,14 @@ test('administrator setup, staff checkout/return, photos, signatures, PDF and sh
   await page.getByLabel('Initial accepted mileage', { exact: true }).fill('42500');
   await page.getByRole('button', { name: 'Save vehicle', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('Vehicle record saved');
+  await page.getByRole('tab', { name: 'Reviewers', exact: true }).click();
+  await page.getByLabel('Reviewer email addresses').fill('admin@example.test');
+  await page.getByRole('button', { name: 'Save return reviewers', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('Return reviewers saved');
+  await page.screenshot({
+    path: `artifacts/return-reviewers-${testInfo.project.name}.png`,
+    fullPage: true,
+  });
   await signOut(page);
   await login(page, 'driver@example.test');
   await page.getByLabel('Search vehicles', { exact: true }).fill(name);
@@ -146,7 +166,7 @@ test('administrator setup, staff checkout/return, photos, signatures, PDF and sh
     fullPage: true,
     animations: 'disabled',
   });
-  await signAndSubmit(page);
+  await signAndSubmit(page, false, true);
   await expect(page.getByText('Checkout confirmed. Your vehicle is ready to use.')).toBeVisible();
   await page.getByRole('button', { name: 'Return vehicle', exact: true }).click();
   await page.getByLabel('Ending odometer reading', { exact: true }).fill('42625');
@@ -173,7 +193,30 @@ test('administrator setup, staff checkout/return, photos, signatures, PDF and sh
   await login(page);
   await page.getByLabel('Search vehicles', { exact: true }).fill(name);
   await expect(page.locator('.vehicle-mileage strong')).toHaveText('42,625');
-  await expect(page.locator('.vehicle-row .status')).toHaveText('Available');
+  await expect(page.locator('.vehicle-row .status')).toHaveText('Pending Review');
+  await page.getByRole('button', { name: `Review ${name} ·`, exact: false }).click();
+  await page.getByRole('button', { name: 'Review return as', exact: false }).click();
+  await page.getByLabel('Your representative initials').fill('QA');
+  await page.getByLabel('Review reason').fill('Inspected return mileage, condition and receipts');
+  await draw(page);
+  await page.getByRole('button', { name: 'Save signed review', exact: true }).click();
+  await expect(
+    page.getByText('Inspected return mileage, condition and receipts', { exact: true }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Back to workspace', exact: true }).click();
+  await expect(
+    page.locator('.vehicle-row').filter({ hasText: name }).locator('.status'),
+  ).toHaveText('Available');
+  // Restore default policy so other scenarios retain their independent expectations.
+  const reviewerSession = await (await page.request.get('/api/auth/me')).json();
+  expect(
+    (
+      await page.request.patch('/api/admin/settings', {
+        headers: { 'X-CSRF-Token': reviewerSession.csrfToken },
+        data: { returnReviewerEmails: [], reason: 'Restore default test review policy' },
+      })
+    ).ok(),
+  ).toBe(true);
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth > window.innerWidth + 1,
   );
@@ -569,4 +612,58 @@ test('sign-in offers resend after 60 seconds and clears the old code', async ({ 
   await expect(page.getByRole('status')).toContainText('Use the newest email');
   await expect(page.getByRole('button', { name: /Resend code in/ })).toBeDisabled();
   expect(requests).toBe(2);
+});
+
+test('system appearance changes live and preserves input with readable dark controls', async ({
+  page,
+}, testInfo) => {
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.goto('/');
+  await page.getByLabel('Work email').fill('draft@example.test');
+  await expect(page.locator('html')).toHaveCSS('background-color', 'rgb(246, 247, 243)');
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await expect(page.locator('html')).toHaveCSS('background-color', 'rgb(18, 26, 23)');
+  await expect(page.getByLabel('Work email')).toHaveValue('draft@example.test');
+  await expect(page.getByLabel('Work email')).toHaveCSS('background-color', 'rgb(27, 39, 33)');
+  // Wait for the existing button background transition before measuring contrast.
+  await expect(page.locator('.login-form .primary')).toHaveCSS(
+    'background-color',
+    'rgb(129, 205, 185)',
+  );
+  const contrast = await page.locator('.login-form .primary').evaluate((button) => {
+    const style = getComputedStyle(button);
+    const luminance = (color: string) => {
+      const rgb = color
+        .match(/[\d.]+/g)!
+        .slice(0, 3)
+        .map(Number)
+        .map((v) => {
+          const s = v / 255;
+          return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+        });
+      return rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
+    };
+    const a = luminance(style.color),
+      b = luminance(style.backgroundColor);
+    return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+  });
+  expect(contrast).toBeGreaterThanOrEqual(4.5);
+  await page.screenshot({
+    path: `artifacts/dark-login-${testInfo.project.name}.png`,
+    fullPage: true,
+  });
+  await login(page);
+  await expect(page.locator('.sidebar')).toHaveCSS('background-color', 'rgb(25, 37, 31)');
+  await page.getByRole('button', { name: 'My profile', exact: true }).click();
+  await page.getByLabel('Full name').fill('Unsaved appearance test');
+  await page.emulateMedia({ colorScheme: 'light' });
+  await expect(page.locator('html')).toHaveCSS('background-color', 'rgb(246, 247, 243)');
+  await expect(page.getByLabel('Full name')).toHaveValue('Unsaved appearance test');
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await expect(page.getByLabel('Full name')).toHaveValue('Unsaved appearance test');
+  await expect(page.getByLabel('Work email')).toHaveCSS('background-color', 'rgb(37, 53, 44)');
+  await page.screenshot({
+    path: `artifacts/dark-profile-${testInfo.project.name}.png`,
+    fullPage: true,
+  });
 });

@@ -107,8 +107,30 @@ export async function processNotification({ store, notificationId, send, report 
   let attemptingDelivery = false;
   try {
     const row = await db.prepare('SELECT * FROM notifications WHERE id=?').get(notificationId);
-    const recipients = store.decodeJSON(row.recipients_json);
-    const pdf = await report({ store, tripId: row.trip_id, stage: row.stage });
+    const reviewRequest = row.stage === 'return_review';
+    const currentSettings = await store.getSettings();
+    const trip = await store.getTrip(row.trip_id);
+    const employee = reviewRequest ? await store.getUser(trip.employeeId) : null;
+    const recipients = reviewRequest
+      ? store
+          .decodeJSON(row.recipients_json)
+          .filter(
+            (email) =>
+              currentSettings.returnReviewerEmails.includes(email) &&
+              email !== employee?.email?.toLowerCase(),
+          )
+      : store.decodeJSON(row.recipients_json);
+    if (
+      reviewRequest &&
+      (trip.status !== 'returned' ||
+        (await store.getReviews(trip.id)).some((r) => r.stage === 'return'))
+    )
+      throw Object.assign(new Error('This return no longer needs review.'), {
+        definiteFailure: true,
+      });
+    const pdf = reviewRequest
+      ? Buffer.alloc(0)
+      : await report({ store, tripId: row.trip_id, stage: row.stage });
     if (!recipients.length)
       throw Object.assign(
         new Error('No notification recipient configured. Add recipients and retry.'),
@@ -121,22 +143,29 @@ export async function processNotification({ store, notificationId, send, report 
         ),
         { definiteFailure: true },
       );
-    const trip = await store.getTrip(row.trip_id);
     const settings = trip.checkoutSettings || (await store.getSettings());
     const label = row.stage === 'checkout' ? 'Vehicle checkout' : 'Vehicle checkout and check-in';
-    const message = {
-      to: recipients,
-      messageId: row.message_id,
-      subject: `${settings.appName} | ${label} | ${trip.id}`,
-      text: `${label}\nTrip: ${trip.id}\nEmployee: ${trip.employeeSnapshot.name}\nVehicle: ${trip.vehicleSnapshot.name}\n\n${row.stage === 'return' ? 'Attached: both completed forms (checkout front and check-in back), signatures, damage marks, and checkout and return photos.' : 'Attached: the completed checkout front, the check-in back marked "Not yet returned," signatures, damage marks, and checkout photos.'}\n\nThis message contains private workplace records.`,
-      attachments: [
-        {
-          filename: reportFilename(trip, row.stage),
-          content: pdf,
-          contentType: 'application/pdf',
-        },
-      ],
-    };
+    const message = reviewRequest
+      ? {
+          to: recipients,
+          messageId: row.message_id,
+          subject: `${settings.appName} | Vehicle return needs review`,
+          text: `A returned vehicle is waiting for your review. Sign in with this email address at ${process.env.PUBLIC_ORIGIN || 'https://fleetcheckout.app'}/ and open Returns awaiting your review. Check the inspection, mileage, photos and receipts before approving or holding the vehicle. You cannot approve your own return.`,
+          attachments: [],
+        }
+      : {
+          to: recipients,
+          messageId: row.message_id,
+          subject: `${settings.appName} | ${label} | ${trip.id}`,
+          text: `${label}\nTrip: ${trip.id}\nEmployee: ${trip.employeeSnapshot.name}\nVehicle: ${trip.vehicleSnapshot.name}\n\n${row.stage === 'return' ? 'Attached: both completed forms (checkout front and check-in back), signatures, damage marks, and checkout and return photos.' : 'Attached: the completed checkout front, the check-in back marked "Not yet returned," signatures, damage marks, and checkout photos.'}\n\nThis message contains private workplace records.`,
+          attachments: [
+            {
+              filename: reportFilename(trip, row.stage),
+              content: pdf,
+              contentType: 'application/pdf',
+            },
+          ],
+        };
     attemptingDelivery = true;
     const result = await send(message);
     if (!result?.accepted)
@@ -179,7 +208,7 @@ export function startNotificationWorker({ store, send, intervalMs = 15_000 }) {
       for (const row of rows) {
         if (closed) break;
         // Retain completed PDFs even when mail has no configured recipient.
-        if (!generated.has(row.id)) {
+        if (row.stage !== 'return_review' && !generated.has(row.id)) {
           try {
             await createReport({ store, tripId: row.trip_id, stage: row.stage });
             generated.add(row.id);

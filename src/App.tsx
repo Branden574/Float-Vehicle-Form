@@ -342,6 +342,7 @@ export default function App() {
   const [page, setPage] = useState<Page>('fleet'),
     [vehicles, setVehicles] = useState<Vehicle[]>([]),
     [trips, setTrips] = useState<Trip[]>([]),
+    [pendingReturns, setPendingReturns] = useState<Trip[]>([]),
     [search, setSearch] = useState(''),
     [filter, setFilter] = useState('all');
   const [workflow, setWorkflow] = useState<{ vehicle: Vehicle; trip?: Trip } | null>(null),
@@ -357,6 +358,7 @@ export default function App() {
     setWorkflow(null);
     setDetail(null);
     setTrips([]);
+    setPendingReturns([]);
     setVehicles([]);
     setSearch('');
     setPage('fleet');
@@ -372,7 +374,7 @@ export default function App() {
     setMessage('');
     activity.current = Date.now();
     document.title = s.settings.appName;
-    document.documentElement.style.setProperty('--accent', s.settings.accentColor);
+    document.documentElement.style.setProperty('--brand-accent', s.settings.accentColor);
   }
   async function refresh() {
     setBusy(true);
@@ -380,10 +382,11 @@ export default function App() {
     try {
       const [v, t] = await Promise.all([
         api<{ vehicles: Vehicle[] }>('/vehicles'),
-        api<{ trips: Trip[] }>('/trips'),
+        api<{ trips: Trip[]; pendingReturns?: Trip[] }>('/trips'),
       ]);
       setVehicles(v.vehicles);
       setTrips(t.trips);
+      setPendingReturns(t.pendingReturns || []);
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -711,6 +714,24 @@ export default function App() {
             />
           ) : page === 'fleet' ? (
             <section className="page-enter">
+              {pendingReturns.length > 0 && (
+                <section className="my-checkouts">
+                  <h2>Returns awaiting your review</h2>
+                  <p>
+                    Check the signed inspection, mileage, damage and receipts before releasing a
+                    vehicle.
+                  </p>
+                  {pendingReturns.map((trip) => (
+                    <button
+                      key={trip.id}
+                      className="button secondary"
+                      onClick={() => setDetail(trip.id)}
+                    >
+                      Review {trip.vehicleSnapshot.name} · {trip.employeeSnapshot.name}
+                    </button>
+                  ))}
+                </section>
+              )}
               <section className="my-checkouts">
                 <h2>My current checkouts</h2>
                 {active.filter((t) => t.employeeId === user.id).length ? (

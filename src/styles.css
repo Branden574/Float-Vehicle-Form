@@ -5,16 +5,22 @@
     BlinkMacSystemFont,
     'Segoe UI',
     sans-serif;
-  color: #243b33;
-  background: #f6f7f3;
+  color-scheme: light dark;
+  color: var(--ink);
+  background: var(--paper);
   font-synthesis: none;
-  --accent: #126b61;
+  --accent: var(--brand-accent, #126b61);
   --ink: #243b33;
   --muted: #69766e;
   --line: #dce2d9;
   --paper: #f6f7f3;
   --white: #fff;
   --soft: #eaf0e7;
+  --diagram-paper: #fff;
+  --diagram-line: #65716c;
+  --damage-old: #975712;
+  --damage-new: #143d81;
+  --selection-wash: #126b611a;
   font-size: 15px;
 }
 .form-email-settings {
@@ -2445,4 +2451,222 @@ figcaption {
 .damage-baseline-key {
   color: #975712;
   font-weight: 600;
+}
+
+/* Follow the device live, without a separate saved theme or a reload. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #e4ede7;
+    --muted: #a9b8ae;
+    --line: #35463d;
+    --paper: #121a17;
+    --white: #1b2721;
+    --soft: #25352c;
+    --accent: #81cdb9;
+    --diagram-paper: #1b2721;
+    --diagram-line: #a9b8ae;
+    --damage-old: #f0bf75;
+    --damage-new: #8eb8ff;
+    --selection-wash: #81cdb926;
+  }
+  input,
+  select,
+  textarea,
+  .secondary,
+  .search-input,
+  .yes-no button,
+  .photo-slot,
+  .damage-tools button,
+  .audit-values pre {
+    background: var(--white);
+    border-color: #4b6053;
+    color: var(--ink);
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: #9baa9f;
+  }
+  input[readonly] {
+    background: var(--soft);
+  }
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline-color: #efd18a;
+  }
+  .primary,
+  .yes-no .selected,
+  .damage-tools button[aria-pressed='true'],
+  .stepper .current > span,
+  .stepper .done > span {
+    color: #11251e;
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .secondary:hover:not(:disabled),
+  .icon-button:hover,
+  .trip-row:hover {
+    background: #2b3c32;
+  }
+  .sidebar,
+  .login-story,
+  .road-art > svg {
+    background: #19251f;
+  }
+  .login-panel {
+    background: var(--paper);
+  }
+  .nav-link {
+    color: var(--muted);
+  }
+  .nav-link.selected,
+  .segmented .selected {
+    background: #2a4436;
+    color: #d4e9dc;
+  }
+  .nav-link b,
+  .avatar {
+    background: #36513f;
+    color: #e4ede7;
+  }
+  .brand-mark {
+    background: #c2dcc9;
+    color: #173627;
+  }
+  .brand small,
+  .sidebar-help > svg,
+  .list-heading,
+  .vehicle-site,
+  .vehicle-identity small,
+  .vehicle-mileage span,
+  .list-footer,
+  .workspace-footer,
+  .empty-state svg,
+  .stepper li,
+  .aside-title,
+  .workflow-aside ol,
+  .photo-preview,
+  .shared-note,
+  .shared-note p,
+  .login-foot,
+  .road-art,
+  .road-caption span {
+    color: var(--muted);
+  }
+  .shared-note strong {
+    color: var(--ink);
+  }
+  .user-profile,
+  .stepper li > span,
+  .aside-bottom,
+  .lock-icon,
+  .shared-note,
+  .road-line,
+  .vehicle-damage-canvas,
+  .signature-box {
+    border-color: var(--line);
+  }
+  .vehicle-image,
+  .trip-icon,
+  .missing-photo,
+  .action-form,
+  .editor-panel,
+  .workflow-aside,
+  .photo-preview,
+  .trip-total {
+    background: var(--soft);
+  }
+  .vehicle-image {
+    color: #adbd9e;
+  }
+  .active-banner {
+    background: #233a2d;
+    border-color: #8bbd8e;
+  }
+  .small-dot,
+  .connection i {
+    background: #8bbd8e;
+  }
+  .connection.offline i {
+    background: #f0bf75;
+  }
+  .status {
+    background: #2c3931;
+    color: #c1cfc4;
+  }
+  .status.available,
+  .status.returned,
+  .status.accepted,
+  .status.approve,
+  .notice.success {
+    background: #203d2c;
+    color: #a8dcb1;
+  }
+  .status.checked_out,
+  .status.active {
+    background: #263449;
+    color: #b1caf0;
+  }
+  .status.pending_review,
+  .status.pending_checkout,
+  .status.processing,
+  .status.pending,
+  .draft-label {
+    background: #41351d;
+    color: #eed197;
+  }
+  .status.out_of_service,
+  .status.overdue,
+  .status.failed,
+  .status.unknown,
+  .notice.error {
+    background: #442a26;
+    color: #ffc3b6;
+  }
+  .notice.error {
+    border-color: #ed9c88;
+  }
+  .notice.warning,
+  .discrepancy-panel {
+    background: #3b321f;
+    color: #eed197;
+  }
+  .notice.warning {
+    border-color: #d8b567;
+  }
+  .notice.neutral {
+    background: #27382e;
+    color: #c3d3c7;
+  }
+  .notice p {
+    color: inherit;
+  }
+  .inline-error {
+    color: #ffc3b6;
+  }
+  .damage-baseline-key {
+    color: var(--damage-old);
+  }
+  .signature-box {
+    background: #1b2721;
+  }
+  /* Change only the on-screen ink; saved signature pixels stay dark for PDFs. */
+  .signature-box canvas {
+    filter: invert(1) grayscale(1);
+  }
+  .signature-baseline {
+    color: #a9b8ae;
+    border-color: #607265;
+  }
+  .upload-progress {
+    background: #35463d;
+  }
+  .upload-progress div {
+    background: #326c5a;
+  }
+  .modal-backdrop {
+    background: #07110de6;
+  }
 }

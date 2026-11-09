@@ -16,6 +16,7 @@ export const defaults = {
   accentColor: '#126b61',
   logoUrl: '',
   notificationRecipients: [],
+  returnReviewerEmails: [],
   employeeCopy: false,
   reviewMode: 'self_service',
   allowPhotoImports: true,
@@ -388,8 +389,14 @@ export async function openStore(dataDir = process.env.DATA_DIR || './data') {
   const enqueueNotification = async (tripId, stage) => {
     const settings = await getSettings(),
       trip = await getTrip(tripId),
-      recipients = [...settings.notificationRecipients];
-    if (settings.employeeCopy && trip?.employeeSnapshot.email)
+      employee = trip ? await getUser(trip.employeeId) : null,
+      recipients =
+        stage === 'return_review'
+          ? [...settings.returnReviewerEmails].filter(
+              (email) => email !== employee?.email?.toLowerCase(),
+            )
+          : [...settings.notificationRecipients];
+    if (stage !== 'return_review' && settings.employeeCopy && trip?.employeeSnapshot.email)
       recipients.push(trip.employeeSnapshot.email);
     const id = randomUUID(),
       time = now();
