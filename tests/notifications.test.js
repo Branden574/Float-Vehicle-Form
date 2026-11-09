@@ -269,3 +269,58 @@ test('representative-required reports wait for signatures and cannot be released
   );
   assert.equal((await f.store.getVehicle(v.id)).status, 'available');
 });
+
+test('a delayed or retried checkout cannot send a blank check-in after return', async (t) => {
+  const f = await fixture(t);
+  await f.a.request('/admin/settings', {
+    method: 'PATCH',
+    body: {
+      notificationRecipients: ['assistant@example.test'],
+      reason: 'Test completed report ordering',
+    },
+  });
+  const checkout = await f.checkout(f.s, await f.addVehicle());
+  const trip = checkout.data.trip;
+  const notice = (await f.store.listNotifications(trip.id))[0];
+  let sends = 0;
+  const send = async () => {
+    sends++;
+    return { accepted: true };
+  };
+  // Reproduce a return completing while the old checkout PDF is rendering.
+  const result = await processNotification({
+    store: f.store,
+    notificationId: notice.id,
+    send,
+    report: async () => {
+      assert.equal((await f.returnTrip(f.s, trip)).status, 201);
+      return Buffer.from('obsolete checkout');
+    },
+  });
+  assert.equal(sends, 0);
+  assert.equal(result.status, 'failed');
+  assert.match(result.error, /superseded/);
+  await f.a.request(`/admin/notifications/${notice.id}/retry`, { method: 'POST', body: {} });
+  await processNotification({
+    store: f.store,
+    notificationId: notice.id,
+    send,
+    report: async () => {
+      throw new Error('Obsolete PDF must not be rendered');
+    },
+  });
+  assert.equal(sends, 0);
+  const returned = (await f.store.listNotifications(trip.id)).find((n) => n.stage === 'return');
+  let message;
+  await processNotification({
+    store: f.store,
+    notificationId: returned.id,
+    send: async (m) => {
+      message = m;
+      return { accepted: true };
+    },
+    report: async () => Buffer.from('completed forms'),
+  });
+  assert.match(message.subject, /COMPLETED CHECK-IN - print this copy/);
+  assert.match(message.text, /both completed forms/);
+});

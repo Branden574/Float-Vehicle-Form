@@ -110,6 +110,16 @@ export async function processNotification({ store, notificationId, send, report 
     const reviewRequest = row.stage === 'return_review';
     const currentSettings = await store.getSettings();
     const trip = await store.getTrip(row.trip_id);
+    const rejectObsoleteCheckout = (currentTrip) => {
+      if (row.stage === 'checkout' && currentTrip.returnedAt)
+        throw Object.assign(
+          new Error(
+            'Checkout email superseded by completed check-in. Send or retry the return notification instead.',
+          ),
+          { definiteFailure: true },
+        );
+    };
+    rejectObsoleteCheckout(trip);
     const employee = reviewRequest ? await store.getUser(trip.employeeId) : null;
     const recipients = reviewRequest
       ? store
@@ -144,7 +154,10 @@ export async function processNotification({ store, notificationId, send, report 
         { definiteFailure: true },
       );
     const settings = trip.checkoutSettings || (await store.getSettings());
-    const label = row.stage === 'checkout' ? 'Vehicle checkout' : 'Vehicle checkout and check-in';
+    const label =
+      row.stage === 'checkout'
+        ? 'CHECKOUT ONLY - return not completed'
+        : 'COMPLETED CHECK-IN - print this copy';
     const message = reviewRequest
       ? {
           to: recipients,
@@ -166,6 +179,8 @@ export async function processNotification({ store, notificationId, send, report 
             },
           ],
         };
+    // Rendering can take time; a return may have completed while the PDF was built.
+    if (row.stage === 'checkout') rejectObsoleteCheckout(await store.getTrip(row.trip_id));
     attemptingDelivery = true;
     const result = await send(message);
     if (!result?.accepted)
