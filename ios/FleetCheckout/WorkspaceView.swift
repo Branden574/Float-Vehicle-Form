@@ -189,6 +189,7 @@ struct TripView: View {
   @State private var error = ""
   @State private var returning = false
   @State private var reviewing = false
+  @State private var revision: MileageRevision?
   @State private var preview: URL?
   @State private var busy = false
   var body: some View {
@@ -260,6 +261,27 @@ struct TripView: View {
         {
           Button("Representative review") { reviewing = true }
         }
+        if !detail.revisions.isEmpty {
+          Section("Documented mileage corrections") {
+            Text("Original signed readings remain on the record. Review each documented change.")
+              .font(.footnote)
+            ForEach(detail.revisions) { change in
+              VStack(alignment: .leading, spacing: 8) {
+                Text(
+                  "\(change.field == "startingMileage" ? "Starting mileage" : "Ending mileage"): \(change.originalValue.formatted()) → \(change.correctedValue.formatted())"
+                ).font(.headline)
+                Text(change.reason)
+                Text(
+                  change.acknowledgedAt == nil
+                    ? "Employee acknowledgment pending" : "Acknowledged by employee"
+                ).font(.caption)
+                if change.acknowledgedAt == nil && trip.employeeId == store.session?.user.id {
+                  Button("Review and acknowledge") { revision = change }
+                }
+              }
+            }
+          }
+        }
         ForEach(detail.reviews) { review in
           Section("\(humanize(review.stage)) review") {
             Text("\(review.initials) · \(humanize(review.decision))")
@@ -279,6 +301,9 @@ struct TripView: View {
                 ?? trip.vehicleSnapshot, trip: trip)
           }
         }
+      }
+      .sheet(item: $revision, onDismiss: { Task { await load() } }) { change in
+        NavigationStack { CorrectionAcknowledgment(tripID: tripID, revision: change) }
       }
       .sheet(isPresented: $reviewing, onDismiss: { Task { await load() } }) {
         if let trip = detail?.trip { NavigationStack { ReviewView(trip: trip) } }
@@ -360,5 +385,49 @@ struct ProfileView: View {
     }.confirmationDialog(
       "Sign out and clear private files from this device?", isPresented: $signOut
     ) { Button("Sign out", role: .destructive) { Task { await store.logout() } } }
+  }
+}
+
+struct CorrectionAcknowledgment: View {
+  @EnvironmentObject var store: FleetStore
+  @Environment(\.dismiss) private var dismiss
+  let tripID: String
+  let revision: MileageRevision
+  @State private var signature = ""
+  @State private var clearID = UUID()
+  @State private var reviewed = false
+  @State private var busy = false
+  @State private var error = ""
+  var body: some View {
+    Form {
+      Section("Documented correction") {
+        LabeledContent("Original reading", value: revision.originalValue.formatted())
+        LabeledContent("Corrected reading", value: revision.correctedValue.formatted())
+        Text(revision.reason)
+        Text(displayDate(revision.createdAt)).font(.caption)
+      }
+      Toggle("I reviewed and acknowledge this correction", isOn: $reviewed).disabled(busy)
+      SignaturePad(signature: $signature, clearID: clearID).frame(height: 180).disabled(busy)
+      Button("Clear signature") {
+        signature = ""
+        clearID = UUID()
+      }.disabled(busy)
+      if !error.isEmpty { Text(error).foregroundStyle(.red) }
+      Button(busy ? "Saving…" : "Sign acknowledgment") {
+        Task {
+          busy = true
+          defer { busy = false }
+          do {
+            let _: EmptyResponse = try await store.api.request(
+              "/api/trips/\(tripID)/revisions/\(revision.id)/acknowledge", method: "POST",
+              body: ["signature": signature])
+            await store.refresh()
+            dismiss()
+          } catch { self.error = error.localizedDescription }
+        }
+      }.disabled(busy || !reviewed || signature.isEmpty)
+    }.navigationTitle("Mileage acknowledgment")
+      .toolbar { Button("Cancel") { dismiss() }.disabled(busy) }
+      .interactiveDismissDisabled(busy)
   }
 }

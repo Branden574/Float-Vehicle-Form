@@ -22,7 +22,7 @@ When the shared diagram changes, run `python3 scripts/generate-native-diagram.py
 - Native vehicle and trip lists, checkout/return inspection forms, camera capture and optional system photo picker.
 - The same normalized vehicle diagram coordinates as the web/PDF renderer. Amber checkout marks remain visible while new return marks are added separately.
 - Touch/Apple Pencil signature drawing and private PDF/photo previews with the system sharing menu.
-- Server-calculated mileage, documented odometer replacement acknowledgment, required-photo checks and stable idempotency keys for uncertain submissions.
+- Server-calculated mileage, documented odometer replacement and signed mileage-correction acknowledgment, required-photo checks and stable idempotency keys for uncertain submissions.
 - Native administrator recipient editing, staff access, vehicle editing and representative reviews. Advanced mileage corrections, odometer replacement creation, notification retries, audit exports and organization settings remain in the full web dashboard.
 
 Sessions are stored in this-device-only Keychain storage. HTTP response caching and shared cookies are disabled; credentials are removed on cross-host PDF redirects. Downloaded private files use complete file protection and are removed at sign-out. In-flight operations are invalidated on session changes. A privacy cover hides app content when inactive. Drafts stay in memory and must be submitted online; force-quitting discards unfinished drafts.

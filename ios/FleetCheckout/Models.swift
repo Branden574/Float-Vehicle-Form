@@ -123,10 +123,20 @@ struct Review: Codable, Identifiable {
   var decision: String
   var reason: String
 }
+struct MileageRevision: Decodable, Identifiable {
+  var id: String
+  var field: String
+  var originalValue: Int
+  var correctedValue: Int
+  var reason: String
+  var createdAt: String
+  var acknowledgedAt: String?
+}
 struct TripDetail: Decodable {
   var trip: Trip
   var photos: [FleetPhoto]
   var reviews: [Review]
+  var revisions: [MileageRevision]
 }
 struct VehicleList: Decodable { var vehicles: [Vehicle] }
 struct TripList: Decodable { var trips: [Trip] }
