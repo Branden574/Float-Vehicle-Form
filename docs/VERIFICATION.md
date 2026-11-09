@@ -107,3 +107,17 @@ Four WebKit tablet workflows passed against the actual Supabase database and pri
 - First encrypted backup: 28 immutable photo/PDF files, 81,448,980 bytes; new objects were downloaded after upload and authenticated/checksummed. Private R2 backup bucket is separate from the live evidence bucket and has an enabled indefinite object lock.
 - Recovery downloaded the committed cloud manifest/archive/evidence and restored all 17 tables into a fresh PostgreSQL 17 container with no network or exposed ports. Counts and the profile-key fingerprint matched; all 28 evidence checksums passed. All 27 encrypted private fields in the recovered archive decrypted using the separately retained profile key. No production data was changed by this recovery check.
 - Every scheduled run repeats isolated restoration and full evidence checksum verification. Native iPad/device acceptance is a separate test boundary; backup success does not establish camera, Apple Pencil, or App Store readiness.
+
+The private scheduled job [42691973129](https://github.com/Branden574/fleet-checkout-backups/actions/runs/42691973129) passed on GitHub's runner: PostgreSQL 17.11 dump, encrypted manifest `2026-11-09T20-20-41.189Z-6f8ad1b39b27`, 17 restored tables and 28 verified evidence files. This establishes unattended cloud execution and restoration; the first future cron trigger has not happened yet. The runner explicitly installs PostgreSQL 17 from the verified official package repository rather than relying on its default PostgreSQL 16 binary.
+
+## Web sign-in resend — November 9, 2026
+
+A dedicated resend button unlocks after 60 seconds, with server-side enforcement and a `Retry-After` header. Successful resend clears the old entered code and replaces the challenge. The backend test verifies that the previous challenge is invalid and the new one works. The timed UI test passes on Chromium desktop/phone and WebKit iPad. Unit suite: 31 passed, one optional cloud test skipped. Production build passed; commit `518ba34` deployed successfully to fleetcheckout.app.
+
+## Native iOS application — initial build
+
+The new `ios/` SwiftUI target is a genuine native application using the shared production API. Four XCTest cases passed on the iPad Pro 13-inch (M5), iPadOS 27 simulator: mileage with an odometer replacement; lossless damage coordinates/stage encoding; credential stripping on external redirects and HTTPS downgrade rejection; and resend Retry-After plus Keychain cookie/CSRF/idempotency request behavior. The simulator build needs normal ad-hoc signing for Keychain access. Full native workflow acceptance and physical-device camera/Pencil testing remain separate from these tests. No TestFlight upload or App Store approval has occurred.
+
+Full local web regression after resend: 26 browser tests passed, one existing WebKit offline-reload test skipped. The first cloud CI run exhausted its 15-minute job budget after dependency installation took over 14 minutes; the tests that ran passed. The job budget is now 30 minutes.
+
+The same four native tests also passed on iPhone 17 Pro / iOS 26.5. An unsigned Release archive for real iOS devices compiled successfully; unsigned archives cannot be installed through TestFlight or the App Store. The native sign-in screen was opened manually in the iPad simulator, requested the real account code successfully, and visibly unlocked Resend code after its countdown. Authenticated native UI acceptance is awaiting the user entering that code.

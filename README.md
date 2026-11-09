@@ -6,6 +6,10 @@ A shared-server vehicle checkout and return application for staff iPads and desk
 
 The hosted test app is available at [fleetcheckout.app](https://fleetcheckout.app), using Vercel, a separate Free Supabase project, private Cloudflare R2 evidence storage, and Resend. See [cloud setup and recovery](docs/CLOUD-MIGRATION.md). Cloning this repository does not grant access or provision services. There are no default accounts, production seed vehicles, email recipients, or secrets. Physical iPad acceptance testing remains a separate requirement; see [verification](docs/VERIFICATION.md).
 
+## Native iPhone and iPad app
+
+The repository also includes a SwiftUI app in [`ios/`](ios/README.md), using the same accounts, vehicles, inspections and PDF API. Open the committed Xcode project to run it. Native builds are separate from web deployment; TestFlight and App Store distribution are not configured yet. Scheduled encrypted cloud backups and isolated restore checks are documented in [cloud backups](docs/CLOUD-BACKUPS.md).
+
 ## Start locally
 
 Requires Node.js 22.13+ and npm. Use a currently supported patched Node 22 release.

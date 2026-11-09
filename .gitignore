@@ -17,3 +17,8 @@ secrets/
 .env*
 
 supabase/.temp/
+
+# Xcode local user state and products
+**/xcuserdata/
+**/*.xcuserstate
+ios/build/

@@ -1,0 +1,24 @@
+name: Verify native iOS application
+on:
+  push:
+    branches: [main]
+    paths: ['ios/**', '.github/workflows/ios.yml']
+  pull_request:
+    paths: ['ios/**', '.github/workflows/ios.yml']
+permissions:
+  contents: read
+jobs:
+  native:
+    runs-on: macos-15
+    timeout-minutes: 25
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Build and test on an available iPhone simulator
+        run: |
+          xcodebuild -version
+          FLEET_TEST_DEVICE=$(xcrun simctl list devices available --json | python3 -c 'import json,sys; data=json.load(sys.stdin); print(next(d["udid"] for runtime,devices in data["devices"].items() if "iOS" in runtime for d in devices if d["name"].startswith("iPhone")))')
+          xcodebuild -project ios/FleetCheckout.xcodeproj -scheme FleetCheckout -destination "platform=iOS Simulator,id=$FLEET_TEST_DEVICE" -derivedDataPath "$RUNNER_TEMP/fleet-native-build" CODE_SIGN_IDENTITY=- test

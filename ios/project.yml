@@ -1,0 +1,44 @@
+name: FleetCheckout
+options:
+  bundleIdPrefix: app.fleetcheckout
+  deploymentTarget:
+    iOS: '18.0'
+settings:
+  base:
+    SWIFT_VERSION: '5.0'
+    TARGETED_DEVICE_FAMILY: '1,2'
+    MARKETING_VERSION: '1.0.0'
+    CURRENT_PROJECT_VERSION: '1'
+    CODE_SIGN_STYLE: Automatic
+targets:
+  FleetCheckout:
+    type: application
+    platform: iOS
+    sources: [FleetCheckout]
+    settings:
+      base:
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        PRODUCT_BUNDLE_IDENTIFIER: app.fleetcheckout.mobile
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Fleet Checkout
+        INFOPLIST_KEY_NSCameraUsageDescription: Photograph vehicle condition for your signed checkout and return forms.
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
+  FleetCheckoutTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [FleetCheckoutTests]
+    dependencies:
+      - target: FleetCheckout
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  FleetCheckout:
+    build:
+      targets:
+        FleetCheckout: all
+    test:
+      targets: [FleetCheckoutTests]
