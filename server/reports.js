@@ -1,4 +1,5 @@
 import PDFDocument from 'pdfkit';
+import { originalForms, templateHash } from './original-forms.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, writeFile, link, unlink, access } from 'node:fs/promises';
 import path from 'node:path';
@@ -45,7 +46,8 @@ export async function createReport({ store, tripId, stage = 'return' }) {
   const { trip, photos, reviews, revisions } = bundle;
   const settings = trip.checkoutSettings || bundle.settings;
   const reportData = {
-    version: 1,
+    version: 2,
+    templateHash,
     stage,
     trip,
     settings,
@@ -138,7 +140,11 @@ export async function createReport({ store, tripId, stage = 'return' }) {
     const inspection = returning ? trip.returnInspection : trip.checkoutInspection;
     const employee = trip.employeeSnapshot;
     const vehicle = trip.vehicleSnapshot;
-    page(returning ? 'Vehicle check-in' : 'Vehicle checkout');
+    page(returning ? 'Check-in supporting details' : 'Checkout supporting details');
+    text(
+      'The completed original form appears at the front of this PDF. These pages retain full values, separate inspection answers and audit details. Blue diagram marks indicate reported areas, not exact damage locations. The black x already present on the scanned template is not a new inspection mark.',
+      { size: 9 },
+    );
     if (!returning && trip.status === 'cancelled') {
       text(
         'Checkout declined by the representative. This record does not represent a completed driving trip.',
@@ -202,7 +208,7 @@ export async function createReport({ store, tripId, stage = 'return' }) {
     if (!inspection.damage?.length) text('No chips, dents or scratches marked.');
     for (const damage of inspection.damage || [])
       text(
-        `${names[damage.area] || damage.area} · ${damage.type}: ${damage.notes || 'No additional note'}`,
+        `${inspection.damage.indexOf(damage) + 1}. ${names[damage.area] || damage.area} · ${damage.type}: ${damage.notes || 'No additional note'}`,
       );
     text(inspection.notes || 'No additional inspection notes.');
     const stageFlags = inspectionFlags(inspection);
@@ -320,14 +326,19 @@ export async function createReport({ store, tripId, stage = 'return' }) {
         width: 430,
         lineBreak: false,
       });
-    doc.text(`${index + 1} / ${pages.count}`, 510, 731, {
-      width: 60,
-      align: 'right',
-      lineBreak: false,
-    });
+    doc.text(
+      `${index + 1 + (stage === 'return' ? 2 : 1)} / ${pages.count + (stage === 'return' ? 2 : 1)}`,
+      510,
+      731,
+      {
+        width: 60,
+        align: 'right',
+        lineBreak: false,
+      },
+    );
   }
   doc.end();
-  const result = await finished;
+  const result = await originalForms({ trip, reviews, zone, stage, appendix: await finished });
   const temporary = `${filename}.${randomUUID()}.tmp`;
   await writeFile(temporary, result, { mode: 0o600 });
   try {

@@ -4,16 +4,16 @@ Local verification completed **November 9, 2026**. This record separates perform
 
 ## Performed checks
 
-| Check                                  | Result                                         | Scope                                                                                                                              |
-| -------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| TypeScript + production frontend build | Passed                                         | `npm run build`; Vite production bundle                                                                                            |
-| Server/integration tests               | **16 passed**                                  | `npm test`; real temporary SQLite databases and HTTP requests                                                                      |
-| Browser tests                          | **14 passed, 1 explicitly skipped/unverified** | Chromium desktop 1440×1000, WebKit tablet 820×1180, Chromium phone 390×844                                                         |
-| Formatting                             | Passed                                         | `npm run format:check`                                                                                                             |
-| Dependency audit                       | No known vulnerabilities reported              | `npm audit` on the installed lockfile; not a guarantee that all vulnerabilities are known                                          |
-| Container build/start                  | Passed                                         | Docker image builds on Linux ARM64; health endpoint returns HTTP 200; process runs as UID 1000                                     |
-| PDF rendering                          | Reviewed                                       | Generated completed-trip report rendered with Poppler; labels, mileage, signatures, times, photo appendix and pagination inspected |
-| Backup/restore                         | Passed                                         | Consistent SQLite snapshot, original/viewing-photo checksums, isolated restore, session revocation, corrupt-file/symlink rejection |
+| Check                                  | Result                                         | Scope                                                                                                                                              |
+| -------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TypeScript + production frontend build | Passed                                         | `npm run build`; Vite production bundle                                                                                                            |
+| Server/integration tests               | **18 passed**                                  | `npm test`; real temporary SQLite databases and HTTP requests                                                                                      |
+| Browser tests                          | **14 passed, 1 explicitly skipped/unverified** | Chromium desktop 1440×1000, WebKit tablet 820×1180, Chromium phone 390×844                                                                         |
+| Formatting                             | Passed                                         | `npm run format:check`                                                                                                                             |
+| Dependency audit                       | No known vulnerabilities reported              | `npm audit` on the installed lockfile; not a guarantee that all vulnerabilities are known                                                          |
+| Container build/start                  | Passed                                         | Docker image builds on Linux ARM64; health endpoint returns HTTP 200; process runs as UID 1000                                                     |
+| PDF rendering                          | Reviewed                                       | Original-form overlays rendered with Poppler; field/checkmark placement, both signatures, No answers, damage markings and photo appendix inspected |
+| Backup/restore                         | Passed                                         | Consistent SQLite snapshot, original/viewing-photo checksums, isolated restore, session revocation, corrupt-file/symlink rejection                 |
 
 The browser suite's WebKit offline-reload attempt returned **“WebKit encountered an internal error”** during navigation. That specific case is explicitly skipped in repeat runs and **is not counted as passed**. WebKit online workflow, upload retry, permission-denial handling, session switching, manifest/worker registration and private-cache exclusion passed. Chromium offline shell reload passed. Actual Safari/Home Screen offline behavior remains a physical iPad acceptance item.
 
@@ -33,6 +33,8 @@ The browser suite's WebKit offline-reload attempt returned **“WebKit encounter
 - A documented active-trip odometer replacement supports a lower actual ending reading with explicit employee acknowledgment and correct distance across both odometers.
 - Failed mail does not roll back a trip. Atomic outbox claims avoid duplicate worker sends. Provider acceptance is distinct from delivery; ambiguous sends require an explicit reasoned resend.
 - Archive history, discrepancy holds, private backup integrity, restore session revocation and notification uncertainty after restore are covered.
+
+Original-form regression checks verify embedded source pages, local dates, odometer digits, stage-specific signatures and checkout-only page selection. Return fuel/receipt is Yes only when both separate answers are Yes. Template bytes and renderer version participate in the report cache key: fresh downloads use the new layout, while previously saved report files remain immutable.
 
 ## Browser coverage
 

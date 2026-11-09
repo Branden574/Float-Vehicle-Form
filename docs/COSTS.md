@@ -25,17 +25,17 @@ The decision favors one deployable service and durable inspection evidence. It d
 
 ## Photo and report storage estimate
 
-**Planning assumptions, not measured usage:** eight mandatory exterior views per completed trip (four checkout, four new return), plus two additional damage/interior/odometer/receipt images. Estimate each original at **3 MB**, each normalized/stamped viewing copy at **0.4 MB**, and the saved forms, signatures, metadata and report copies at **2 MB per completed trip**. Decimal MB/GB are used. Actual iPad image sizes and PDF embedding vary; measure the first 20 real trips and revise the estimate.
+**Planning assumptions, not measured usage:** eight mandatory exterior views per completed trip (four checkout, four new return), plus two additional damage/interior/odometer/receipt images. Estimate each original at **3 MB**, each normalized/stamped viewing copy at **0.4 MB**, and the saved forms, signatures, metadata and report copies at **20 MB per completed trip** (including the original scanned template embedded in checkout and combined return reports). Decimal MB/GB are used. Actual iPad image sizes and PDF embedding vary; measure the first 20 real trips and revise the estimate.
 
 ```
-Minimum eight photos: 8 × (3 + 0.4) + 2 = 29.2 MB/trip
-Planning ten photos: 10 × (3 + 0.4) + 2 = 36 MB/trip
-100 trips/month: 3.6 GB/month = 43.2 GB/year of primary evidence
+Minimum eight photos: 8 × (3 + 0.4) + 20 = 47.2 MB/trip
+Planning ten photos: 10 × (3 + 0.4) + 20 = 54 MB/trip
+100 trips/month: 5.4 GB/month = 64.8 GB/year of primary evidence
 500 trips/month: 18 GB/month = 216 GB/year of primary evidence
 One additional full backup: approximately doubles those figures
 ```
 
-At the ten-photo estimate, **1 GB holds about 27 completed trips** before unrelated files, deleted-object retention, revisions or overhead. Even the minimum eight photos yield only about 34 trips. The 1 GB free allowance is a lifetime storage ceiling until evidence is exported or deleted under an approved policy, not a monthly replenishment.
+At the ten-photo estimate, **1 GB holds about 18 completed trips** before unrelated files, deleted-object retention, revisions or overhead. Even the minimum eight photos yield only about 21 trips. The 1 GB free allowance is a lifetime storage ceiling until evidence is exported or deleted under an approved policy, not a monthly replenishment.
 
 A 100 GB primary allocation with 20% operating headroom leaves 80 GB, or about **2,222 trips / 22 months at 100 trips per month**. A separately stored full backup needs approximately another 80 GB at that point. Multiple backup generations, revisions and unusually large photos require more. A stamped copy does not replace the original. Attaching originals to every email is unnecessary and can exceed mailbox message limits; printable reports and the private gallery provide review access.
 
