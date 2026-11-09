@@ -1,0 +1,34 @@
+services:
+  fleet:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      DATA_DIR: /app/data
+      SECURE_COOKIES: 'true'
+      TRUST_PROXY: '1'
+    volumes:
+      - fleet-data:/app/data
+    expose:
+      - '3000'
+    security_opt:
+      - no-new-privileges:true
+  proxy:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN}
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - fleet
+volumes:
+  fleet-data:
+  caddy-data:
+  caddy-config:
