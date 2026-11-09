@@ -538,3 +538,32 @@ test('administrators can add, save and remove assistant form-email recipients', 
   const session = await (await page.request.get('/api/auth/me')).json();
   expect(session.settings.notificationRecipients).toEqual(['assistant.one@example.test']);
 });
+
+test('sign-in offers resend after 60 seconds and clears the old code', async ({ page }) => {
+  await page.clock.install();
+  let requests = 0;
+  await page.route('**/api/auth/request-code', async (route) => {
+    requests++;
+    await route.fulfill({
+      json: {
+        challengeId: String(requests).repeat(48),
+        expiresInSeconds: 600,
+        retryAfterSeconds: 60,
+      },
+    });
+  });
+  await page.goto('/');
+  await page.getByLabel('Work email').fill('resend@example.test');
+  await page.getByRole('button', { name: 'Email me a sign-in code', exact: true }).click();
+  await expect(page.getByRole('button', { name: /Resend code in/ })).toBeDisabled();
+  await page.getByLabel('One-time code').fill('123456');
+  await page.clock.fastForward(59000);
+  await expect(page.getByRole('button', { name: /Resend code in/ })).toBeDisabled();
+  expect(requests).toBe(1);
+  await page.clock.fastForward(1000);
+  await page.getByRole('button', { name: 'Resend code', exact: true }).click();
+  await expect(page.getByLabel('One-time code')).toHaveValue('');
+  await expect(page.getByRole('status')).toContainText('Use the newest email');
+  await expect(page.getByRole('button', { name: /Resend code in/ })).toBeDisabled();
+  expect(requests).toBe(2);
+});

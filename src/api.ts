@@ -24,6 +24,7 @@ export class ApiError extends Error {
   constructor(
     message: string,
     public status: number,
+    public retryAfterSeconds = 0,
   ) {
     super(message);
   }
@@ -60,6 +61,7 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
     throw new ApiError(
       typeof error.error === 'string' ? error.error : 'This request could not be completed.',
       response.status,
+      Math.min(3600, Math.max(0, Number(response.headers.get('Retry-After')) || 0)),
     );
   }
   if (response.status === 204) return undefined as T;

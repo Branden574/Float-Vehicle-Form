@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import {
   api,
+  ApiError,
   clearPrivateState,
   errorMessage,
   formatDate,
@@ -55,6 +56,53 @@ function Login({
   const [legacy, setLegacy] = useState(false),
     [challenge, setChallenge] = useState(''),
     [code, setCode] = useState('');
+  const [resendAt, setResendAt] = useState(0);
+  const [clockNow, setClockNow] = useState(Date.now());
+  const [requestedEmail, setRequestedEmail] = useState('');
+  const [codeNotice, setCodeNotice] = useState('');
+  const resendSeconds =
+    requestedEmail === email.trim().toLowerCase()
+      ? Math.max(0, Math.ceil((resendAt - clockNow) / 1000))
+      : 0;
+  useEffect(() => {
+    if (!resendAt) return;
+    const timer = window.setInterval(() => {
+      setClockNow(Date.now());
+      if (Date.now() >= resendAt) window.clearInterval(timer);
+    }, 250);
+    return () => window.clearInterval(timer);
+  }, [resendAt]);
+  async function requestCode(resending = false) {
+    if (busy || signingOut || resendSeconds > 0) return;
+    setBusy(true);
+    setError('');
+    setCodeNotice('');
+    try {
+      const result = await post<{ challengeId: string; retryAfterSeconds?: number }>(
+        '/auth/request-code',
+        { email },
+      );
+      setChallenge(result.challengeId);
+      setCode('');
+      setRequestedEmail(email.trim().toLowerCase());
+      setClockNow(Date.now());
+      setResendAt(Date.now() + (result.retryAfterSeconds || 60) * 1000);
+      setCodeNotice(
+        resending
+          ? 'A new code has been sent. Use the newest email; the previous code no longer works.'
+          : 'Your sign-in code has been sent.',
+      );
+    } catch (e) {
+      setError(errorMessage(e));
+      if (e instanceof ApiError && e.status === 429) {
+        setRequestedEmail(email.trim().toLowerCase());
+        setClockNow(Date.now());
+        setResendAt(Date.now() + (e.retryAfterSeconds || 60) * 1000);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
   const [branding, setBranding] = useState({
     appName: 'Learn4Life Fleet Checkout',
     organizationName: 'Learn4Life',
@@ -71,7 +119,11 @@ function Login({
   }, []);
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (signingOut) return;
+    if (busy || signingOut) return;
+    if (!token && !legacy && !challenge) {
+      await requestCode();
+      return;
+    }
     setBusy(true);
     setError('');
     try {
@@ -81,9 +133,6 @@ function Login({
         setLegacy(true);
         setPassword('');
         setError('Account activated. Sign in with your invited email and new password.');
-      } else if (!legacy && !challenge) {
-        const result = await post<{ challengeId: string }>('/auth/request-code', { email });
-        setChallenge(result.challengeId);
       } else {
         const session = legacy
           ? await post<Session>('/auth/login', { email, password })
@@ -151,6 +200,11 @@ function Login({
               {error}
             </div>
           )}
+          {codeNotice && (
+            <p className="notice neutral" role="status">
+              {codeNotice}
+            </p>
+          )}
           <form onSubmit={submit}>
             {!token && (
               <label>
@@ -192,10 +246,18 @@ function Login({
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
                 />
-                <span className="fine">Check your email. Codes expire after 10 minutes.</span>
+                <span className="fine">
+                  Check your inbox and spam folder. Codes expire after 10 minutes.
+                </span>
               </label>
             )}
-            <button disabled={busy || signingOut} className="button primary wide" type="submit">
+            <button
+              disabled={
+                busy || signingOut || (!token && !legacy && !challenge && resendSeconds > 0)
+              }
+              className="button primary wide"
+              type="submit"
+            >
               {busy
                 ? 'Please wait…'
                 : token
@@ -204,7 +266,9 @@ function Login({
                     ? 'Sign in'
                     : challenge
                       ? 'Verify code & sign in'
-                      : 'Email me a sign-in code'}
+                      : resendSeconds > 0
+                        ? `Send another code in ${resendSeconds}s`
+                        : 'Email me a sign-in code'}
               <ArrowRight size={18} />
             </button>
           </form>
@@ -212,29 +276,43 @@ function Login({
             <button
               type="button"
               className="button secondary wide"
+              disabled={busy || signingOut}
               onClick={() => {
                 setLegacy(!legacy);
                 setChallenge('');
                 setCode('');
                 setPassword('');
                 setError('');
+                setCodeNotice('');
               }}
             >
               {legacy ? 'Use email sign-in code' : 'Use existing password'}
             </button>
           )}
           {!!challenge && (
-            <button
-              type="button"
-              className="button secondary wide"
-              onClick={() => {
-                setChallenge('');
-                setCode('');
-                setError('');
-              }}
-            >
-              Change email or request a new code
-            </button>
+            <>
+              <button
+                type="button"
+                className="button secondary wide"
+                disabled={busy || signingOut || resendSeconds > 0}
+                onClick={() => void requestCode(true)}
+              >
+                {resendSeconds > 0 ? `Resend code in ${resendSeconds}s` : 'Resend code'}
+              </button>
+              <button
+                type="button"
+                className="button secondary wide"
+                disabled={busy || signingOut}
+                onClick={() => {
+                  setChallenge('');
+                  setCode('');
+                  setError('');
+                  setCodeNotice('');
+                }}
+              >
+                Change email
+              </button>
+            </>
           )}
           <p className="fine">
             {token

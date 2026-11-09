@@ -14,6 +14,7 @@ async function post(f, route, body) {
   });
   return {
     status: response.status,
+    retryAfter: Number(response.headers.get('Retry-After')),
     body: await response.json(),
     cookie: response.headers.get('set-cookie')?.split(';')[0],
   };
@@ -192,4 +193,32 @@ test('legacy profiles and snapshots migrate without changing signed content; wro
   const reopened = await openStore(f.directory);
   assert.equal((await reopened.getUser(f.staff.id)).email, f.staff.email);
   await reopened.close();
+});
+
+test('email code resend enforces a minute and invalidates the previous challenge', async (t) => {
+  const messages = [];
+  const f = await fixture(t, { sendSignInCode: async (mail) => messages.push(mail) });
+  const first = await post(f, 'request-code', { email: f.staff.email });
+  assert.equal(first.body.retryAfterSeconds, 60);
+  const blocked = await post(f, 'request-code', { email: f.staff.email });
+  assert.equal(blocked.status, 429);
+  assert.ok(blocked.retryAfter > 0 && blocked.retryAfter <= 60);
+  assert.equal(messages.length, 1);
+  await f.store.db
+    .prepare('UPDATE login_codes SET created_at=? WHERE id=?')
+    .run(new Date(Date.now() - 61000).toISOString(), first.body.challengeId);
+  const next = await post(f, 'request-code', { email: f.staff.email });
+  assert.equal(next.status, 200);
+  assert.equal(messages.length, 2);
+  assert.notEqual(next.body.challengeId, first.body.challengeId);
+  const oldCode = messages[0].text.match(/code is (\d{6})/)[1];
+  const newCode = messages[1].text.match(/code is (\d{6})/)[1];
+  assert.equal(
+    (await post(f, 'verify-code', { challengeId: first.body.challengeId, code: oldCode })).status,
+    401,
+  );
+  assert.equal(
+    (await post(f, 'verify-code', { challengeId: next.body.challengeId, code: newCode })).status,
+    200,
+  );
 });

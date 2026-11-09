@@ -124,8 +124,16 @@ export async function installAuth(
         'SELECT created_at FROM login_codes WHERE email_lookup=? ORDER BY created_at DESC LIMIT 1',
       )
       .get(lookup);
-    if (recent && Date.parse(recent.created_at) > Date.now() - 60000)
-      fail(429, 'Wait one minute before requesting another code.');
+    const checkCooldown = (record) => {
+      const remaining = record
+        ? Math.ceil((Date.parse(record.created_at) + 60000 - Date.now()) / 1000)
+        : 0;
+      if (remaining > 0) {
+        res.set('Retry-After', String(remaining));
+        fail(429, 'Wait one minute before requesting another code.');
+      }
+    };
+    checkCooldown(recent);
     const id = randomBytes(24).toString('hex'),
       code = String(randomInt(1000000)).padStart(6, '0');
     await db.transaction(async () => {
@@ -134,8 +142,7 @@ export async function installAuth(
           'SELECT created_at FROM login_codes WHERE email_lookup=? ORDER BY created_at DESC LIMIT 1',
         )
         .get(lookup);
-      if (latest && Date.parse(latest.created_at) > Date.now() - 60000)
-        fail(429, 'Wait one minute before requesting another code.');
+      checkCooldown(latest);
       await db.prepare('DELETE FROM login_codes WHERE email_lookup=?').run(lookup);
       await db
         .prepare('INSERT INTO login_codes VALUES(?,?,?,?,?,?,0)')
@@ -162,7 +169,7 @@ export async function installAuth(
         'The sign-in email could not be sent. Contact your administrator or try again later.',
       );
     }
-    res.json({ challengeId: id, expiresInSeconds: 600 });
+    res.json({ challengeId: id, expiresInSeconds: 600, retryAfterSeconds: 60 });
   });
   app.post('/api/auth/verify-code', loginLimit, async (req, res) => {
     const { challengeId, code } = validate(
