@@ -100,3 +100,10 @@ Browser tests now cover adding, saving, reopening and removing assistant address
 The HTML sign-in email was visually checked at desktop and 390px phone widths with no horizontal overflow. Resend accepted the new-domain HTML message sent to its delivery simulator. This is not a Gmail/Outlook rendering or actual inbox-delivery confirmation.
 
 Four WebKit tablet workflows passed against the actual Supabase database and private R2 bucket using disposable test records: checkout/return with interrupted-upload retry and PDF download; touch damage with checkout/return separation; email-code profile reuse; and assistant recipient editing. Physical iPad camera, Home Screen and real recipient inbox acceptance remain user acceptance checks.
+
+## Scheduled cloud backups — November 9, 2026
+
+- Consistent native PostgreSQL archive of all 17 fleet tables, using a separate SELECT-only role (17 readable, zero writable tables). Supabase security advisors reported no issues after the migration.
+- First encrypted backup: 28 immutable photo/PDF files, 81,448,980 bytes; new objects were downloaded after upload and authenticated/checksummed. Private R2 backup bucket is separate from the live evidence bucket and has an enabled indefinite object lock.
+- Recovery downloaded the committed cloud manifest/archive/evidence and restored all 17 tables into a fresh PostgreSQL 17 container with no network or exposed ports. Counts and the profile-key fingerprint matched; all 28 evidence checksums passed. All 27 encrypted private fields in the recovered archive decrypted using the separately retained profile key. No production data was changed by this recovery check.
+- Every scheduled run repeats isolated restoration and full evidence checksum verification. Native iPad/device acceptance is a separate test boundary; backup success does not establish camera, Apple Pencil, or App Store readiness.
