@@ -17,7 +17,7 @@ struct ReviewWorkspaceView: View {
         NavigationStack { ReviewSignInView() }
       }
     }.environmentObject(store)
-      .safeAreaInset(edge: .bottom) {
+      .safeAreaInset(edge: .top) {
         Button("Return to staff sign-in") { dismiss() }
           .font(.footnote).padding(12).frame(maxWidth: .infinity)
           .background(.regularMaterial)
