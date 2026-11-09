@@ -410,6 +410,9 @@ fieldset {
   display: flex;
   flex-direction: column;
 }
+.sidebar-profile-button {
+  margin-bottom: 20px;
+}
 .site-label {
   display: flex;
   align-items: center;

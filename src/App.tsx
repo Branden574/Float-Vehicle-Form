@@ -463,7 +463,7 @@ export default function App() {
       <aside className="sidebar">
         <button
           type="button"
-          className="button secondary compact"
+          className="button secondary compact sidebar-profile-button"
           onClick={() => setEditingProfile(true)}
         >
           My profile
