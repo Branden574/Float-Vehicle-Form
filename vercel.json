@@ -12,6 +12,10 @@
   },
   "rewrites": [
     {
+      "source": "/support",
+      "destination": "/support.html"
+    },
+    {
       "source": "/api/:path*",
       "destination": "/api/index"
     },
@@ -20,7 +24,7 @@
       "destination": "/api/index"
     },
     {
-      "source": "/((?!api/|assets/|icon-|sw.js|favicon.ico).*)",
+      "source": "/((?!api/|assets/|icon-|sw.js|favicon.ico|support.html).*)",
       "destination": "/index.html"
     }
   ],

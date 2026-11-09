@@ -86,6 +86,9 @@ export async function createApp(options = {}) {
   app.use('/api', (req, res) => res.status(404).json({ error: 'API route not found.' }));
   const dist = options.distDir || fileURLToPath(new URL('../dist', import.meta.url));
   if (existsSync(dist)) {
+    app.get('/support', (req, res) =>
+      res.set('Cache-Control', 'no-cache').sendFile(path.join(dist, 'support.html')),
+    );
     app.use(
       express.static(dist, {
         index: false,

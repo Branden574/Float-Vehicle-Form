@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		07C153949CEFD6D2A70FBBB4 /* CaptureViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61B49F3DD930176273C661BF /* CaptureViews.swift */; };
+		400170B8BEEAD5A9EB090432 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 2F8527E4526D63C4EFA28D42 /* PrivacyInfo.xcprivacy */; };
 		6EAC673B4613CFBB0DE700C2 /* AdminView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84CE1B405917790DD8A6DB50 /* AdminView.swift */; };
 		784AF2D2457A672344EF1EE8 /* FleetCheckoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBA3B6E149A6CD2BEA2C2B5D /* FleetCheckoutTests.swift */; };
 		B0EE2ADE1AAD52038FC7D861 /* VehicleDiagram.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA4579CFBBCE1AF8036A6650 /* VehicleDiagram.swift */; };
@@ -31,6 +32,7 @@
 
 /* Begin PBXFileReference section */
 		25181E0A9B555236CF1C4453 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		2F8527E4526D63C4EFA28D42 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		46BE6686576154A18E31E39C /* FleetCheckout.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = FleetCheckout.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4A73B3AB5E1A5C14CFAA68CE /* FleetStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FleetStore.swift; sourceTree = "<group>"; };
 		61B49F3DD930176273C661BF /* CaptureViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureViews.swift; sourceTree = "<group>"; };
@@ -72,6 +74,7 @@
 				4A73B3AB5E1A5C14CFAA68CE /* FleetStore.swift */,
 				86750B8F23A808A945B063D1 /* InspectionView.swift */,
 				25181E0A9B555236CF1C4453 /* Models.swift */,
+				2F8527E4526D63C4EFA28D42 /* PrivacyInfo.xcprivacy */,
 				BA4579CFBBCE1AF8036A6650 /* VehicleDiagram.swift */,
 				651CD1194AA1A1136FAE79DC /* WorkspaceView.swift */,
 			);
@@ -169,6 +172,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C6C07DD747DE4509CD2328BE /* Assets.xcassets in Resources */,
+				400170B8BEEAD5A9EB090432 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -261,7 +265,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -338,7 +342,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -377,6 +381,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Fleet Checkout";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Photograph vehicle condition and scan gas receipts for your signed checkout and return forms.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -399,6 +404,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Fleet Checkout";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Photograph vehicle condition and scan gas receipts for your signed checkout and return forms.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Fleet Checkout Support</title>
+    <meta
+      name="description"
+      content="Help with Fleet Checkout sign-in, vehicle returns, receipt scanning and account questions."
+    />
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: system-ui, sans-serif;
+        color: #243c34;
+        background: #f5f7f2;
+        line-height: 1.65;
+      }
+      body {
+        margin: 0;
+      }
+      main {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 56px 24px 80px;
+      }
+      nav {
+        margin-bottom: 56px;
+      }
+      a {
+        color: #126b61;
+        text-underline-offset: 0.2em;
+        overflow-wrap: anywhere;
+      }
+      h1 {
+        font-size: clamp(2rem, 7vw, 3rem);
+        line-height: 1.15;
+        letter-spacing: -0.04em;
+        margin: 12px 0 20px;
+      }
+      h2 {
+        font-size: 1.2rem;
+        margin: 32px 0 8px;
+      }
+      p {
+        margin: 0 0 16px;
+      }
+      .eyebrow {
+        font-size: 0.8rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+      }
+      .contact {
+        padding: 24px;
+        border: 1px solid #ccd8cf;
+        border-radius: 16px;
+        margin: 32px 0;
+      }
+      .contact p:last-child {
+        margin-bottom: 0;
+      }
+      footer {
+        border-top: 1px solid #ccd8cf;
+        margin-top: 48px;
+        padding-top: 20px;
+        font-size: 0.9rem;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          color: #e4eee7;
+          background: #15221d;
+        }
+        a {
+          color: #84d4c7;
+        }
+        .contact,
+        footer {
+          border-color: #405449;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <nav><a href="/">Open Fleet Checkout</a></nav>
+      <p class="eyebrow">Fleet Checkout · Help center</p>
+      <h1>How can we help?</h1>
+      <p>Support for the Fleet Checkout web app and native iPhone and iPad app.</p>
+      <section class="contact" aria-labelledby="contact-title">
+        <h2 id="contact-title" style="margin-top: 0">Contact Fleet Checkout Support</h2>
+        <p><a href="mailto:fleetcheckout.support@gmail.com">fleetcheckout.support@gmail.com</a></p>
+        <p>
+          Include your app version, device model and a description of what happened. Never send your
+          password or sign-in code. Remove personal or payment details from screenshots and receipts
+          before emailing them.
+        </p>
+      </section>
+      <h2>Signing in</h2>
+      <p>
+        Use your staff email address and the newest six-digit code. Check your junk folder if the
+        email is missing. After 60 seconds, use Resend code. Codes expire after 10 minutes and can
+        be used once. Your fleet administrator manages driver authorization.
+      </p>
+      <h2>Scanning gas receipts</h2>
+      <p>
+        In the native iPhone or iPad app, begin the vehicle return and open the Photographs step.
+        Tap Scan gas receipt, allow camera access, scan each page, adjust the corners and save.
+        Check that every page appears in the receipt list before submitting. Keep the app open while
+        uploading; if an upload fails, reconnect and retry.
+      </p>
+      <h2>A vehicle is pending review</h2>
+      <p>
+        A pending return must be reviewed by an assigned reviewer. Contact your fleet administrator
+        or reviewer to inspect the return and approve the vehicle’s availability. A driver cannot
+        approve their own return.
+      </p>
+      <h2>Web and iPad records</h2>
+      <p>
+        Submitted records use the same fleet account on web and native apps. Refresh the other
+        device to see the latest status. Unsubmitted drafts are held in the current app session and
+        do not synchronize between devices.
+      </p>
+      <h2>Account and privacy questions</h2>
+      <p>
+        Contact the support email above for questions about your account or personal information. Do
+        not include vehicle evidence or signed forms unless support asks for the specific
+        information needed to resolve your request.
+      </p>
+      <footer>
+        Operated by Branden Vincent-Walker. Fleet Checkout is intended for authorized staff.
+      </footer>
+    </main>
+  </body>
+</html>
