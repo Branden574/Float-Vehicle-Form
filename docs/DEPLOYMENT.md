@@ -4,7 +4,7 @@
 
 1. An organization-approved always-on host with persistent local disk, enough storage and backups. See [costs](COSTS.md); there is no unlimited free photo retention.
 2. An HTTPS hostname reachable from staff iPads. Use an existing trusted organization proxy/certificate, or the included Caddy configuration with DNS pointing at the host and ports 80/443 reachable for certificate issuance.
-3. A real administrator email/name. Individual invited accounts are implemented. Organization SSO is not integrated because no identity-provider configuration was supplied.
+3. A real administrator email/name. Individual invited accounts and email-code sign-in are implemented. Organization SSO is not integrated because no identity-provider configuration was supplied.
 4. An approved SMTP relay or optional Resend account, permitted sender, and actual recipients entered in the administrator interface. The repository contains no real email addresses or sending credentials.
 5. An IT owner for patching, monitoring, disk space, account access, retention decisions and restore testing.
 
@@ -16,6 +16,8 @@ Use Docker Engine with the Compose plugin. Docker Desktop is convenient for loca
 
 ```sh
 cp .env.example .env
+mkdir -p secrets
+node -e "require('node:fs').writeFileSync('secrets/profile-encryption.key',require('node:crypto').randomBytes(32).toString('hex'),{mode:0o600,flag:'wx'})"
 ```
 
 Set at least:
@@ -129,7 +131,7 @@ DATA_DIR=/approved/restore-test-directory \
 
 Restore verifies every checksum, database integrity, foreign keys and referenced photos. It revokes all sessions and unused invitations. Unconfirmed queued, failed and awaiting-review email jobs become `unknown` because they might have been sent after the snapshot. Review provider records before resending. Keep the server stopped until restore and review finish.
 
-By default a nonempty destination is refused. The explicit `--overwrite` option preserves the prior directory as a dated sibling before replacing it; budget disk space for both. Protect the backup as sensitively as the original database: it includes password hashes, employee details, signatures and photographs. `.env` is deliberately **not** in evidence backups; preserve server secrets in the organization's separate secrets system.
+By default a nonempty destination is refused. The explicit `--overwrite` option preserves the prior directory as a dated sibling before replacing it; budget disk space for both. Protect the backup as sensitively as the original database: it includes password hashes, employee details, signatures and photographs. The profile encryption key and `.env` are deliberately **not** in evidence backups; preserve server secrets in the organization's separate secrets system.
 
 ## Capacity, formats and retention
 
@@ -146,3 +148,13 @@ By default a nonempty destination is refused. The explicit `--overwrite` option 
 3. Stop the old application, deploy the verified build, run the migrations included with that release, and restart.
 4. Check sign-in, one nonproduction checkout/return, report generation, provider acceptance, and health/backup monitoring.
 5. A rollback that restores the database must follow the offline restore workflow; do not blindly run old code against a new incompatible schema.
+
+## Profile encryption and migration
+
+Production requires `PROFILE_ENCRYPTION_KEY_FILE`. Generate the 32-byte hex key once using the command above, then retain a recovery copy in a separate secrets system. Do not regenerate it during upgrades. Compose mounts it read-only at `/run/secrets/profile-encryption.key`. On Linux, ensure the file is readable by the container's node user (UID 1000), while keeping it mode 600. Local nonproduction development generates `data/.development-profile-key`; retain that key separately if development records matter.
+
+On first start, existing profile fields and structured personal-data JSON are migrated inside a transaction, then SQLite is vacuumed and its WAL truncated. Trip IDs and signed snapshot contents remain unchanged. A mismatched key fails startup. This is application-level field encryption, not encryption of every database column or evidence file: photos, PDFs, exported CSV, operational metadata and free-text audit reasons still require encrypted host storage and access controls. Old snapshots made before migration retain their original plaintext and need encrypted backup storage too.
+
+Before upgrading an existing installation, stop the app and take a verified backup. An older app image cannot read the migrated database; rollback requires restoring the pre-migration snapshot. Never run the old and new app against the same live volume. Backups carry a key fingerprint but deliberately exclude the key. Restoring an encrypted snapshot requires `PROFILE_ENCRYPTION_KEY_FILE` pointing to the matching separately retained file; the restore verifies it before replacing the destination. Restores revoke email codes, sessions and pending invitations.
+
+For Resend sign-in, set `EMAIL_PROVIDER=resend`, an approved `EMAIL_FROM`, and a sending-only `RESEND_API_KEY` scoped to the verified sender domain. Sign-in codes do not depend on report recipients. Report email remains separately configured in Administration. Provider acceptance does not establish inbox delivery; test the complete email-code flow on a staff device.

@@ -10,6 +10,7 @@ const emptyUser: UserDraft = {
   email: '',
   name: '',
   department: '',
+  charter: '',
   manager: '',
   role: 'staff',
   authorizedDriver: false,
@@ -458,6 +459,7 @@ export function Admin({
                         ['name', 'Full name'],
                         ['email', 'Work email'],
                         ['department', 'Department'],
+                        ['charter', 'Charter / school'],
                         ['manager', 'Manager'],
                       ] as const
                     ).map(([key, label]) => (

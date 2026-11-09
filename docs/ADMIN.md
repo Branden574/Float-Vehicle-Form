@@ -6,7 +6,7 @@ Sign in with the initial administrator invitation created by IT. The app opens w
 
 1. **Settings:** enter the organization/app name, site and timezone (default `America/Los_Angeles`). Supply an approved logo URL/accent if desired. Set real notification recipients after IT configures the approved mail provider.
 2. **Vehicles:** add each exact vehicle, its plate/asset ID, VIN last four, location and verified initial odometer reading. Save it, then upload its identification photograph or configure an approved HTTPS image URL.
-3. **Staff:** invite each employee individually. Enter department/manager and explicitly grant authorized-driver eligibility. Administrator status alone does not authorize someone to drive.
+3. **Staff:** staff can verify their email with a one-time code, then save their name, charter and manager. You can also invite them. Explicitly grant authorized-driver eligibility after checking their access. Administrator status alone does not authorize someone to drive.
 4. Choose **Self-service** or **Representative review**. Representative review requires a different authenticated administrator to sign. Nobody can enter someone else's approval automatically.
 5. Set mileage-alert, photo, session, capacity and retention policies. Front/rear/driver/passenger images remain mandatory at checkout and return; additional views can also be required.
 6. Complete the physical iPad acceptance checklist in [VERIFICATION.md](VERIFICATION.md) before staff rollout.
@@ -71,7 +71,7 @@ Signed original totals remain visible; correction addenda are separately labeled
 
 ## Staff and vehicle administration
 
-Use **Edit access** to update department, manager, eligibility, active status or role with a reason. Access changes revoke sessions. **Reset / renew invitation** creates a new one-use password-setting link; share it privately through the organization's approved channel. There is no self-registration or unauthenticated password-reset endpoint.
+Use **Edit access** to update department, manager, eligibility, active status or role with a reason. Access changes revoke sessions. **Reset / renew invitation** creates a new one-use password-setting link; share it privately through the organization's approved channel. Verified new emails can register as staff but cannot drive until an administrator authorizes them. Existing password sign-in remains available as a fallback.
 
 Archive retired vehicles instead of deleting them. Active trips must be completed or declined before mileage/status/archive changes. Vehicle IDs remain stable when names change. Complete any required representative return signature before releasing that vehicle.
 
@@ -91,3 +91,11 @@ Archive retired vehicles instead of deleting them. Active trips must be complete
 On the Inspection step, choose **Chip**, **Dent** or **Scratch**, then tap the diagram. Front is at the top and the driver side is on the left. Tap a mark or choose it from **Selected mark**, then use **Move mark** and tap its new position. **Remove mark** deletes the selection; **Undo last mark** removes the most recently added entry. Add the location and size in the numbered notes below. An area-only entry can be positioned by selecting it and using Move mark. There is a 40-mark limit per inspection. Keyboard users can focus the diagram, use arrow keys, and press Enter to place a mark.
 
 Review the diagram before signing. Return inspection provides the checkout diagram as a reference; record the current condition separately. Saved checkout and return diagrams appear in trip details and in the completed PDFs. Submitted marks are part of the signed inspection and cannot be edited silently. Damage still holds the vehicle for administrator review.
+
+## Email sign-in and saved profiles
+
+Enter your own email and choose **Email me a sign-in code**, then enter the six-digit code. A code expires in ten minutes, works once and permits five guesses. First-time staff save their name, charter/school and manager; email is already verified. Subsequent sign-ins reuse the profile and show **My current checkouts**. **My profile** updates future forms; signed past records retain their original details. A new staff account cannot check out a vehicle until an administrator enables authorized-driver access.
+
+Profiles and structured personal-data JSON in the database use AES-256-GCM encryption. Email lookup uses a keyed hash. Photos, generated PDFs and CSV exports are not encrypted by this feature; protect host disks and backups separately. Sessions on a shared iPad still require sign-out.
+
+On return, amber **C** marks show the checkout inspection and cannot be moved or deleted. Add only new or worsening damage as blue **N** marks. Both sets appear on the check-in form; the checkout form stays unchanged. Older area-only entries are identified as approximate instead of claiming an exact point.

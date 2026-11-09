@@ -8,8 +8,10 @@ services:
       DATA_DIR: /app/data
       SECURE_COOKIES: 'true'
       TRUST_PROXY: '1'
+      PROFILE_ENCRYPTION_KEY_FILE: /run/secrets/profile-encryption.key
     volumes:
       - fleet-data:/app/data
+      - ./secrets/profile-encryption.key:/run/secrets/profile-encryption.key:ro
     expose:
       - '3000'
     security_opt:

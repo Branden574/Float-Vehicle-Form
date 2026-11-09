@@ -2,7 +2,7 @@
 
 A shared-server vehicle checkout and return application for staff iPads and desktop administrators. The working name, organization, site, branding, fleet, authorized drivers, inspection policy and notification recipients are configurable.
 
-**Included:** React PWA, authenticated invited accounts, server-enforced staff/admin permissions, transactional SQLite database, private original and timestamped photos, finger signatures, linked returns, mileage carry-forward, representative review, signed-form PDFs, SMTP/optional Resend outbox, corrections with employee acknowledgment, audit history, CSV export, and verified backup/restore tools.
+**Included:** React PWA, password-free email-code sign-in, encrypted saved profiles and invited accounts, server-enforced staff/admin permissions, transactional SQLite database, private original and timestamped photos, finger signatures, linked returns, mileage carry-forward, representative review, signed-form PDFs, SMTP/optional Resend outbox, corrections with employee acknowledgment, audit history, CSV export, and verified backup/restore tools.
 
 **Deployment is not activated by cloning this repository.** An approved always-on host, HTTPS address, organization administrator and authorized sending service still need to be configured. There are no default accounts, production seed vehicles, email recipients, or secrets. Nothing enables a paid service automatically. Physical iPad acceptance testing is a separate requirement; see [verification](docs/VERIFICATION.md).
 

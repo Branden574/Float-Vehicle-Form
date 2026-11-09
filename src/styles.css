@@ -2370,3 +2370,23 @@ figcaption {
     grid-template-columns: 1fr;
   }
 }
+
+.profile-page {
+  max-width: 680px;
+  margin: 48px auto;
+  padding: 24px;
+}
+.profile-page form {
+  display: grid;
+  gap: 20px;
+  margin-top: 28px;
+}
+.profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.damage-baseline-key {
+  color: #975712;
+  font-weight: 600;
+}

@@ -18,7 +18,23 @@ test('backup restores referenced private photos and database, revokes sessions a
   const backup = await createBackup({ dataDir: f.directory, destination: source });
   assert.equal(backup.manifest.files.length, 9);
   await assert.rejects(restoreBackup({ source, dataDir: path.join(root, 'restored') }), /offline/);
+  await assert.rejects(
+    restoreBackup({ source, dataDir: path.join(root, 'missing-key'), offline: true }),
+    /requires PROFILE_ENCRYPTION_KEY_FILE/,
+  );
+  const wrongKey = path.join(root, 'wrong.key');
+  await writeFile(wrongKey, 'ab'.repeat(32));
+  await assert.rejects(
+    restoreBackup({
+      source,
+      dataDir: path.join(root, 'wrong-key'),
+      offline: true,
+      keyFile: wrongKey,
+    }),
+    /Incorrect profile encryption key/,
+  );
   const restored = await restoreBackup({
+    keyFile: path.join(f.directory, '.development-profile-key'),
     source,
     dataDir: path.join(root, 'restored'),
     offline: true,
@@ -27,6 +43,7 @@ test('backup restores referenced private photos and database, revokes sessions a
   assert.equal(db.prepare('SELECT COUNT(*) n FROM trips').get().n, 1);
   assert.equal(db.prepare('SELECT COUNT(*) n FROM sessions').get().n, 0);
   assert.equal(db.prepare('SELECT status FROM notifications').get().status, 'unknown');
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM login_codes').get().n, 0);
   db.close();
   await writeFile(path.join(source, backup.manifest.files[1].path), 'corruption');
   await assert.rejects(

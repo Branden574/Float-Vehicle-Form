@@ -1,3 +1,4 @@
+import { Profile } from './components/Profile';
 import { useEffect, useRef, useState } from 'react';
 import {
   ArrowRight,
@@ -43,6 +44,9 @@ function Login({ onSession, message }: { onSession: (s: Session) => void; messag
     [password, setPassword] = useState(''),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false);
+  const [legacy, setLegacy] = useState(false),
+    [challenge, setChallenge] = useState(''),
+    [code, setCode] = useState('');
   const [branding, setBranding] = useState({
     appName: 'Learn4Life Fleet Checkout',
     organizationName: 'Learn4Life',
@@ -65,10 +69,16 @@ function Login({ onSession, message }: { onSession: (s: Session) => void; messag
       if (token) {
         await post('/auth/accept-invite', { token, password });
         setToken('');
+        setLegacy(true);
         setPassword('');
         setError('Account activated. Sign in with your invited email and new password.');
+      } else if (!legacy && !challenge) {
+        const result = await post<{ challengeId: string }>('/auth/request-code', { email });
+        setChallenge(result.challengeId);
       } else {
-        const session = await post<Session>('/auth/login', { email, password });
+        const session = legacy
+          ? await post<Session>('/auth/login', { email, password })
+          : await post<Session>('/auth/verify-code', { challengeId: challenge, code });
         localStorage.removeItem('fleet-signout-pending');
         onSession(session);
       }
@@ -141,32 +151,86 @@ function Login({ onSession, message }: { onSession: (s: Session) => void; messag
                   name="email"
                   autoComplete="username"
                   required
+                  readOnly={!!challenge}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
               </label>
             )}
-            <label>
-              {token ? 'Create password' : 'Password'}
-              <input
-                type="password"
-                name="password"
-                minLength={token ? 12 : 1}
-                autoComplete={token ? 'new-password' : 'current-password'}
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </label>
+            {(token || legacy) && (
+              <label>
+                {token ? 'Create password' : 'Password'}
+                <input
+                  type="password"
+                  name="password"
+                  minLength={token ? 12 : 1}
+                  autoComplete={token ? 'new-password' : 'current-password'}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </label>
+            )}
+            {!token && !legacy && challenge && (
+              <label>
+                One-time code
+                <input
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  pattern="[0-9]{6}"
+                  maxLength={6}
+                  required
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                />
+                <span className="fine">Check your email. Codes expire after 10 minutes.</span>
+              </label>
+            )}
             <button disabled={busy} className="button primary wide" type="submit">
-              {busy ? 'Please wait…' : token ? 'Activate account' : 'Sign in'}
+              {busy
+                ? 'Please wait…'
+                : token
+                  ? 'Activate account'
+                  : legacy
+                    ? 'Sign in'
+                    : challenge
+                      ? 'Verify code & sign in'
+                      : 'Email me a sign-in code'}
               <ArrowRight size={18} />
             </button>
           </form>
+          {!token && (
+            <button
+              type="button"
+              className="button secondary wide"
+              onClick={() => {
+                setLegacy(!legacy);
+                setChallenge('');
+                setCode('');
+                setPassword('');
+                setError('');
+              }}
+            >
+              {legacy ? 'Use email sign-in code' : 'Use existing password'}
+            </button>
+          )}
+          {!!challenge && (
+            <button
+              type="button"
+              className="button secondary wide"
+              onClick={() => {
+                setChallenge('');
+                setCode('');
+                setError('');
+              }}
+            >
+              Change email or request a new code
+            </button>
+          )}
           <p className="fine">
             {token
               ? 'Use at least 12 characters.'
-              : 'Need access or a password reset? Ask your fleet administrator for an individual invitation.'}
+              : 'First time? Verify your email, save your details, then ask your fleet administrator to authorize you as a driver.'}
           </p>
           <div className="shared-note">
             <ShieldCheck size={19} />
@@ -197,8 +261,10 @@ export default function App() {
     [detail, setDetail] = useState<string | null>(null),
     [online, setOnline] = useState(navigator.onLine),
     [busy, setBusy] = useState(false);
+  const [editingProfile, setEditingProfile] = useState(false);
   const activity = useRef(Date.now());
   function erase(note: string) {
+    setEditingProfile(false);
     setSession(null);
     setWorkflow(null);
     setDetail(null);
@@ -334,6 +400,18 @@ export default function App() {
       </div>
     );
   if (!session) return <Login onSession={(s) => accept(s, true)} message={message} />;
+  if (!session.user.charter || editingProfile)
+    return (
+      <Profile
+        session={session}
+        onSaved={(s) => {
+          accept(s);
+          setEditingProfile(false);
+        }}
+        onCancel={session.user.charter ? () => setEditingProfile(false) : undefined}
+        onSignOut={() => void signOut()}
+      />
+    );
   const { user, settings } = session;
   const available = vehicles.filter((v) => v.status === 'available').length;
   const active = trips.filter((t) => t.status === 'active' || t.status === 'pending_checkout');
@@ -366,6 +444,13 @@ export default function App() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
+        <button
+          type="button"
+          className="button secondary compact"
+          onClick={() => setEditingProfile(true)}
+        >
+          My profile
+        </button>
         <a
           className="brand"
           href="#"
@@ -531,6 +616,31 @@ export default function App() {
             />
           ) : page === 'fleet' ? (
             <section className="page-enter">
+              <section className="my-checkouts">
+                <h2>My current checkouts</h2>
+                {active.filter((t) => t.employeeId === user.id).length ? (
+                  active
+                    .filter((t) => t.employeeId === user.id)
+                    .map((t) => (
+                      <div key={t.id} className="notice neutral">
+                        <strong>{t.vehicleSnapshot.name}</strong>
+                        <span>
+                          {t.status === 'pending_checkout' ? 'Awaiting approval' : 'Checked out'} ·
+                          Due {formatDate(t.projectedReturnAt, settings.timezone)}
+                        </span>
+                        <button
+                          type="button"
+                          className="button secondary compact"
+                          onClick={() => setDetail(t.id)}
+                        >
+                          View checkout
+                        </button>
+                      </div>
+                    ))
+                ) : (
+                  <p>You have no vehicle checked out.</p>
+                )}
+              </section>
               <div className="page-heading">
                 <div>
                   <p className="eyebrow">FLEET WORKSPACE</p>

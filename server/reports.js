@@ -46,7 +46,7 @@ export async function createReport({ store, tripId, stage = 'return' }) {
   const { trip, photos, reviews, revisions } = bundle;
   const settings = trip.checkoutSettings || bundle.settings;
   const reportData = {
-    version: 3,
+    version: 4,
     templateHash,
     stage,
     trip,
@@ -152,6 +152,7 @@ export async function createReport({ store, tripId, stage = 'return' }) {
       );
     }
     pair('Employee', `${employee.name} · ${employee.email}`);
+    pair('Charter', employee.charter || 'Not recorded');
     pair(
       'Department / manager',
       `${employee.department || 'Not recorded'} / ${employee.manager || 'Not recorded'}`,
@@ -204,8 +205,21 @@ export async function createReport({ store, tripId, stage = 'return' }) {
         inspection.windshield
       ],
     );
-    heading('Damage markings and notes');
-    if (!inspection.damage?.length) text('No chips, dents or scratches marked.');
+    heading(
+      returning && inspection.damageScope === 'new'
+        ? 'New return damage (N marks)'
+        : 'Damage markings and notes',
+    );
+    if (returning && inspection.damageScope === 'new')
+      text(
+        'Checkout damage is retained as amber C marks on the form. Blue N marks identify new damage or worsening reported during return. Original checkout details are in the checkout section.',
+      );
+    if (!inspection.damage?.length)
+      text(
+        returning && inspection.damageScope === 'new'
+          ? 'No new damage reported at return.'
+          : 'No chips, dents or scratches marked.',
+      );
     for (const damage of inspection.damage || [])
       text(
         `${inspection.damage.indexOf(damage) + 1}. ${names[damage.area] || damage.area} · ${damage.type}: ${damage.notes || 'No additional note'}${damage.position ? ' (marked on diagram)' : ' (area only; approximate placement)'}`,

@@ -31,11 +31,11 @@ function idempotency(store, req, operation) {
   return {
     key,
     digest,
-    previous: previous ? JSON.parse(previous.response_json) : null,
+    previous: previous ? store.decodeJSON(previous.response_json) : null,
     save: (response) =>
       store.db
         .prepare('INSERT INTO idempotency VALUES(?,?,?,?,?,?)')
-        .run(req.user.id, key, operation, digest, JSON.stringify(response), now()),
+        .run(req.user.id, key, operation, digest, store.encodeJSON(response), now()),
   };
 }
 const flagUnion = (...arrays) => [...new Set(arrays.flat())];
@@ -103,6 +103,7 @@ export function installTrips(app, store, { reportService } = {}) {
       Date.parse(b.projectedReturnAt) > Date.now() + 366 * 86400000
     )
       fail(400, 'Projected return must be in the future and within one year.');
+    if (b.inspection.damageScope === 'new') fail(400, 'Checkout must record all observed damage.');
     await validateSignature(b.signature);
     const acknowledgments = checkAcknowledgments(b.acknowledgments, 'checkout');
     const result = db
@@ -112,11 +113,13 @@ export function installTrips(app, store, { reportService } = {}) {
         const user = store.getUser(req.user.id);
         if (!user.active || !user.authorizedDriver)
           fail(403, 'Driver authorization is no longer active.');
-        if (!user.department.trim() || !user.manager.trim())
-          fail(
-            400,
-            'Ask an administrator to complete your department and manager before checkout.',
-          );
+        if (
+          !user.name.trim() ||
+          !user.charter?.trim() ||
+          !user.department.trim() ||
+          !user.manager.trim()
+        )
+          fail(400, 'Complete your name, charter and manager in My profile before checkout.');
         const vehicle = store.getVehicle(b.vehicleId);
         if (!vehicle || vehicle.archived) fail(404, 'Vehicle not found.');
         if (vehicle.status !== 'available')
@@ -165,7 +168,7 @@ export function installTrips(app, store, { reportService } = {}) {
           b.projectedReturnAt,
           b.startingMileage,
           vehicle.mileageVersion,
-          JSON.stringify(snapshot),
+          store.encodeJSON(snapshot),
           JSON.stringify(flags),
         );
         const updated = db
@@ -285,7 +288,7 @@ export function installTrips(app, store, { reportService } = {}) {
         ).run(
           time,
           b.endingMileage,
-          JSON.stringify(signed),
+          store.encodeJSON(signed),
           JSON.stringify(flagUnion(current.flags, flags)),
           vehicle.mileageVersion + 1,
           trip.id,
@@ -371,7 +374,7 @@ export function installTrips(app, store, { reportService } = {}) {
           b.decision,
           b.reason,
           time,
-          JSON.stringify(req.user),
+          store.encodeJSON(req.user),
         );
         const before = store.getVehicle(trip.vehicleId);
         if (b.stage === 'checkout') {

@@ -1,3 +1,4 @@
+import { openPrivacy } from './privacy.js';
 import Database from 'better-sqlite3';
 import { mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -40,6 +41,7 @@ export function openStore(dataDir = process.env.DATA_DIR || './data') {
   dataDir = path.resolve(dataDir);
   mkdirSync(dataDir, { recursive: true, mode: 0o700 });
   mkdirSync(path.join(dataDir, 'photos'), { recursive: true, mode: 0o700 });
+  const privacy = openPrivacy(dataDir);
   const db = new Database(path.join(dataDir, 'fleet.sqlite'));
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
@@ -47,21 +49,77 @@ export function openStore(dataDir = process.env.DATA_DIR || './data') {
   db.exec(
     readFileSync(fileURLToPath(new URL('./migrations/001_initial.sql', import.meta.url)), 'utf8'),
   );
+  db.pragma('secure_delete = ON');
+  db.exec(
+    'CREATE TABLE IF NOT EXISTS privacy_meta (id INTEGER PRIMARY KEY CHECK(id=1), key_check TEXT NOT NULL)',
+  );
+  const keyCheck = db.prepare('SELECT key_check FROM privacy_meta WHERE id=1').get();
+  if (keyCheck && keyCheck.key_check !== privacy.fingerprint) {
+    db.close();
+    throw new Error(
+      'Incorrect profile encryption key. Restore the matching key; no data was changed.',
+    );
+  }
+  const columns = db.prepare('PRAGMA table_info(users)').all();
+  if (!columns.some((c) => c.name === 'profile_json'))
+    db.exec('ALTER TABLE users ADD COLUMN profile_json TEXT');
+  let migrated = false;
+  db.transaction(() => {
+    db.prepare('INSERT OR IGNORE INTO privacy_meta VALUES(1,?)').run(privacy.fingerprint);
+    for (const r of db.prepare('SELECT * FROM users WHERE profile_json IS NULL').all()) {
+      const profile = {
+        email: r.email,
+        name: r.name,
+        department: r.department,
+        manager: r.manager,
+        charter: '',
+      };
+      db.prepare(
+        "UPDATE users SET email=?,name='',department='',manager='',profile_json=? WHERE id=?",
+      ).run(privacy.lookup(r.email), privacy.encode(profile), r.id);
+      migrated = true;
+    }
+    for (const [table, fields] of [
+      ['trips', ['checkout_json', 'return_json']],
+      ['audit', ['before_json', 'after_json']],
+      ['reviews', ['user_snapshot_json']],
+      ['idempotency', ['response_json']],
+      ['notifications', ['recipients_json']],
+      ['settings', ['data_json']],
+    ]) {
+      for (const field of fields)
+        for (const row of db
+          .prepare(
+            `SELECT rowid AS row_id, ${field} AS value FROM ${table} WHERE ${field} IS NOT NULL`,
+          )
+          .all()) {
+          if (!row.value.startsWith('enc:v1:')) {
+            db.prepare(`UPDATE ${table} SET ${field}=? WHERE rowid=?`).run(
+              privacy.encode(JSON.parse(row.value)),
+              row.row_id,
+            );
+            migrated = true;
+          }
+        }
+    }
+  })();
+  if (migrated) {
+    db.pragma('wal_checkpoint(TRUNCATE)');
+    db.exec('VACUUM');
+    db.pragma('wal_checkpoint(TRUNCATE)');
+  }
   db.prepare('INSERT OR IGNORE INTO settings(id,data_json) VALUES(1,?)').run(
-    JSON.stringify(defaults),
+    privacy.encode(defaults),
   );
   const getSettings = () => ({
     ...defaults,
-    ...JSON.parse(db.prepare('SELECT data_json FROM settings WHERE id=1').get().data_json),
+    ...privacy.decode(db.prepare('SELECT data_json FROM settings WHERE id=1').get().data_json),
   });
   const publicUser = (r) =>
     r
       ? {
           id: r.id,
-          email: r.email,
-          name: r.name,
-          department: r.department,
-          manager: r.manager,
+          ...privacy.decode(r.profile_json),
           role: r.role,
           authorizedDriver: !!r.authorized_driver,
           active: !!r.active,
@@ -90,8 +148,8 @@ export function openStore(dataDir = process.env.DATA_DIR || './data') {
   const getVehicle = (id) => mapVehicle(db.prepare('SELECT * FROM vehicles WHERE id=?').get(id));
   const mapTrip = (r) => {
     if (!r) return null;
-    const c = JSON.parse(r.checkout_json),
-      v = r.return_json ? JSON.parse(r.return_json) : null;
+    const c = privacy.decode(r.checkout_json),
+      v = r.return_json ? privacy.decode(r.return_json) : null;
     const replacement = db.prepare('SELECT * FROM odometer_replacements WHERE trip_id=?').get(r.id);
     const odometerReplacement = replacement
       ? {
@@ -183,7 +241,7 @@ export function openStore(dataDir = process.env.DATA_DIR || './data') {
           providerId: r.provider_id,
           acceptedAt: r.accepted_at,
           deliveredAt: r.delivered_at,
-          recipients: JSON.parse(r.recipients_json),
+          recipients: privacy.decode(r.recipients_json),
           messageId: r.message_id,
         }
       : null;
@@ -208,7 +266,7 @@ export function openStore(dataDir = process.env.DATA_DIR || './data') {
         decision: r.decision,
         reason: r.reason,
         createdAt: r.created_at,
-        userSnapshot: JSON.parse(r.user_snapshot_json),
+        userSnapshot: privacy.decode(r.user_snapshot_json),
       }));
   const getRevisions = (tripId) =>
     db
@@ -249,8 +307,8 @@ export function openStore(dataDir = process.env.DATA_DIR || './data') {
         action,
         entityType,
         entityId,
-        before == null ? null : JSON.stringify(before),
-        after == null ? null : JSON.stringify(after),
+        before == null ? null : privacy.encode(before),
+        after == null ? null : privacy.encode(after),
         reason,
         now(),
       );
@@ -258,6 +316,7 @@ export function openStore(dataDir = process.env.DATA_DIR || './data') {
     email,
     name,
     department = '',
+    charter = '',
     manager = '',
     role = 'staff',
     authorizedDriver = false,
@@ -267,13 +326,13 @@ export function openStore(dataDir = process.env.DATA_DIR || './data') {
   }) => {
     const id = randomUUID();
     db.prepare(
-      'INSERT INTO users(id,email,name,department,manager,role,authorized_driver,active,password_hash,invite_hash,invite_expires_at,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
+      'INSERT INTO users(id,email,name,department,manager,role,authorized_driver,active,password_hash,invite_hash,invite_expires_at,created_at,profile_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
     ).run(
       id,
-      email.trim().toLowerCase(),
-      name,
-      department,
-      manager,
+      privacy.lookup(email),
+      '',
+      '',
+      '',
       role,
       +authorizedDriver,
       +active,
@@ -281,6 +340,21 @@ export function openStore(dataDir = process.env.DATA_DIR || './data') {
       inviteToken ? hash(inviteToken) : null,
       inviteToken ? new Date(Date.now() + 72 * 3600000).toISOString() : null,
       now(),
+      privacy.encode({ email: email.trim().toLowerCase(), name, department, manager, charter }),
+    );
+    return getUser(id);
+  };
+  const updateUser = (id, data) => {
+    const { email, name, department = '', manager = '', charter = '' } = data;
+    db.prepare(
+      'UPDATE users SET email=?,profile_json=?,role=?,authorized_driver=?,active=? WHERE id=?',
+    ).run(
+      privacy.lookup(email),
+      privacy.encode({ email: email.trim().toLowerCase(), name, department, manager, charter }),
+      data.role,
+      +data.authorizedDriver,
+      +data.active,
+      id,
     );
     return getUser(id);
   };
@@ -301,7 +375,7 @@ export function openStore(dataDir = process.env.DATA_DIR || './data') {
       recipients.length ? 'pending' : 'failed',
       time,
       time,
-      JSON.stringify([...new Set(recipients)]),
+      privacy.encode([...new Set(recipients)]),
       `<fleet-${tripId}-${stage}@fleet.local>`,
     );
     if (!recipients.length)
@@ -332,6 +406,10 @@ export function openStore(dataDir = process.env.DATA_DIR || './data') {
     getTripBundle,
     audit,
     createUser,
+    updateUser,
+    encodeJSON: privacy.encode,
+    decodeJSON: privacy.decode,
+    emailLookup: privacy.lookup,
     enqueueNotification,
     close: () => db.close(),
   };

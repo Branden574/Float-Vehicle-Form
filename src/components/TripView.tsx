@@ -171,7 +171,15 @@ export function TripView({
                 <h3>{stage === 'checkout' ? 'Checkout' : 'Return'}</h3>
                 {inspection ? (
                   <>
-                    <DamageDiagram damage={inspection.damage} label={`${stage} saved damage`} />
+                    <DamageDiagram
+                      damage={inspection.damage}
+                      baseline={
+                        stage === 'return' && inspection.damageScope === 'new'
+                          ? trip.checkoutInspection.damage
+                          : undefined
+                      }
+                      label={`${stage} saved damage`}
+                    />
                     <ol>
                       {inspection.damage.map((d, i) => (
                         <li key={i}>

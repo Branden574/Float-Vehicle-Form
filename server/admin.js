@@ -33,7 +33,11 @@ export function installAdmin(app, store, { notificationService } = {}) {
   app.use('/api/admin', requireAdmin);
   app.get('/api/admin/overview', (req, res) => {
     res.json({
-      users: db.prepare('SELECT * FROM users ORDER BY name').all().map(store.publicUser),
+      users: db
+        .prepare('SELECT * FROM users ORDER BY name')
+        .all()
+        .map(store.publicUser)
+        .sort((a, b) => a.name.localeCompare(b.name)),
       vehicles: db
         .prepare('SELECT * FROM vehicles ORDER BY archived,name')
         .all()
@@ -53,12 +57,12 @@ export function installAdmin(app, store, { notificationService } = {}) {
         .map((r) => ({
           id: r.id,
           actorId: r.actor_id,
-          actorName: r.actor_name,
+          actorName: store.getUser(r.actor_id)?.name || r.actor_id,
           action: r.action,
           entityType: r.entity_type,
           entityId: r.entity_id,
-          before: r.before_json ? JSON.parse(r.before_json) : null,
-          after: r.after_json ? JSON.parse(r.after_json) : null,
+          before: r.before_json ? store.decodeJSON(r.before_json) : null,
+          after: r.after_json ? store.decodeJSON(r.after_json) : null,
           reason: r.reason,
           createdAt: r.created_at,
         })),
@@ -242,18 +246,7 @@ export function installAdmin(app, store, { notificationService } = {}) {
             .count <= 1
         )
           fail(409, 'Keep at least one active administrator.');
-        db.prepare(
-          'UPDATE users SET email=?,name=?,department=?,manager=?,role=?,authorized_driver=?,active=? WHERE id=?',
-        ).run(
-          data.email.toLowerCase(),
-          data.name,
-          data.department,
-          data.manager,
-          data.role,
-          +data.authorizedDriver,
-          +data.active,
-          before.id,
-        );
+        store.updateUser(before.id, data);
         // Immediately revoke sessions on access changes, including driver authorization.
         if (
           data.role !== before.role ||
@@ -301,7 +294,7 @@ export function installAdmin(app, store, { notificationService } = {}) {
       ...new Set(['front', 'rear', 'driver', 'passenger', ...(settings.requiredPhotoViews || [])]),
     ];
     db.transaction(() => {
-      db.prepare('UPDATE settings SET data_json=? WHERE id=1').run(JSON.stringify(settings));
+      db.prepare('UPDATE settings SET data_json=? WHERE id=1').run(store.encodeJSON(settings));
       store.audit(req.user.id, 'update_settings', 'settings', '1', before, settings, reason);
     }).immediate();
     res.json({ settings });
@@ -336,7 +329,7 @@ export function installAdmin(app, store, { notificationService } = {}) {
           "UPDATE notifications SET status='pending',error=NULL,updated_at=?,recipients_json=?,message_id=?,accepted_at=NULL,delivered_at=NULL,provider_id=NULL WHERE id=?",
         ).run(
           now(),
-          JSON.stringify([...new Set(recipients)]),
+          store.encodeJSON([...new Set(recipients)]),
           resend ? `<fleet-${randomUUID()}@fleet.local>` : row.message_id,
           row.id,
         );

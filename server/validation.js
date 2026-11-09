@@ -35,6 +35,7 @@ export const inspectionSchema = z
     receiptReceived: z.boolean().optional(),
     keyReturned: z.boolean().optional(),
     windshield: z.enum(['clear', 'star', 'cracked']),
+    damageScope: z.enum(['all', 'new']).optional(),
     damage: z
       .array(
         z.object({
@@ -82,6 +83,7 @@ export const userSchema = z.object({
   email: z.email().max(254),
   name: nonempty,
   department: z.string().max(200).default(''),
+  charter: z.string().max(200).default(''),
   manager: z.string().max(200).default(''),
   role: z.enum(['staff', 'admin']).default('staff'),
   authorizedDriver: z.boolean().default(false),

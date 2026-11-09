@@ -46,7 +46,7 @@ export async function originalForms({ trip, reviews, zone, stage, appendix }) {
           }
         })
         .join('');
-    const box = (v, x, y, w, h = 28, size = 18) => {
+    const box = (v, x, y, w, h = 28, size = 18, color = BLUE) => {
       let value = clean(v),
         points = size * sy;
       while (font.widthOfTextAtSize(value, points) > w * sx && points > 7) points -= 0.25;
@@ -60,7 +60,7 @@ export async function originalForms({ trip, reviews, zone, stage, appendix }) {
         y: 792 - (y + h) * sy + (h * sy - points) / 2,
         size: points,
         font,
-        color: BLUE,
+        color,
       });
     };
     const date = (v) =>
@@ -107,7 +107,12 @@ export async function originalForms({ trip, reviews, zone, stage, appendix }) {
       box(date(trip.projectedReturnAt), 792, 366, 168);
       box(time(trip.projectedReturnAt), 792, 397, 168);
     }
-    box(trip.employeeSnapshot.department, 100, returning ? 450 : 453, 185);
+    box(
+      trip.employeeSnapshot.charter || trip.employeeSnapshot.department,
+      100,
+      returning ? 450 : 453,
+      185,
+    );
     box(trip.employeeSnapshot.manager, 310, returning ? 450 : 453, 255);
     box(trip.vehicleSnapshot.vinLast4, returning ? 595 : 580, returning ? 450 : 453, 180);
     const mode = returning ? trip.returnReviewMode : trip.checkoutReviewMode;
@@ -152,8 +157,12 @@ export async function originalForms({ trip, reviews, zone, stage, appendix }) {
     }
     box(
       inspection.damage.length
-        ? 'Damage recorded - see numbered details.'
-        : 'No body damage reported.',
+        ? returning && inspection.damageScope === 'new'
+          ? 'New damage recorded - see N marks.'
+          : 'Damage recorded - see numbered details.'
+        : returning && inspection.damageScope === 'new'
+          ? 'No new body damage reported.'
+          : 'No body damage reported.',
       105,
       returning ? 755 : 767,
       440,
@@ -161,8 +170,18 @@ export async function originalForms({ trip, reviews, zone, stage, appendix }) {
       16,
     );
 
+    const separate = returning && inspection.damageScope === 'new';
+    if (separate) box('C: checkout damage   N: new return damage', 105, 800, 440, 26, 15);
+    const entries = [
+      ...(separate
+        ? trip.checkoutInspection.damage.map((damage, i) => ({ damage, i, existing: true }))
+        : []),
+      ...inspection.damage.map((damage, i) => ({ damage, i, existing: false })),
+    ];
     const seenAreas = new Set();
-    inspection.damage.forEach((damage, i) => {
+    entries.forEach(({ damage, i, existing }) => {
+      const color = existing ? rgb(0.59, 0.34, 0.07) : BLUE;
+      const label = `${existing ? 'C' : separate ? 'N' : ''}${i + 1}`;
       if (damage.position) {
         const d = diagramBounds(returning);
         const x = (d.x + damage.position.x * d.width) * sx;
@@ -173,30 +192,33 @@ export async function originalForms({ trip, reviews, zone, stage, appendix }) {
           y,
           scale,
           borderWidth: 2,
-          borderColor: BLUE,
+          borderColor: color,
         });
-        page.drawText(String(i + 1), {
+        page.drawText(label, {
           x: x + 11 * scale,
           y: y + 9 * scale,
           font: bold,
           size: 13 * scale,
-          color: BLUE,
+          color,
         });
         return;
       }
-      if (seenAreas.has(damage.area)) return;
-      seenAreas.add(damage.area);
+      if (seenAreas.has(`${existing}:${damage.area}`)) return;
+      seenAreas.add(`${existing}:${damage.area}`);
       const extra =
-        inspection.damage.filter((d) => !d.position && d.area === damage.area).length - 1;
+        entries.filter(
+          (e) => e.existing === existing && !e.damage.position && e.damage.area === damage.area,
+        ).length - 1;
       const [x, y] = AREAS[damage.area] || [720, 940];
       // Only an area was recorded, never claim a precise point of impact.
       box(
-        `${i + 1}: ${damage.type === 'dent' ? 'x' : damage.type === 'scratch' ? '~' : '... '}${extra ? ` (+${extra})` : ''}`,
+        `${label}: ${damage.type === 'dent' ? 'x' : damage.type === 'scratch' ? '~' : '... '}${extra ? ` (+${extra})` : ''}`,
         x,
         y - (returning ? 20 : 0),
         90,
         20,
         15,
+        color,
       );
     });
     const sig = async (data, x, y, w, h) => {

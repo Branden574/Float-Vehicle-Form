@@ -56,15 +56,17 @@ export async function signature() {
     ).toString('base64')
   );
 }
-export async function fixture(t, { reports = false } = {}) {
+export async function fixture(t, { reports = false, sendSignInCode } = {}) {
   const directory = await realpath(await mkdtemp(path.join(tmpdir(), 'fleet-test-')));
   const app = createApp({
     dataDir: directory,
+    sendSignInCode,
     secureCookies: false,
     reportService: reports ? createReport : undefined,
   });
   const store = app.locals.store;
   const admin = store.createUser({
+    charter: 'Test Charter',
     name: 'Test Administrator',
     email: 'admin@example.test',
     role: 'admin',
@@ -72,6 +74,7 @@ export async function fixture(t, { reports = false } = {}) {
     password,
   });
   const staff = store.createUser({
+    charter: 'Test Charter',
     name: 'Test Driver',
     email: 'driver@example.test',
     department: 'Operations',
@@ -81,6 +84,7 @@ export async function fixture(t, { reports = false } = {}) {
   });
   const other = store.createUser({
     name: 'Other Driver',
+    charter: 'Test Charter',
     email: 'other@example.test',
     department: 'Operations',
     manager: 'Test Manager',

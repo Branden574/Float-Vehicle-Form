@@ -4,10 +4,12 @@ import type { Damage } from '../types';
 
 export function DamageDiagram({
   damage,
+  baseline,
   onChange,
   label = 'Vehicle damage diagram',
 }: {
   damage: Damage[];
+  baseline?: Damage[];
   onChange?: (damage: Damage[]) => void;
   label?: string;
 }) {
@@ -46,6 +48,11 @@ export function DamageDiagram({
   };
   return (
     <section className="damage-diagram">
+      {baseline && (
+        <p className="damage-baseline-key">
+          Amber C marks: checkout damage (read-only). Blue N marks: new damage at return.
+        </p>
+      )}
       {onChange && (
         <>
           <div className="damage-tools" role="group" aria-label="Damage mark type">
@@ -133,6 +140,41 @@ export function DamageDiagram({
             strokeDasharray="3 3"
           />
         )}
+        {baseline?.map(
+          (d, i) =>
+            d.position && (
+              <g
+                key={`checkout-${i}`}
+                style={{ pointerEvents: 'none' }}
+                aria-label={`Checkout mark C${i + 1}: ${d.type}`}
+              >
+                <circle
+                  cx={d.position.x * 360}
+                  cy={d.position.y * 560}
+                  r="14"
+                  fill="none"
+                  stroke="#975712"
+                  strokeDasharray="3 3"
+                />
+                <path
+                  d={diagram.marks[d.type]}
+                  transform={`translate(${d.position.x * 360} ${d.position.y * 560})`}
+                  fill="none"
+                  stroke="#975712"
+                  strokeWidth="2"
+                />
+                <text
+                  x={d.position.x * 360 + 11}
+                  y={d.position.y * 560 - 9}
+                  fill="#975712"
+                  fontSize="13"
+                  fontWeight="700"
+                >
+                  C{i + 1}
+                </text>
+              </g>
+            ),
+        )}
         {damage.map(
           (d, i) =>
             d.position && (
@@ -171,6 +213,7 @@ export function DamageDiagram({
                   fontSize="13"
                   fontWeight="700"
                 >
+                  {baseline ? 'N' : ''}
                   {i + 1}
                 </text>
               </g>
@@ -238,6 +281,17 @@ export function DamageDiagram({
         </>
       )}
       {!onChange && damage.length === 0 && <p>No damage recorded.</p>}
+      {baseline?.some((d) => !d.position) && (
+        <p>Checkout also includes area-only damage with no exact position:</p>
+      )}
+      {baseline?.map(
+        (d, i) =>
+          !d.position && (
+            <p key={`legacy-${i}`}>
+              C{i + 1}: {d.area} — {d.type}. {d.notes}
+            </p>
+          ),
+      )}
       {damage.some((d) => !d.position) && (
         <p>Area-only entries are listed below; no exact location was recorded.</p>
       )}

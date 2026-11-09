@@ -164,3 +164,44 @@ test('damage-held checkout says representative pending even in self-service mode
   assert.ok(text.includes('Pending representative review'));
   assert.ok(!text.includes('N/A - self-service'));
 });
+
+test('return form overlays immutable checkout marks and separately labels only new damage', async () => {
+  const input = await sample();
+  input.trip.employeeSnapshot.charter = 'Test Charter';
+  input.trip.checkoutInspection = {
+    ...inspection,
+    damage: [
+      {
+        area: 'driver',
+        type: 'dent',
+        notes: 'Existing',
+        position: { x: 0.25, y: 0.5, diagram: 'vehicle-v1' },
+      },
+    ],
+  };
+  input.trip.returnInspection = {
+    ...inspection,
+    damageScope: 'new',
+    damage: [
+      {
+        area: 'rear',
+        type: 'scratch',
+        notes: 'New',
+        position: { x: 0.75, y: 0.7, diagram: 'vehicle-v1' },
+      },
+    ],
+  };
+  const bytes = await originalForms(input),
+    pdf = await PDFDocument.load(bytes);
+  const text = strings(operators(pdf, 1));
+  assert.ok(text.includes('C1'));
+  assert.ok(text.includes('N1'));
+  assert.ok(text.includes('Test Charter'));
+  assert.ok(!strings(operators(pdf, 0)).includes('N1'));
+  await writeFile('artifacts/sample-return-baseline.pdf', bytes);
+  input.trip.returnInspection.damage = [];
+  const noNew = await PDFDocument.load(await originalForms(input));
+  assert.ok(strings(operators(noNew, 1)).includes('C1'));
+  assert.ok(strings(operators(noNew, 1)).includes('No new body damage reported.'));
+  assert.ok(!strings(operators(noNew, 1)).includes('N1'));
+});

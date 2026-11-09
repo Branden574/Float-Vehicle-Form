@@ -7,8 +7,8 @@ Local verification completed **November 9, 2026**. This record separates perform
 | Check                                  | Result                                         | Scope                                                                                                                                                 |
 | -------------------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | TypeScript + production frontend build | Passed                                         | `npm run build`; Vite production bundle                                                                                                               |
-| Server/integration tests               | **22 passed**                                  | `npm test`; real temporary SQLite databases and HTTP requests                                                                                         |
-| Browser tests                          | **17 passed, 1 explicitly skipped/unverified** | Chromium desktop 1440×1000, WebKit tablet 820×1180, Chromium phone 390×844                                                                            |
+| Server/integration tests               | **27 passed**                                  | `npm test`; real temporary SQLite databases and HTTP requests                                                                                         |
+| Browser tests                          | **20 passed, 1 explicitly skipped/unverified** | Chromium desktop 1440×1000, WebKit tablet 820×1180, Chromium phone 390×844                                                                            |
 | Formatting                             | Passed                                         | `npm run format:check`                                                                                                                                |
 | Dependency audit                       | No known vulnerabilities reported              | `npm audit` on the installed lockfile; not a guarantee that all vulnerabilities are known                                                             |
 | Container build/start                  | Passed                                         | Docker image builds on Linux ARM64; health endpoint returns HTTP 200; process runs as UID 1000                                                        |
@@ -46,7 +46,7 @@ These tests use browser automation, pointer-generated signatures and synthetic u
 
 ## Remaining organization setup and acceptance
 
-No approved production hostname, always-on host, administrator identity, SSO configuration or live sending credentials were supplied. No production service or paid plan was provisioned, and no real email was sent. The implementation is ready for an organization-controlled setup and acceptance pass, not a claim of an already deployed production fleet.
+A temporary HTTPS preview is running on the development Mac with a privately configured Resend sender. The live code-request endpoint successfully submitted a message to the provider’s delivery-test address; actual staff inbox delivery remains an acceptance check. The existing preview administrator and trip survived the encryption migration, and an isolated restore of the encrypted preview backup was readable with the separately retained key. A permanent organization-approved host, production hostname, SSO configuration and physical iPad acceptance remain separate from this test deployment.
 
 An organization representative should complete the following on an actual managed iPad and the intended production host:
 
@@ -80,3 +80,11 @@ Local generated PDFs and screenshots are written to ignored `artifacts/`; failur
 ## Diagram and clean-template verification
 
 The clean template reproduces the paper form layout, using original branding and newly authored labels, rules and car outlines. Tests check deterministic template hashing, exact normalized mark placement on checkout and check-in PDFs, invalid/out-of-range coordinates, diagram version validation, backward compatibility with area-only entries, and independent persistence of checkout and return marks. Browser tests place, move, remove and undo marks with touch events in tablet/phone emulation, enter notes, submit the inspection, reload and read back stored positions, and download its PDF. Physical iPad acceptance remains user testing; browser emulation is not a hardware test.
+
+## Saved profiles and email-code verification
+
+Server tests cover code expiry, five-guess lockout, single use/replay, resend cooldown, disabled users, failed delivery cleanup, staff-only registration, authorization boundaries and self-profile updates. Database scanning confirms that profile values are absent as plaintext after writes; reopening and legacy-row migration preserve readable profiles and signed snapshot contents. A wrong key is rejected. Encrypted restore requires the matching separate key and revokes pending codes.
+
+Browser tests verify first-time email-code sign-in using an isolated test mailbox, profile completion, sign-out and repeat code sign-in with prefilled details. The checkout dashboard links to the employee's active trip. Return tests preserve the original checkout mark and add a separate new mark on the same touch diagram. PDF operator checks and Poppler rendering confirm C/N labels on the return form, including the no-new-damage case.
+
+The extended browser run exposed a photo rate-limit issue: read requests consumed the same per-IP budget as uploads, so thumbnail viewing and shared-network traffic could block uploads. Photo mutation limits now apply per authenticated user and do not count read-only photo requests. The complete suite passed after the fix. This is not a load-test claim.

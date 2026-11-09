@@ -38,7 +38,11 @@ export function Workflow({
   const [due, setDue] = useState('');
   const [mileage, setMileage] = useState(returning ? '' : String(vehicle.currentMileage));
   const [confirmed, setConfirmed] = useState(false);
-  const [inspection, setInspection] = useState<Partial<Inspection>>({ damage: [], notes: '' });
+  const [inspection, setInspection] = useState<Partial<Inspection>>({
+    damage: [],
+    notes: '',
+    ...(returning ? { damageScope: 'new' as const } : {}),
+  });
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [signature, setSignature] = useState('');
   const [ack, setAck] = useState({
@@ -278,6 +282,14 @@ export function Workflow({
                   <strong>{employee.department || 'Not set'}</strong>
                 </div>
                 <div>
+                  <span>Charter / school</span>
+                  <strong>{employee.charter || 'Not recorded'}</strong>
+                </div>
+                <div>
+                  <span>Email</span>
+                  <strong>{employee.email}</strong>
+                </div>
+                <div>
                   <span>Manager</span>
                   <strong>{employee.manager || 'Not set'}</strong>
                 </div>
@@ -392,8 +404,9 @@ export function Workflow({
             </div>
             <div hidden={step !== 1}>
               <p className="section-intro">
-                Walk around the vehicle and record what you see. Report existing damage as well as
-                new concerns.
+                {returning
+                  ? 'Walk around the vehicle and compare it with checkout. Add only new or worsening damage.'
+                  : 'Walk around the vehicle and record what you see. Report existing damage as well as new concerns.'}
               </p>
               <div className="inspection-questions">
                 {checkQuestions.map(([key, label]) => (
@@ -436,8 +449,12 @@ export function Workflow({
               </label>
               <div className="section-heading">
                 <div>
-                  <h3>Damage record</h3>
-                  <p>Tap the diagram to mark chips, dents or scratches.</p>
+                  <h3>{returning ? 'New damage at return' : 'Damage record'}</h3>
+                  <p>
+                    {returning
+                      ? 'Checkout marks remain as a reference. Add only new damage, including a new mark if an existing area has worsened.'
+                      : 'Tap the diagram to mark chips, dents or scratches.'}
+                  </p>
                 </div>
                 <button
                   className="button secondary compact"
@@ -458,6 +475,7 @@ export function Workflow({
               </div>
               <DamageDiagram
                 damage={inspection.damage || []}
+                baseline={returning ? trip?.checkoutInspection.damage : undefined}
                 onChange={(damage) => setInspection((current) => ({ ...current, damage }))}
               />
               {trip && (
@@ -618,7 +636,11 @@ export function Workflow({
                   <strong>{inspection.damage?.length || 0}</strong>
                 </div>
               </div>
-              <DamageDiagram damage={inspection.damage || []} label="Review damage marks" />
+              <DamageDiagram
+                damage={inspection.damage || []}
+                baseline={returning ? trip?.checkoutInspection.damage : undefined}
+                label="Review damage marks"
+              />
               {inspection.notes && <p className="notice neutral">{inspection.notes}</p>}
               <div className="notice neutral">
                 <ClipboardCheck size={20} />

@@ -105,7 +105,7 @@ export async function processNotification({ store, notificationId, send, report 
   let attemptingDelivery = false;
   try {
     const row = db.prepare('SELECT * FROM notifications WHERE id=?').get(notificationId);
-    const recipients = JSON.parse(row.recipients_json);
+    const recipients = store.decodeJSON(row.recipients_json);
     const pdf = await report({ store, tripId: row.trip_id, stage: row.stage });
     if (!recipients.length)
       throw Object.assign(

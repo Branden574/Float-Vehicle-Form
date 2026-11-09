@@ -3,6 +3,7 @@ export type User = {
   email: string;
   name: string;
   department: string;
+  charter: string;
   manager: string;
   role: 'staff' | 'admin';
   authorizedDriver: boolean;
@@ -54,6 +55,7 @@ export type Inspection = {
   keyReturned: boolean;
   windshield: 'clear' | 'star' | 'cracked';
   damage: Damage[];
+  damageScope?: 'all' | 'new';
   notes: string;
 };
 export type Trip = {

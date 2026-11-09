@@ -69,6 +69,8 @@ export function createApp(options = {}) {
     rateLimit({
       windowMs: 5 * 60000,
       limit: 100,
+      skip: (req) => ['GET', 'HEAD'].includes(req.method),
+      keyGenerator: (req) => req.user.id,
       standardHeaders: 'draft-8',
       legacyHeaders: false,
       message: { error: 'Photo request limit reached. Wait a few minutes and retry.' },

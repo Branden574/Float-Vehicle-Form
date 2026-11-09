@@ -133,10 +133,14 @@ export async function createBackup({
   await fs.chmod(snapshotPath, 0o600);
   const snapshotAt = new Date().toISOString();
   const snapshot = new Database(snapshotPath, { readonly: true, fileMustExist: true });
-  let photoPaths;
+  let photoPaths,
+    encryptionKeyFingerprint = null;
   try {
     if (snapshot.pragma('integrity_check', { simple: true }) !== 'ok')
       throw new Error('Database snapshot failed integrity verification.');
+    if (snapshot.prepare("SELECT name FROM sqlite_master WHERE name='privacy_meta'").get())
+      encryptionKeyFingerprint =
+        snapshot.prepare('SELECT key_check FROM privacy_meta WHERE id=1').get()?.key_check || null;
     photoPaths = snapshot
       .prepare('SELECT original_path, display_path FROM photos')
       .all()
@@ -159,6 +163,10 @@ export async function createBackup({
     application: 'learn4life-fleet-checkout',
     snapshotAt,
     completedAt: new Date().toISOString(),
+    encryptionKeyFingerprint,
+    keyRecovery: encryptionKeyFingerprint
+      ? 'Matching PROFILE_ENCRYPTION_KEY_FILE is required for restore. Key is deliberately excluded; retain it separately.'
+      : null,
     consistency:
       'SQLite online snapshot; immutable photo files referenced by that snapshot; complete immutable report files available during backup.',
     files,

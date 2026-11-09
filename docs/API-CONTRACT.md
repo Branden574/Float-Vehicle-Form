@@ -2,6 +2,9 @@
 
 All JSON camelCase. API returns JSON errors `{error: string}` with appropriate status. Cookie authentication, CSRF header `X-CSRF-Token` required for mutations after login, same origin enforced. Idempotency header `Idempotency-Key` required on final submissions. Frontend uses credentials same-origin. Images are authenticated same-origin URLs. Empty data is normal; no production seed passwords or invented addresses.
 
+- `POST /api/auth/request-code {email}` -> `{challengeId,expiresInSeconds}`. Sends a six-digit code; 10-minute expiry, five guesses, one use, one-minute resend delay and IP limits. Requires configured email sender.
+- `POST /api/auth/verify-code {challengeId,code}` -> `{user,csrfToken,settings}`. Unknown verified emails create staff accounts with driver authorization disabled.
+- `PATCH /api/auth/profile {name,email,charter,department?,manager}` -> updated session. Authenticated, CSRF protected; email must match the signed-in account. Cannot change role or eligibility.
 - `POST /api/auth/login {email,password}` -> `{user,csrfToken,settings}`
 - `GET /api/auth/me` -> `{user,csrfToken,settings}`; 401 if expired
 - `POST /api/auth/logout` -> 204
@@ -18,7 +21,7 @@ All JSON camelCase. API returns JSON errors `{error: string}` with appropriate s
 - `POST /api/vehicles/:id/discrepancy {observedMileage,reason}` locks available vehicle for review; does not edit accepted mileage
 - `GET /api/admin/overview` -> `{users,notifications,audit,storage:{bytes,limitBytes},settings}`
 - `POST /api/admin/vehicles` and `PATCH /api/admin/vehicles/:id` vehicle fields and required `reason` for edits; `archived` boolean
-- `POST /api/admin/users` -> `{user,inviteToken}` (admin securely shares invite; never automatic external message); `PATCH /api/admin/users/:id` with reason. No public registration. Fields email,name,department,manager,role,authorizedDriver,active.
+- `POST /api/admin/users` -> `{user,inviteToken}` (admin securely shares invite; never automatic external message); `PATCH /api/admin/users/:id` with reason. Email verification can create an unapproved staff account; only administrators grant driver eligibility. Fields email,name,charter,department,manager,role,authorizedDriver,active.
 - `PATCH /api/admin/settings { ...settings,reason }` -> `{settings}`
 - `POST /api/admin/notifications/:id/retry` -> notification state; retry failed only, explicit resend accepted requires `{resend:true,reason}`
 - `GET /api/admin/export.csv` -> trip CSV
@@ -49,3 +52,5 @@ Photo: `{id,vehicleId,employeeId,tripId,stage,view,deviceCapturedAt,receivedAt,s
 - Notifications can be `awaiting_review,pending,processing,failed,unknown,accepted,delivered`. Required representative review defers sending. `delivered` is reserved; no delivery webhook is currently integrated. Unknown/accepted resends require an explicit reason.
 - The administrator overview also includes archived vehicles and actual disk usage. The configured limit is enforced against photo bytes, with reports/database requiring additional headroom.
 - Department and manager must be configured by an administrator before final checkout.
+
+Return inspections with `damageScope: "new"` contain only new/worsening damage. The immutable checkout inspection is the read-only baseline, displayed alongside new marks and included on the return PDF. Legacy inspections without this field retain their original all-damage semantics. Checkout rejects new-only scope.

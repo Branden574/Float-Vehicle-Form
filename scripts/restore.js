@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import { openPrivacy } from '../server/privacy.js';
 import { existsSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -18,6 +19,7 @@ export async function restoreBackup({
   dataDir = process.env.DATA_DIR || './data',
   offline = false,
   overwrite = false,
+  keyFile = process.env.PROFILE_ENCRYPTION_KEY_FILE,
 } = {}) {
   if (!offline)
     throw new Error(
@@ -100,7 +102,26 @@ export async function restoreBackup({
         if (!names.has(row.original_path) || !names.has(row.display_path))
           throw new Error('Backup is missing a database-referenced photo.');
       }
+      const encrypted = database
+        .prepare("SELECT name FROM sqlite_master WHERE name='privacy_meta'")
+        .get();
+      if (encrypted) {
+        if (!keyFile)
+          throw new Error(
+            'Encrypted backup requires PROFILE_ENCRYPTION_KEY_FILE pointing to its separately retained key.',
+          );
+        const privacy = openPrivacy(staging, keyFile);
+        if (
+          database.prepare('SELECT key_check FROM privacy_meta WHERE id=1').get()?.key_check !==
+          privacy.fingerprint
+        )
+          throw new Error('Incorrect profile encryption key for this backup.');
+        for (const row of database.prepare('SELECT profile_json FROM users').all())
+          privacy.decode(row.profile_json);
+      }
       database.transaction(() => {
+        if (database.prepare("SELECT name FROM sqlite_master WHERE name='login_codes'").get())
+          database.prepare('DELETE FROM login_codes').run();
         database.prepare('DELETE FROM sessions').run();
         database.prepare('UPDATE users SET invite_hash=NULL, invite_expires_at=NULL').run();
         // A queued message may have been sent after this snapshot was taken.

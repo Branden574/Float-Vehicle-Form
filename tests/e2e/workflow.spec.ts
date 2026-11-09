@@ -1,9 +1,12 @@
 import { test, expect, type Page } from '@playwright/test';
 import sharp from 'sharp';
+import { readFile } from 'node:fs/promises';
+import { signature } from '../helpers.js';
 
 async function login(page: Page, email = 'admin@example.test') {
   await page.goto('/');
   await page.getByLabel('Work email').fill(email);
+  await page.getByRole('button', { name: 'Use existing password', exact: true }).click();
   await page.getByLabel('Password', { exact: true }).fill('Local-test-password-123!');
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Find your next vehicle.' })).toBeVisible();
@@ -327,6 +330,7 @@ test('late responses from a signed-out administrator are discarded after staff s
   await waiting;
   await signOut(page);
   await page.getByLabel('Work email').fill('driver@example.test');
+  await page.getByRole('button', { name: 'Use existing password', exact: true }).click();
   await page.getByLabel('Password', { exact: true }).fill('Local-test-password-123!');
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Find your next vehicle.' })).toBeVisible();
@@ -414,4 +418,84 @@ test('touch diagram marks can be moved, removed, undone and saved with exact pos
   const report = await page.request.get(`/api/trips/${trip.id}/report?stage=checkout`);
   expect(report.status()).toBe(200);
   expect((await report.body()).subarray(0, 5).toString()).toBe('%PDF-');
+  await signOut(page);
+  await login(page);
+  const adminSession = await (await page.request.get('/api/auth/me')).json();
+  const approval = await page.request.post(`/api/trips/${trip.id}/review`, {
+    headers: { 'X-CSRF-Token': adminSession.csrfToken },
+    data: {
+      stage: 'checkout',
+      initials: 'QA',
+      signature: await signature(),
+      decision: 'approve',
+      reason: 'Cosmetic checkout mark reviewed',
+    },
+  });
+  expect(approval.status()).toBe(200);
+  await signOut(page);
+  await login(page, 'driver@example.test');
+  const current = page.locator('.my-checkouts .notice').filter({ hasText: name });
+  await expect(current).toBeVisible();
+  await current.getByRole('button', { name: 'View checkout', exact: true }).click();
+  await page.getByRole('button', { name: 'Return vehicle', exact: true }).click();
+  await page.getByLabel('Ending odometer reading', { exact: true }).fill('42625');
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await expect(svg.locator('[aria-label="Checkout mark C1: dent"]')).toHaveCount(1);
+  await expect(page.locator('.damage-row')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Scratch', exact: false }).first().click();
+  await place(0.7, 0.8);
+  await expect(page.locator('.damage-row')).toHaveCount(1);
+  await expect(svg.locator('[aria-label="Checkout mark C1: dent"]')).toHaveCount(1);
+  await page.screenshot({
+    path: `artifacts/return-baseline-${testInfo.project.name}.png`,
+    fullPage: true,
+  });
+  await inspect(page);
+  await photos(page, 195);
+  await signAndSubmit(page, true);
+  await expect(
+    page.getByText(
+      'Physical return recorded. Fleet availability is managed separately from this completed trip.',
+    ),
+  ).toBeVisible();
+  const returned = await (await page.request.get(`/api/trips/${trip.id}`)).json();
+  expect(returned.trip.checkoutInspection.damage[0]).toEqual(trip.checkoutInspection.damage[0]);
+  expect(returned.trip.returnInspection.damageScope).toBe('new');
+  expect(returned.trip.returnInspection.damage).toHaveLength(1);
+  expect(returned.trip.returnInspection.damage[0].position.x).toBeCloseTo(0.7, 2);
+});
+
+test('email codes create and remember an encrypted profile on a shared device', async ({
+  page,
+}, testInfo) => {
+  const email = `profile-${testInfo.project.name}@example.test`;
+  async function codeLogin() {
+    await page.goto('/');
+    await page.getByLabel('Work email').fill(email);
+    await page.getByRole('button', { name: 'Email me a sign-in code', exact: true }).click();
+    await expect(page.getByLabel('One-time code')).toBeVisible();
+    const mail = JSON.parse(await readFile('artifacts/e2e-mailbox.json', 'utf8'));
+    expect(mail.to).toEqual([email]);
+    await page.getByLabel('One-time code').fill(mail.text.match(/code is (\d{6})/)[1]);
+    await page.getByRole('button', { name: 'Verify code & sign in', exact: true }).click();
+  }
+  await codeLogin();
+  await expect(page.getByRole('heading', { name: 'Welcome. Tell us about you.' })).toBeVisible();
+  await page.getByLabel('Full name').fill('Profile Test Driver');
+  await page.getByLabel('Charter / school').fill('QA Saved Charter');
+  await page.getByLabel('Manager', { exact: true }).fill('QA Manager');
+  await page.getByRole('button', { name: 'Save my details', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'My current checkouts' })).toBeVisible();
+  await expect(page.getByText('You have no vehicle checked out.')).toBeVisible();
+  await signOut(page);
+  await codeLogin();
+  await expect(page.getByRole('heading', { name: 'Find your next vehicle.' })).toBeVisible();
+  await page.getByRole('button', { name: 'My profile', exact: true }).click();
+  await expect(page.getByLabel('Full name')).toHaveValue('Profile Test Driver');
+  await expect(page.getByLabel('Work email')).toHaveValue(email);
+  await expect(page.getByLabel('Charter / school')).toHaveValue('QA Saved Charter');
+  await page.screenshot({
+    path: `artifacts/saved-profile-${testInfo.project.name}.png`,
+    fullPage: true,
+  });
 });
