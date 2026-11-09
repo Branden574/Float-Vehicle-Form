@@ -4,6 +4,7 @@ import SwiftUI
 /// Credentials use the ordinary password authentication endpoint, never an OTP bypass.
 struct ReviewWorkspaceView: View {
   @StateObject private var store = FleetStore(review: true)
+  @Environment(\.dismiss) private var dismiss
   var body: some View {
     Group {
       if store.deletionReceipt != nil {
@@ -13,9 +14,15 @@ struct ReviewWorkspaceView: View {
       } else if store.session != nil {
         WorkspaceView().id(store.revision)
       } else {
-        ReviewSignInView()
+        NavigationStack { ReviewSignInView() }
       }
-    }.environmentObject(store).task { await store.restore() }
+    }.environmentObject(store)
+      .safeAreaInset(edge: .bottom) {
+        Button("Return to staff sign-in") { dismiss() }
+          .font(.footnote).padding(12).frame(maxWidth: .infinity)
+          .background(.regularMaterial)
+      }
+      .task { await store.restore() }
       .onReceive(NotificationCenter.default.publisher(for: .fleetSessionExpired)) { _ in
         store.clear()
       }

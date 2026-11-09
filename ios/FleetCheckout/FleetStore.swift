@@ -110,6 +110,7 @@ struct SignInView: View {
   @State private var busy = false
   @State private var message = ""
   @State private var error = ""
+  @State private var showingReview = false
   var body: some View {
     NavigationStack {
       ScrollView {
@@ -143,6 +144,8 @@ struct SignInView: View {
             if !store.error.isEmpty { Text(store.error).foregroundStyle(.red) }
             TimelineView(.periodic(from: .now, by: 1)) { timeline in
               let remaining = max(0, Int(ceil(cooldown.timeIntervalSince(timeline.date))))
+              let unavailable = busy || email.isEmpty || (challenge.isEmpty && remaining > 0)
+                || (!challenge.isEmpty && code.count != 6)
               Button {
                 Task { await submit() }
               } label: {
@@ -152,11 +155,11 @@ struct SignInView: View {
                   Spacer()
                   Image(systemName: "arrow.right")
                 }
-              }.buttonStyle(.borderedProminent).foregroundStyle(Color("FleetOnAccent")).controlSize(
+              }.buttonStyle(.borderedProminent).foregroundStyle(
+                unavailable ? Color.secondary : Color("FleetOnAccent")
+              ).controlSize(
                 .large
-              ).disabled(
-                busy || email.isEmpty || (challenge.isEmpty && remaining > 0)
-                  || (!challenge.isEmpty && code.count != 6))
+              ).disabled(unavailable)
               if !challenge.isEmpty {
                 Button(remaining > 0 ? "Resend code in \(remaining)s" : "Resend code") {
                   Task { await sendCode(resend: true) }
@@ -172,7 +175,8 @@ struct SignInView: View {
               }
             }
           }.padding(24).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24))
-          NavigationLink("App Review workspace", destination: ReviewWorkspaceView()).font(.footnote)
+          Button("App Review workspace") { showingReview = true }.font(.footnote)
+            .fullScreenCover(isPresented: $showingReview) { ReviewWorkspaceView() }
           HStack {
             Link("Privacy policy", destination: FleetAPI.origin.appendingPathComponent("privacy"))
             Link("Support", destination: FleetAPI.origin.appendingPathComponent("support"))

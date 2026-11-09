@@ -391,7 +391,7 @@ struct ProfileView: View {
           || charter.trimmingCharacters(in: .whitespaces).isEmpty
           || manager.trimmingCharacters(in: .whitespaces).isEmpty)
       Button("Sign out", role: .destructive) { signOut = true }.disabled(busy)
-      Link("Open web workspace", destination: FleetAPI.origin)
+      Link("Open web workspace", destination: store.api.baseURL)
       Link("Privacy policy", destination: FleetAPI.origin.appendingPathComponent("privacy"))
       Link("Support", destination: FleetAPI.origin.appendingPathComponent("support"))
       NavigationLink("Delete my account", destination: DeleteAccountView())
