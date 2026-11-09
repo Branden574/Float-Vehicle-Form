@@ -8,9 +8,11 @@
 
 /* Begin PBXBuildFile section */
 		07C153949CEFD6D2A70FBBB4 /* CaptureViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61B49F3DD930176273C661BF /* CaptureViews.swift */; };
+		1D198A78433CD94AA13D8021 /* AccountDeletionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2E9618255FCBE338771B408 /* AccountDeletionView.swift */; };
 		400170B8BEEAD5A9EB090432 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 2F8527E4526D63C4EFA28D42 /* PrivacyInfo.xcprivacy */; };
 		6EAC673B4613CFBB0DE700C2 /* AdminView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84CE1B405917790DD8A6DB50 /* AdminView.swift */; };
 		784AF2D2457A672344EF1EE8 /* FleetCheckoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBA3B6E149A6CD2BEA2C2B5D /* FleetCheckoutTests.swift */; };
+		92D34089F885382C002AA214 /* ReviewWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4166948DCA49DFB8FC0AD361 /* ReviewWorkspaceView.swift */; };
 		B0EE2ADE1AAD52038FC7D861 /* VehicleDiagram.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA4579CFBBCE1AF8036A6650 /* VehicleDiagram.swift */; };
 		B591558243F29F02A6483C2E /* WorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 651CD1194AA1A1136FAE79DC /* WorkspaceView.swift */; };
 		C0ABB7285C28E1CCBF89DC8A /* InspectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86750B8F23A808A945B063D1 /* InspectionView.swift */; };
@@ -33,12 +35,14 @@
 /* Begin PBXFileReference section */
 		25181E0A9B555236CF1C4453 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		2F8527E4526D63C4EFA28D42 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		4166948DCA49DFB8FC0AD361 /* ReviewWorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewWorkspaceView.swift; sourceTree = "<group>"; };
 		46BE6686576154A18E31E39C /* FleetCheckout.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = FleetCheckout.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4A73B3AB5E1A5C14CFAA68CE /* FleetStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FleetStore.swift; sourceTree = "<group>"; };
 		61B49F3DD930176273C661BF /* CaptureViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureViews.swift; sourceTree = "<group>"; };
 		651CD1194AA1A1136FAE79DC /* WorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceView.swift; sourceTree = "<group>"; };
 		84CE1B405917790DD8A6DB50 /* AdminView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminView.swift; sourceTree = "<group>"; };
 		86750B8F23A808A945B063D1 /* InspectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InspectionView.swift; sourceTree = "<group>"; };
+		A2E9618255FCBE338771B408 /* AccountDeletionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountDeletionView.swift; sourceTree = "<group>"; };
 		A2FA0BD78FA23349A317CA42 /* FleetAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FleetAPI.swift; sourceTree = "<group>"; };
 		BA4579CFBBCE1AF8036A6650 /* VehicleDiagram.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VehicleDiagram.swift; sourceTree = "<group>"; };
 		CCCFB0F0C4B410CE05FF8951 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -67,6 +71,7 @@
 		96D7FC819848267CD906C805 /* FleetCheckout */ = {
 			isa = PBXGroup;
 			children = (
+				A2E9618255FCBE338771B408 /* AccountDeletionView.swift */,
 				84CE1B405917790DD8A6DB50 /* AdminView.swift */,
 				CCCFB0F0C4B410CE05FF8951 /* Assets.xcassets */,
 				61B49F3DD930176273C661BF /* CaptureViews.swift */,
@@ -75,6 +80,7 @@
 				86750B8F23A808A945B063D1 /* InspectionView.swift */,
 				25181E0A9B555236CF1C4453 /* Models.swift */,
 				2F8527E4526D63C4EFA28D42 /* PrivacyInfo.xcprivacy */,
+				4166948DCA49DFB8FC0AD361 /* ReviewWorkspaceView.swift */,
 				BA4579CFBBCE1AF8036A6650 /* VehicleDiagram.swift */,
 				651CD1194AA1A1136FAE79DC /* WorkspaceView.swift */,
 			);
@@ -191,12 +197,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1D198A78433CD94AA13D8021 /* AccountDeletionView.swift in Sources */,
 				6EAC673B4613CFBB0DE700C2 /* AdminView.swift in Sources */,
 				07C153949CEFD6D2A70FBBB4 /* CaptureViews.swift in Sources */,
 				D6BDCA57845C0C02617910CE /* FleetAPI.swift in Sources */,
 				DF085C4484BA5F39F81044E6 /* FleetStore.swift in Sources */,
 				C0ABB7285C28E1CCBF89DC8A /* InspectionView.swift in Sources */,
 				D5707B9F59B3A885ADDE426E /* Models.swift in Sources */,
+				92D34089F885382C002AA214 /* ReviewWorkspaceView.swift in Sources */,
 				B0EE2ADE1AAD52038FC7D861 /* VehicleDiagram.swift in Sources */,
 				B591558243F29F02A6483C2E /* WorkspaceView.swift in Sources */,
 			);
@@ -265,7 +273,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -342,7 +350,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;

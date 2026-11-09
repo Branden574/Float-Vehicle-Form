@@ -319,6 +319,9 @@ function Login({
               ? 'Use at least 12 characters.'
               : 'First time? Verify your email, save your details, then ask your fleet administrator to authorize you as a driver.'}
           </p>
+          <p className="fine">
+            <a href="/privacy">Privacy policy</a> · <a href="/support">Support</a>
+          </p>
           <div className="shared-note">
             <ShieldCheck size={19} />
             <p>

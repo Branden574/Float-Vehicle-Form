@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { createApp } from './app.js';
+import { processDeletions } from './deletion.js';
 import { createReport } from './reports.js';
 import {
   createEmailSender,
@@ -25,6 +26,19 @@ const app = await createApp({
   notificationService: async (options) => await processNotification({ ...options, send }),
 });
 const worker = startNotificationWorker({ store: app.locals.store, send });
+let cleanupRunning = false;
+const cleanup = setInterval(async () => {
+  if (cleanupRunning) return;
+  cleanupRunning = true;
+  try {
+    await processDeletions(app.locals.store);
+  } catch {
+    console.error('Account cleanup will retry.');
+  } finally {
+    cleanupRunning = false;
+  }
+}, 60000);
+cleanup.unref();
 const server = app.listen(Number(process.env.PORT || 3000), process.env.HOST || '127.0.0.1', () =>
   console.log(
     `Fleet Checkout listening on ${process.env.HOST || '127.0.0.1'}:${process.env.PORT || 3000}. Email provider: ${process.env.EMAIL_PROVIDER || 'disabled'}.`,
@@ -33,6 +47,7 @@ const server = app.listen(Number(process.env.PORT || 3000), process.env.HOST || 
 server.requestTimeout = 180000;
 async function stop() {
   worker.stop();
+  clearInterval(cleanup);
   await server.close(async () => {
     await app.locals.store.close();
     process.exit(0);

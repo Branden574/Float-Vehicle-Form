@@ -3,6 +3,7 @@ import {
   GetObjectCommand,
   PutObjectCommand,
   DeleteObjectCommand,
+  ListObjectsV2Command,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
@@ -19,6 +20,22 @@ export function openR2Evidence(env, key) {
   const object = (value) => ({ Bucket: env.R2_BUCKET, Key: key(value) });
   return {
     cloud: true,
+    list: async (prefix) => {
+      const keys = [];
+      let token;
+      do {
+        const page = await client.send(
+          new ListObjectsV2Command({
+            Bucket: env.R2_BUCKET,
+            Prefix: key(prefix),
+            ContinuationToken: token,
+          }),
+        );
+        keys.push(...(page.Contents || []).map((item) => item.Key));
+        token = page.IsTruncated ? page.NextContinuationToken : undefined;
+      } while (token);
+      return keys;
+    },
     read: async (value) => {
       try {
         const result = await client.send(new GetObjectCommand(object(value)));

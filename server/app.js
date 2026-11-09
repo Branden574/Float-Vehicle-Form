@@ -11,6 +11,7 @@ import { installAuth } from './auth.js';
 import { installPhotos } from './photos.js';
 import { installTrips } from './trips.js';
 import { installAdmin } from './admin.js';
+import { installDeletion, installDeletionStatus } from './deletion.js';
 
 export async function createApp(options = {}) {
   const app = express(),
@@ -64,7 +65,9 @@ export async function createApp(options = {}) {
       .set('Cache-Control', 'no-store')
       .json({ ok: (await store.db.prepare('SELECT 1 AS healthy').get()).healthy === 1 }),
   );
+  installDeletionStatus(app, store);
   await installAuth(app, store, options);
+  installDeletion(app, store, options);
   app.use(
     '/api/photos',
     rateLimit({
@@ -86,6 +89,10 @@ export async function createApp(options = {}) {
   app.use('/api', (req, res) => res.status(404).json({ error: 'API route not found.' }));
   const dist = options.distDir || fileURLToPath(new URL('../dist', import.meta.url));
   if (existsSync(dist)) {
+    for (const page of ['privacy', 'deletion-status'])
+      app.get('/' + page, (req, res) =>
+        res.set('Cache-Control', 'no-cache').sendFile(path.join(dist, page + '.html')),
+      );
     app.get('/support', (req, res) =>
       res.set('Cache-Control', 'no-cache').sendFile(path.join(dist, 'support.html')),
     );

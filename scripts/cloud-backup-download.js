@@ -1,4 +1,6 @@
 import fs from 'node:fs/promises';
+import pg from 'pg';
+import { assertRestorable } from './backup-retention.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { backupKey, hash, readObject, safeEvidence, storage, unseal } from './cloud-backup.js';
@@ -11,6 +13,15 @@ export async function downloadBackup({ manifestKey, destination, env = process.e
   await fs.mkdir(root, { mode: 0o700 }); // Exclusive; never replace an existing recovery directory.
   await fs.writeFile(path.join(root, '.incomplete'), 'Do not restore this incomplete download.\n', {
     mode: 0o600,
+  });
+  if (!env.BACKUP_DATABASE_URL) throw Error('Live erasure ledger is required before recovery');
+  const pool = new pg.Pool({
+    connectionString: env.BACKUP_DATABASE_URL,
+    ssl: {
+      ca: await fs.readFile(new URL('../server/certs/supabase-ca.crt', import.meta.url), 'utf8'),
+      rejectUnauthorized: true,
+    },
+    max: 1,
   });
   const client = storage(env);
   const key = backupKey(env.BACKUP_ENCRYPTION_KEY);
@@ -26,6 +37,7 @@ export async function downloadBackup({ manifestKey, destination, env = process.e
       !manifestKey.startsWith(`snapshots/${manifest.id}/`)
     )
       throw new Error('Invalid manifest');
+    await assertRestorable(pool, manifest);
     for (const entry of [{ ...manifest.database, path: 'database.dump' }, ...manifest.files]) {
       if (entry.path !== 'database.dump') safeEvidence(entry.path);
       if (
@@ -45,10 +57,12 @@ export async function downloadBackup({ manifestKey, destination, env = process.e
       flag: 'wx',
       mode: 0o600,
     });
+    await assertRestorable(pool, manifest);
     await fs.unlink(path.join(root, '.incomplete'));
     return manifest;
   } finally {
     client.destroy();
+    await pool.end();
   }
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

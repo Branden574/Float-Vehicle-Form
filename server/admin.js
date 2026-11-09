@@ -33,7 +33,11 @@ export function installAdmin(app, store, { notificationService } = {}) {
   app.use('/api/admin', requireAdmin);
   app.get('/api/admin/overview', async (req, res) => {
     res.json({
-      users: (await db.prepare('SELECT * FROM users ORDER BY name').all())
+      users: (
+        await db
+          .prepare("SELECT * FROM users WHERE email <> 'deleted-system-actor' ORDER BY name")
+          .all()
+      )
         .map(store.publicUser)
         .sort((a, b) => a.name.localeCompare(b.name)),
       vehicles: (await db.prepare('SELECT * FROM vehicles ORDER BY archived,name').all()).map(
@@ -293,6 +297,12 @@ export function installAdmin(app, store, { notificationService } = {}) {
     res.json({ user, inviteToken });
   });
   app.patch('/api/admin/settings', async (req, res) => {
+    if (
+      process.env.RETENTION_ENABLED === 'true' &&
+      req.body.retentionDays !== undefined &&
+      req.body.retentionDays !== 60
+    )
+      fail(400, 'The published retention policy is 60 days.');
     const reason = validate(reasonSchema, req.body.reason),
       { reason: _reason, ...changes } = req.body;
     const before = await store.getSettings(),

@@ -1,7 +1,12 @@
 import SwiftUI
 
 @MainActor final class FleetStore: ObservableObject {
-  let api = FleetAPI()
+  let api: FleetAPI
+  init(review: Bool = false) {
+    api = FleetAPI(review: review)
+    deletionReceipt = DeletionReceipt.read(review: review)
+  }
+  @Published var deletionReceipt: String?
   @Published var session: FleetSession?
   @Published var vehicles: [Vehicle] = []
   @Published var trips: [Trip] = []
@@ -68,7 +73,9 @@ import SwiftUI
   var body: some Scene {
     WindowGroup {
       Group {
-        if store.restoring {
+        if store.deletionReceipt != nil {
+          DeletionStatusView()
+        } else if store.restoring {
           ProgressView("Opening your fleet…")
         } else if store.session != nil {
           WorkspaceView().id(store.revision)
@@ -165,6 +172,11 @@ struct SignInView: View {
               }
             }
           }.padding(24).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24))
+          NavigationLink("App Review workspace", destination: ReviewWorkspaceView()).font(.footnote)
+          HStack {
+            Link("Privacy policy", destination: FleetAPI.origin.appendingPathComponent("privacy"))
+            Link("Support", destination: FleetAPI.origin.appendingPathComponent("support"))
+          }.font(.footnote)
           Label("Your account. Your signature.", systemImage: "lock.shield").font(.footnote)
             .foregroundStyle(.secondary)
           Text(

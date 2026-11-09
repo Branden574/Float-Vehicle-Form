@@ -152,6 +152,33 @@ final class FleetCheckoutTests: XCTestCase {
     let _: EmptyResponse = try await api.request(
       "/api/trips/checkout", method: "POST", body: [:], key: "stable-retry-key")
   }
+  @MainActor func testReviewWorkspaceUsesIsolatedHostAndCookie() async throws {
+    let namespace = "app.fleetcheckout.tests." + UUID().uuidString
+    let staff = FleetAPI(protocolClasses: [FixtureProtocol.self], keychainService: namespace)
+    let review = FleetAPI(
+      review: true, protocolClasses: [FixtureProtocol.self], keychainService: namespace)
+    defer {
+      staff.clear()
+      review.clear()
+      FixtureProtocol.handler = nil
+    }
+    FixtureProtocol.handler = { request in
+      if request.url?.host == "fleetcheckout.app" {
+        return (
+          200, ["Set-Cookie": "fleet_session=staff-only; Path=/; Secure; HttpOnly"], Data("{}".utf8)
+        )
+      }
+      XCTAssertEqual(request.url?.host, "fleet-checkout-review.vercel.app")
+      XCTAssertNil(request.value(forHTTPHeaderField: "Cookie"))
+      return (200, [:], Data("{}".utf8))
+    }
+    let _: EmptyResponse = try await staff.request("/api/auth/me")
+    let _: EmptyResponse = try await review.request("/api/auth/me")
+    do {
+      let _: EmptyResponse = try await review.request("https://fleetcheckout.app/api/auth/me")
+      XCTFail("External API must be rejected")
+    } catch {}
+  }
   static let tripJSON = """
     {"id":"trip","vehicleId":"vehicle","employeeId":"staff","status":"active","checkoutAt":"2026-11-09T12:00:00.000Z","projectedReturnAt":"2026-11-09T18:00:00.000Z","startingMileage":43000,"employeeSnapshot":{"id":"staff","email":"driver@example.test","name":"Test Driver","department":"Testing","charter":"Testing","manager":"Test Manager","role":"staff","authorizedDriver":true,"active":true},"vehicleSnapshot":{"id":"vehicle","name":"Test Vehicle","make":"Ford","model":"Escape","year":2024,"plate":"TEST-01","vinLast4":"1234","site":"Testing","currentMileage":43000,"status":"checked_out","photoUrl":"","notes":"","archived":false},"checkoutInspection":{"fuelFull":true,"interiorClean":true,"gasCard":true,"windshield":"clear","damage":[],"notes":""},"flags":[],"overdue":false}
     """

@@ -13,6 +13,8 @@ import {
   PutObjectCommand,
 } from '@aws-sdk/client-s3';
 
+import { pruneBackups } from './backup-retention.js';
+
 const MAGIC = Buffer.from('L4LBK001');
 const MAX_OBJECT = 128 * 1024 * 1024;
 export const hash = (value) => createHash('sha256').update(value).digest('hex');
@@ -168,6 +170,15 @@ export async function createCloudBackup(env = process.env) {
   };
   let client;
   try {
+    const deletionJobs = (await pool.query('SELECT id,primary_deleted_at FROM fleet.deletion_jobs'))
+      .rows;
+    if (deletionJobs.some((j) => !j.primary_deleted_at))
+      throw Error('An erasure is pending; retry after primary cleanup');
+    const cutoff = deletionJobs
+      .map((j) => j.primary_deleted_at)
+      .sort()
+      .at(-1);
+    await pruneBackups({ client: target, bucket: env.BACKUP_BUCKET, key, cutoff });
     client = await pool.connect();
     await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
     await client.query("SET LOCAL statement_timeout='120s'");
@@ -184,6 +195,17 @@ export async function createCloudBackup(env = process.env) {
         (await client.query(`SELECT count(*) AS count FROM fleet.${tablename}`)).rows[0].count,
       );
     }
+    const closed = (
+      await client.query(
+        "SELECT COALESCE(returned_at,checkout_at) AS ended FROM fleet.trips WHERE status IN ('returned','cancelled')",
+      )
+    ).rows;
+    const expiry = Math.min(
+      Date.now() + 60 * 86400000,
+      ...closed.map((r) => Date.parse(r.ended) + 60 * 86400000),
+    );
+    if (expiry <= Date.now()) throw Error('Trip retention cleanup must finish before backup');
+    manifest.expiresAt = new Date(expiry).toISOString();
     const photos = (await client.query('SELECT original_path, display_path FROM fleet.photos'))
       .rows;
     const trips = new Set(
@@ -278,6 +300,27 @@ export async function createCloudBackup(env = process.env) {
       Buffer.from(JSON.stringify(manifest)),
       key,
     );
+    const latestJobs = (await pool.query('SELECT id,primary_deleted_at FROM fleet.deletion_jobs'))
+      .rows;
+    if (
+      latestJobs.some(
+        (j) => !j.primary_deleted_at || Date.parse(j.primary_deleted_at) >= Date.parse(startedAt),
+      )
+    ) {
+      await pruneBackups({
+        client: target,
+        bucket: env.BACKUP_BUCKET,
+        key,
+        cutoff: new Date().toISOString(),
+      });
+      throw Error('Erasure occurred during backup; retry with a fresh snapshot');
+    }
+    await pruneBackups({ client: target, bucket: env.BACKUP_BUCKET, key, cutoff });
+    for (const job of deletionJobs)
+      await pool.query(
+        'UPDATE fleet.deletion_jobs SET completed_at=$1 WHERE id=$2 AND primary_deleted_at IS NOT NULL AND completed_at IS NULL',
+        [new Date().toISOString(), job.id],
+      );
     const result = {
       id,
       manifestKey,

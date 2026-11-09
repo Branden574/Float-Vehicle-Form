@@ -392,6 +392,9 @@ struct ProfileView: View {
           || manager.trimmingCharacters(in: .whitespaces).isEmpty)
       Button("Sign out", role: .destructive) { signOut = true }.disabled(busy)
       Link("Open web workspace", destination: FleetAPI.origin)
+      Link("Privacy policy", destination: FleetAPI.origin.appendingPathComponent("privacy"))
+      Link("Support", destination: FleetAPI.origin.appendingPathComponent("support"))
+      NavigationLink("Delete my account", destination: DeleteAccountView())
     }.navigationTitle("My profile").onAppear {
       name = store.session?.user.name ?? ""
       charter = store.session?.user.charter ?? ""

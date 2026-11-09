@@ -19,6 +19,12 @@ export async function cloudFixture(t) {
     'utf8',
   ).replace(/\bfleet\b/g, schema);
   await admin.query(migration);
+  await admin.query(
+    readFileSync(
+      new URL('../supabase/migrations/20261109214534_account_deletion.sql', import.meta.url),
+      'utf8',
+    ).replace(/\bfleet\b/g, schema),
+  );
   process.env.DATABASE_SCHEMA = schema;
   return async () => {
     if (!/^qa_[a-f0-9]{20}$/.test(schema)) throw new Error('Invalid test schema');

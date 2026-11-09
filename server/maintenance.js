@@ -1,7 +1,11 @@
 import { processNotification } from './notifications.js';
+import { expireRecords } from './retention.js';
+import { processDeletions } from './deletion.js';
 
 /** Durable outbox rows survive function shutdown; claims prevent duplicate sends. */
 export async function runMaintenance({ store, send }) {
+  await expireRecords(store);
+  const deletions = await processDeletions(store);
   const time = new Date().toISOString();
   await store.db
     .prepare(
@@ -24,5 +28,5 @@ export async function runMaintenance({ store, send }) {
     await store.db.prepare('DELETE FROM sessions WHERE expires_at<?').run(time);
     await store.db.prepare('DELETE FROM login_codes WHERE expires_at<?').run(time);
   }
-  return { processed: rows.length };
+  return { processed: rows.length, deletions };
 }

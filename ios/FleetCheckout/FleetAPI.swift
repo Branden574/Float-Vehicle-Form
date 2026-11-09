@@ -11,6 +11,8 @@ struct FleetError: LocalizedError {
 /// API responses and photographs never enter URLCache or shared cookie storage.
 @MainActor final class FleetAPI {
   static let origin = URL(string: "https://fleetcheckout.app")!
+  let baseURL: URL
+  let isReview: Bool
   private var cookie: String?
   var csrf = ""
   private var epoch = UUID()
@@ -18,9 +20,12 @@ struct FleetError: LocalizedError {
   private let configuration: URLSessionConfiguration
   private let service: String
   init(
-    protocolClasses: [AnyClass]? = nil, keychainService: String = "app.fleetcheckout.mobile.session"
+    review: Bool = false, protocolClasses: [AnyClass]? = nil,
+    keychainService: String = "app.fleetcheckout.mobile.session"
   ) {
-    service = keychainService
+    isReview = review
+    baseURL = review ? URL(string: "https://fleet-checkout-review.vercel.app")! : Self.origin
+    service = review ? keychainService + ".review" : keychainService
     let configuration = URLSessionConfiguration.ephemeral
     if let protocolClasses { configuration.protocolClasses = protocolClasses }
     configuration.httpShouldSetCookies = false
@@ -55,14 +60,14 @@ struct FleetError: LocalizedError {
         kSecClass as String: kSecClassGenericPassword,
         kSecAttrService as String: service,
       ] as CFDictionary)
-    if service == "app.fleetcheckout.mobile.session",
+    if service.hasPrefix("app.fleetcheckout.mobile.session"),
       FileManager.default.fileExists(atPath: Self.privateFiles.path)
     {
       try? FileManager.default.removeItem(at: Self.privateFiles)
     }
   }
   func signOut() {
-    var request = URLRequest(url: Self.origin.appendingPathComponent("api/auth/logout"))
+    var request = URLRequest(url: baseURL.appendingPathComponent("api/auth/logout"))
     request.httpMethod = "POST"
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
     request.httpBody = Data("{}".utf8)
@@ -94,8 +99,8 @@ struct FleetError: LocalizedError {
   func request<T: Decodable>(
     _ path: String, method: String = "GET", body: [String: Any]? = nil, key: String? = nil
   ) async throws -> T {
-    guard path.hasPrefix("/api/"), let url = URL(string: path, relativeTo: Self.origin),
-      url.host == Self.origin.host
+    guard path.hasPrefix("/api/"), let url = URL(string: path, relativeTo: baseURL),
+      url.host == baseURL.host
     else {
       throw FleetError(message: "Invalid API address.")
     }
@@ -144,10 +149,10 @@ struct FleetError: LocalizedError {
         status: http.statusCode,
         retryAfter: Int(http.value(forHTTPHeaderField: "Retry-After") ?? "0") ?? 0)
     }
-    if authenticated, http.url?.host == Self.origin.host,
+    if authenticated, http.url?.host == baseURL.host,
       let headers = http.allHeaderFields as? [String: String]
     {
-      for value in HTTPCookie.cookies(withResponseHeaderFields: headers, for: Self.origin)
+      for value in HTTPCookie.cookies(withResponseHeaderFields: headers, for: baseURL)
       where value.name == "fleet_session" && !value.value.isEmpty {
         try saveCookie(value.value)
       }
@@ -188,7 +193,7 @@ struct FleetError: LocalizedError {
           .utf8))
     data.append(bytes)
     data.append(Data("\r\n--\(boundary)--\r\n".utf8))
-    var upload = URLRequest(url: Self.origin.appendingPathComponent("api/photos"))
+    var upload = URLRequest(url: baseURL.appendingPathComponent("api/photos"))
     upload.httpMethod = "POST"
     upload.httpBody = data
     upload.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
@@ -199,7 +204,7 @@ struct FleetError: LocalizedError {
   }
   func file(_ path: String, name: String) async throws -> URL {
     guard path.hasPrefix("/api/") else { throw FleetError(message: "Invalid file address.") }
-    let data = try await perform(URLRequest(url: URL(string: path, relativeTo: Self.origin)!))
+    let data = try await perform(URLRequest(url: URL(string: path, relativeTo: baseURL)!))
     guard data.count <= 120 * 1024 * 1024 else {
       throw FleetError(message: "File is too large to preview.")
     }

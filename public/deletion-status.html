@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Fleet Checkout Deletion Status</title>
+    <meta
+      name="description"
+      content="Help with Fleet Checkout sign-in, vehicle returns, receipt scanning and account questions."
+    />
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: system-ui, sans-serif;
+        color: #243c34;
+        background: #f5f7f2;
+        line-height: 1.65;
+      }
+      body {
+        margin: 0;
+      }
+      main {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 56px 24px 80px;
+      }
+      nav {
+        margin-bottom: 56px;
+      }
+      a {
+        color: #126b61;
+        text-underline-offset: 0.2em;
+        overflow-wrap: anywhere;
+      }
+      h1 {
+        font-size: clamp(2rem, 7vw, 3rem);
+        line-height: 1.15;
+        letter-spacing: -0.04em;
+        margin: 12px 0 20px;
+      }
+      h2 {
+        font-size: 1.2rem;
+        margin: 32px 0 8px;
+      }
+      p {
+        margin: 0 0 16px;
+      }
+      .eyebrow {
+        font-size: 0.8rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+      }
+      .contact {
+        padding: 24px;
+        border: 1px solid #ccd8cf;
+        border-radius: 16px;
+        margin: 32px 0;
+      }
+      .contact p:last-child {
+        margin-bottom: 0;
+      }
+      footer {
+        border-top: 1px solid #ccd8cf;
+        margin-top: 48px;
+        padding-top: 20px;
+        font-size: 0.9rem;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          color: #e4eee7;
+          background: #15221d;
+        }
+        a {
+          color: #84d4c7;
+        }
+        .contact,
+        footer {
+          border-color: #405449;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <nav><a href="/">Fleet Checkout</a> · <a href="/privacy">Privacy</a></nav>
+      <h1>Account deletion status</h1>
+      <p>
+        Your account closes immediately. Data and recoverable backups are removed within 7 days.
+        Save your private receipt to check completion; it contains no name or email.
+      </p>
+      <form id="status-form">
+        <label for="receipt">Private deletion receipt</label
+        ><input
+          id="receipt"
+          required
+          pattern="[a-f0-9]{64}"
+          maxlength="64"
+          autocomplete="off"
+          style="display: block; width: 100%; box-sizing: border-box; padding: 14px; margin: 12px 0"
+        /><button type="submit" style="padding: 14px">Check status</button>
+      </form>
+      <p id="result" role="status" style="margin-top: 24px"></p>
+      <p>
+        Copies already emailed or downloaded must be removed by their recipients. For help, contact
+        <a href="mailto:fleetcheckout.support@gmail.com">fleetcheckout.support@gmail.com</a>.
+        Include your private receipt only when contacting this support address.
+      </p>
+      <script src="/deletion-status.js" defer></script>
+    </main>
+  </body>
+</html>

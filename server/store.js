@@ -1,4 +1,5 @@
 import { openEvidence } from './evidence.js';
+import { deletionSchema } from './deletion.js';
 import { openPrivacy } from './privacy.js';
 import { openDatabase } from './database.js';
 import { mkdirSync, readFileSync } from 'node:fs';
@@ -22,7 +23,7 @@ export const defaults = {
   allowPhotoImports: true,
   largeMileageThreshold: 500,
   storageLimitBytes: 50 * 1024 ** 3,
-  retentionDays: 1095,
+  retentionDays: 60,
   sessionMinutes: 15,
   requiredPhotoViews: ['front', 'rear', 'driver', 'passenger'],
 };
@@ -53,6 +54,7 @@ export async function openStore(dataDir = process.env.DATA_DIR || './data') {
       readFileSync(fileURLToPath(new URL('./migrations/001_initial.sql', import.meta.url)), 'utf8'),
     );
     await db.pragma('secure_delete = ON');
+    await db.exec(deletionSchema);
     await db.exec(
       'CREATE TABLE IF NOT EXISTS privacy_meta (id INTEGER PRIMARY KEY CHECK(id=1), key_check TEXT NOT NULL)',
     );
@@ -127,6 +129,7 @@ export async function openStore(dataDir = process.env.DATA_DIR || './data') {
         (await db.prepare('SELECT data_json FROM settings WHERE id=1').get()).data_json,
       ),
     };
+    if (process.env.RETENTION_ENABLED === 'true') settings.retentionDays = 60;
     if (process.env.STORAGE_LIMIT_BYTES)
       settings.storageLimitBytes = Math.min(
         settings.storageLimitBytes,

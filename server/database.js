@@ -36,7 +36,7 @@ function postgresSQL(sql, schema) {
     sql = sql.replace(/^INSERT OR IGNORE /i, 'INSERT ') + ' ON CONFLICT DO NOTHING';
   if (!/^[a-z_][a-z0-9_]*$/.test(schema)) throw new Error('Invalid database schema');
   const tables =
-    'schema_migrations|settings|users|sessions|vehicles|trips|photos|reviews|revisions|odometer_replacements|audit|notifications|idempotency|privacy_meta|login_codes|upload_tickets|rate_limits';
+    'schema_migrations|settings|users|sessions|vehicles|trips|photos|reviews|revisions|odometer_replacements|audit|notifications|idempotency|privacy_meta|login_codes|upload_tickets|rate_limits|deletion_jobs';
   sql = sql.replace(
     new RegExp(`\\b(FROM|JOIN|UPDATE|INTO)\\s+(${tables})\\b`, 'gi'),
     (_, keyword, table) => `${keyword} ${schema}.${table}`,

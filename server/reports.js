@@ -356,7 +356,13 @@ export async function createReport({ store, tripId, stage = 'return', download =
   doc.end();
   const result = await originalForms({ trip, reviews, zone, stage, appendix: await finished });
   try {
-    await store.evidence.put(filename, result, 'application/pdf');
+    await store.db.transaction(async () => {
+      // Do not recreate a pre-deletion document from a rendering already in flight.
+      const current = await store.getTripBundle(tripId);
+      if (JSON.stringify(current) !== JSON.stringify(bundle))
+        throw new Error('This record changed while the PDF was being prepared. Refresh and retry.');
+      await store.evidence.put(filename, result, 'application/pdf');
+    })();
   } catch (error) {
     if (error.code !== 'EEXIST') throw error;
   }

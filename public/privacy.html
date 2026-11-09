@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Fleet Checkout Privacy</title>
+    <meta
+      name="description"
+      content="Help with Fleet Checkout sign-in, vehicle returns, receipt scanning and account questions."
+    />
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: system-ui, sans-serif;
+        color: #243c34;
+        background: #f5f7f2;
+        line-height: 1.65;
+      }
+      body {
+        margin: 0;
+      }
+      main {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 56px 24px 80px;
+      }
+      nav {
+        margin-bottom: 56px;
+      }
+      a {
+        color: #126b61;
+        text-underline-offset: 0.2em;
+        overflow-wrap: anywhere;
+      }
+      h1 {
+        font-size: clamp(2rem, 7vw, 3rem);
+        line-height: 1.15;
+        letter-spacing: -0.04em;
+        margin: 12px 0 20px;
+      }
+      h2 {
+        font-size: 1.2rem;
+        margin: 32px 0 8px;
+      }
+      p {
+        margin: 0 0 16px;
+      }
+      .eyebrow {
+        font-size: 0.8rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+      }
+      .contact {
+        padding: 24px;
+        border: 1px solid #ccd8cf;
+        border-radius: 16px;
+        margin: 32px 0;
+      }
+      .contact p:last-child {
+        margin-bottom: 0;
+      }
+      footer {
+        border-top: 1px solid #ccd8cf;
+        margin-top: 48px;
+        padding-top: 20px;
+        font-size: 0.9rem;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          color: #e4eee7;
+          background: #15221d;
+        }
+        a {
+          color: #84d4c7;
+        }
+        .contact,
+        footer {
+          border-color: #405449;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <nav><a href="/">Fleet Checkout</a> · <a href="/support">Support</a></nav>
+      <p class="eyebrow">Privacy · Updated November 9, 2026</p>
+      <h1>Your information, explained.</h1>
+      <p>
+        Fleet Checkout is operated by Branden Vincent-Walker for authorized staff. This policy
+        covers our web app and native iPhone and iPad app.
+      </p>
+      <h2>What we collect and why</h2>
+      <p>
+        We collect your name, email, charter/school, department, manager, account permissions and
+        sign-in information to identify you, authorize fleet access and prefill forms. Vehicle
+        inspections include mileage, dates, destinations, purpose, condition, damage marks,
+        signatures and approval or correction history. Photos, scanned gas receipts and generated
+        PDFs document your trip.
+      </p>
+      <p>
+        Receipts can contain purchase amounts, merchant details and partial payment information.
+        Original photos may contain location and device metadata supplied by your camera. We do not
+        continuously track your location. Avoid including unnecessary personal or payment
+        information in uploads.
+      </p>
+      <p>
+        We also process request/security records, approximate connection information and error
+        diagnostics to protect accounts, deliver the service and investigate failures. We do not
+        sell personal information, use advertising trackers or track you across other companies’
+        apps or websites.
+      </p>
+      <h2>Who can access it</h2>
+      <p>
+        You can access your records. Authorized fleet administrators and assigned reviewers can
+        access records needed to manage and approve trips. Configured administrative assistants and,
+        when enabled, the employee receive copies of completed forms and evidence by email.
+      </p>
+      <p>
+        Our service providers include Vercel (hosting), Supabase (database), Cloudflare R2 (private
+        files), Resend (transactional email), GitHub Actions (encrypted backup processing), and
+        Google (support email). They process information to provide these services. Data may be
+        processed in the United States and other locations where these providers operate. We may
+        disclose information when required by applicable law.
+      </p>
+      <h2>Storage and retention</h2>
+      <p>
+        Saved profile and inspection data are encrypted on the server. Files use private storage and
+        controlled access; backup files are additionally encrypted. HTTPS protects data in transit.
+        No system can guarantee absolute security.
+      </p>
+      <p>
+        Your profile remains while your account is active. Closed trip forms, photos and receipts
+        are scheduled for deletion 60 days after return or cancellation, including removal from
+        recoverable backups. Active trips remain until closed or an account deletion request is
+        processed. Daily cleanup may take up to 24 hours after expiry. Anonymous vehicle mileage and
+        availability may remain without an identifiable staff profile.
+      </p>
+      <h2 id="delete-account">Delete your account and associated data</h2>
+      <p>
+        In the app or website, open <strong>My profile → Delete my account</strong>. Review the
+        consequences, type DELETE and confirm. You may need to sign in again to verify your
+        identity. Access is revoked immediately; your profile, signed forms, photos, receipts and
+        generated reports are removed through a retryable cleanup process, including recoverable
+        backups, within 7 days. Keep the private receipt to check completion at
+        <a href="/deletion-status">Deletion status</a>.
+      </p>
+      <p>
+        This is permanent. A vehicle still checked out is held for inspection. Associated records
+        are deleted earlier than the usual 60-day period when you request account deletion. Copies
+        already emailed, exported or downloaded are outside the app’s control: contact their
+        recipients or your organization to request their deletion. Service-provider security logs
+        and residual infrastructure copies follow the providers’ limited retention schedules and are
+        not used to restore deleted accounts.
+      </p>
+      <h2>Your choices and device permissions</h2>
+      <p>
+        Update your saved profile in My profile. Camera access is requested only when taking
+        evidence photos or using Apple’s document scanner. You choose photos to upload using the
+        system picker. You can revoke camera access in device settings. The app clears its session
+        and temporary private files when you sign out; copies you explicitly save or share remain
+        where you saved them.
+      </p>
+      <h2>Contact and changes</h2>
+      <p>
+        For access, corrections, deletion help or privacy questions, email
+        <a href="mailto:fleetcheckout.support@gmail.com">fleetcheckout.support@gmail.com</a>. Do not
+        email passwords or sign-in codes. Fleet Checkout is for staff and is not directed to
+        children. Material changes will be reflected on this page with an updated date.
+      </p>
+    </main>
+  </body>
+</html>

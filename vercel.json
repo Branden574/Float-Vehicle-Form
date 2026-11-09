@@ -12,6 +12,14 @@
   },
   "rewrites": [
     {
+      "source": "/privacy",
+      "destination": "/privacy.html"
+    },
+    {
+      "source": "/deletion-status",
+      "destination": "/deletion-status.html"
+    },
+    {
       "source": "/support",
       "destination": "/support.html"
     },
@@ -24,7 +32,7 @@
       "destination": "/api/index"
     },
     {
-      "source": "/((?!api/|assets/|icon-|sw.js|favicon.ico|support.html).*)",
+      "source": "/((?!api/|assets/|icon-|sw.js|favicon.ico|support.html|privacy.html|deletion-status.js|deletion-status.html).*)",
       "destination": "/index.html"
     }
   ],

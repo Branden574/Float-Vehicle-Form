@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { openR2Evidence } from './r2-evidence.js';
-import { readFile, writeFile, mkdir, unlink, link } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, unlink, link, readdir } from 'node:fs/promises';
 import path from 'node:path';
 
 /** Evidence remains private. Only authenticated API handlers issue download URLs. */
@@ -22,6 +22,18 @@ export function openEvidence(dataDir, env = process.env) {
   if (env.VERCEL) throw new Error('Private R2 storage configuration is required');
   return {
     cloud: false,
+    list: async (prefix) => {
+      const safe = key(prefix);
+      const dir = path.dirname(safe);
+      let files;
+      try {
+        files = await readdir(path.join(dataDir, dir));
+      } catch (error) {
+        if (error.code === 'ENOENT') return [];
+        throw error;
+      }
+      return files.map((name) => `${dir}/${name}`).filter((name) => name.startsWith(safe));
+    },
     read: (value) => readFile(path.join(dataDir, key(value))),
     put: async (value, bytes) => {
       const filename = path.join(dataDir, key(value));

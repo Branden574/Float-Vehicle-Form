@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { patch, errorMessage } from '../api';
+import { patch, post, errorMessage, clearPrivateState } from '../api';
 import type { Session } from '../types';
 export function Profile({
   session,
@@ -21,6 +21,8 @@ export function Profile({
   });
   const [busy, setBusy] = useState(false),
     [error, setError] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [confirmation, setConfirmation] = useState('');
   return (
     <main className="profile-page">
       <p className="eyebrow">Your fleet profile</p>
@@ -88,6 +90,74 @@ export function Profile({
           </button>
         </div>
       </form>
+      <p>
+        <a href="/privacy">Privacy policy</a> · <a href="/support">Support</a>
+      </p>
+      <section className="notice" aria-label="Delete account">
+        <h2>Delete your account</h2>
+        <p>
+          Permanently remove your profile, signed forms, photos, gas receipts and generated reports.
+          You will be signed out immediately. Cloud cleanup, including recoverable backups, finishes
+          within 7 days. Copies already emailed or downloaded must be removed by their recipients.
+        </p>
+        <p>
+          Return any checked-out vehicle first. If you delete while a vehicle is out, it will be
+          held for inspection. Administrators should appoint a replacement before deleting their
+          account.
+        </p>
+        {!deleting ? (
+          <button className="button secondary" onClick={() => setDeleting(true)}>
+            Delete my account…
+          </button>
+        ) : (
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setBusy(true);
+              setError('');
+              try {
+                const result = await post<{ receipt: string }>('/auth/delete-account', {
+                  confirmation,
+                });
+                clearPrivateState();
+                window.location.replace('/deletion-status#' + result.receipt);
+              } catch (e) {
+                setError(errorMessage(e));
+                setBusy(false);
+              }
+            }}
+          >
+            <p>
+              This cannot be undone. If prompted, sign out and sign in again to verify your
+              identity.
+            </p>
+            <label>
+              Type DELETE to confirm
+              <input
+                value={confirmation}
+                onChange={(e) => setConfirmation(e.target.value)}
+                autoComplete="off"
+              />
+            </label>
+            <div className="profile-actions">
+              <button className="button primary" disabled={busy || confirmation !== 'DELETE'}>
+                {busy ? 'Requesting deletion…' : 'Permanently delete my account'}
+              </button>
+              <button
+                className="button secondary"
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  setDeleting(false);
+                  setConfirmation('');
+                }}
+              >
+                Keep my account
+              </button>
+            </div>
+          </form>
+        )}
+      </section>
     </main>
   );
 }

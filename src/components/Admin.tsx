@@ -709,22 +709,15 @@ export function Admin({
                   />
                 </label>
                 <label>
-                  Evidence retention policy (days)
-                  <input
-                    type="number"
-                    required
-                    min={1}
-                    value={config.retentionDays}
-                    onChange={(e) =>
-                      setConfig({ ...config, retentionDays: Number(e.target.value) })
-                    }
-                  />
+                  Closed trip retention (days)
+                  <input type="number" required readOnly value={60} />
                 </label>
               </div>
               <div className="notice neutral">
-                Retention is an administrator policy, not automatic deletion. Export and back up
-                evidence, review the policy with your organization, and arrange any approved
-                deletion with IT. Storage is never silently cleared.
+                Closed trip forms, photos and receipts are removed after 60 days, including
+                recoverable backup copies. Daily cleanup may take up to 24 hours after expiry.
+                Account deletion removes associated data earlier. Active trips remain until closed
+                or an account deletion request is processed.
               </div>
               <h3>Photograph requirements</h3>
               <p>
