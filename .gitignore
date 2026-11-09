@@ -13,3 +13,7 @@ artifacts/
 *.log
 
 secrets/
+.vercel
+.env*
+
+supabase/.temp/

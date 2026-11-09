@@ -39,7 +39,15 @@ export function Status({ value, overdue = false }: { value: string; overdue?: bo
   );
 }
 
-function Login({ onSession, message }: { onSession: (s: Session) => void; message: string }) {
+function Login({
+  onSession,
+  message,
+  signingOut,
+}: {
+  onSession: (s: Session) => void;
+  message: string;
+  signingOut: boolean;
+}) {
   const [email, setEmail] = useState(''),
     [password, setPassword] = useState(''),
     [error, setError] = useState(''),
@@ -63,6 +71,7 @@ function Login({ onSession, message }: { onSession: (s: Session) => void; messag
   }, []);
   async function submit(event: React.FormEvent) {
     event.preventDefault();
+    if (signingOut) return;
     setBusy(true);
     setError('');
     try {
@@ -186,7 +195,7 @@ function Login({ onSession, message }: { onSession: (s: Session) => void; messag
                 <span className="fine">Check your email. Codes expire after 10 minutes.</span>
               </label>
             )}
-            <button disabled={busy} className="button primary wide" type="submit">
+            <button disabled={busy || signingOut} className="button primary wide" type="submit">
               {busy
                 ? 'Please wait…'
                 : token
@@ -262,6 +271,7 @@ export default function App() {
     [online, setOnline] = useState(navigator.onLine),
     [busy, setBusy] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const activity = useRef(Date.now());
   function erase(note: string) {
     setEditingProfile(false);
@@ -271,6 +281,9 @@ export default function App() {
     setTrips([]);
     setVehicles([]);
     setSearch('');
+    setPage('fleet');
+    setFilter('all');
+    setError('');
     setMessage(note);
     clearPrivateState();
   }
@@ -370,6 +383,7 @@ export default function App() {
     };
   }, [session]);
   async function signOut(note = 'You are signed out. This iPad is ready for the next person.') {
+    setSigningOut(true);
     localStorage.setItem('fleet-signout-pending', '1');
     const request = post('/auth/logout', {});
     erase('Local details cleared. Confirming server sign-out…');
@@ -381,6 +395,8 @@ export default function App() {
       setMessage(
         'Local details cleared. Connect to the network before handing over this iPad; server sign-out is pending.',
       );
+    } finally {
+      setSigningOut(false);
     }
   }
   function navigate(next: Page) {
@@ -399,7 +415,8 @@ export default function App() {
         <p>Opening fleet workspace…</p>
       </div>
     );
-  if (!session) return <Login onSession={(s) => accept(s, true)} message={message} />;
+  if (!session)
+    return <Login onSession={(s) => accept(s, true)} message={message} signingOut={signingOut} />;
   if (!session.user.charter || editingProfile)
     return (
       <Profile

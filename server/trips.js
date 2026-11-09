@@ -15,12 +15,12 @@ import { requireAdmin, requireTripAccess } from './auth.js';
 import { validatePhotos } from './photos.js';
 
 const draftSchema = z.string().uuid();
-function idempotency(store, req, operation) {
+async function idempotency(store, req, operation) {
   const key = req.get('Idempotency-Key');
   if (!key || key.length < 8 || key.length > 200)
     fail(400, 'A submission idempotency key is required. Refresh the form and try again.');
   const digest = hash(JSON.stringify(req.body));
-  const previous = store.db
+  const previous = await store.db
     .prepare('SELECT * FROM idempotency WHERE user_id=? AND key=?')
     .get(req.user.id, key);
   if (previous && (previous.operation !== operation || previous.request_hash !== digest))
@@ -32,8 +32,8 @@ function idempotency(store, req, operation) {
     key,
     digest,
     previous: previous ? store.decodeJSON(previous.response_json) : null,
-    save: (response) =>
-      store.db
+    save: async (response) =>
+      await store.db
         .prepare('INSERT INTO idempotency VALUES(?,?,?,?,?,?)')
         .run(req.user.id, key, operation, digest, store.encodeJSON(response), now()),
   };
@@ -50,27 +50,28 @@ export function installTrips(app, store, { reportService } = {}) {
       }
     }
   };
-  app.get('/api/vehicles', (req, res) =>
+  app.get('/api/vehicles', async (req, res) =>
     res.json({
-      vehicles: db
-        .prepare('SELECT * FROM vehicles WHERE archived=0 ORDER BY name')
-        .all()
-        .map(store.mapVehicle),
+      vehicles: (
+        await db.prepare('SELECT * FROM vehicles WHERE archived=0 ORDER BY name').all()
+      ).map(store.mapVehicle),
     }),
   );
-  app.get('/api/trips', (req, res) =>
+  app.get('/api/trips', async (req, res) =>
     res.json({
-      trips: (req.user.role === 'admin'
-        ? db.prepare('SELECT * FROM trips ORDER BY checkout_at DESC').all()
-        : db
-            .prepare('SELECT * FROM trips WHERE employee_id=? ORDER BY checkout_at DESC')
-            .all(req.user.id)
-      ).map(store.mapTrip),
+      trips: await Promise.all(
+        (req.user.role === 'admin'
+          ? await db.prepare('SELECT * FROM trips ORDER BY checkout_at DESC').all()
+          : await db
+              .prepare('SELECT * FROM trips WHERE employee_id=? ORDER BY checkout_at DESC')
+              .all(req.user.id)
+        ).map(store.mapTrip),
+      ),
     }),
   );
-  app.get('/api/trips/:id', (req, res) => {
-    requireTripAccess(store, req, req.params.id);
-    const bundle = store.getTripBundle(req.params.id);
+  app.get('/api/trips/:id', async (req, res) => {
+    await requireTripAccess(store, req, req.params.id);
+    const bundle = await store.getTripBundle(req.params.id);
     bundle.photos = bundle.photos.map(store.publicPhoto);
     delete bundle.settings;
     if (req.user.role !== 'admin')
@@ -78,7 +79,7 @@ export function installTrips(app, store, { reportService } = {}) {
     res.json(bundle);
   });
   app.post('/api/trips/checkout', async (req, res) => {
-    const replay = idempotency(store, req, 'checkout');
+    const replay = await idempotency(store, req, 'checkout');
     if (replay.previous) return res.json(replay.previous);
     if (!req.user.authorizedDriver)
       fail(403, 'Your administrator must authorize you as a float-pool driver.');
@@ -106,11 +107,11 @@ export function installTrips(app, store, { reportService } = {}) {
     if (b.inspection.damageScope === 'new') fail(400, 'Checkout must record all observed damage.');
     await validateSignature(b.signature);
     const acknowledgments = checkAcknowledgments(b.acknowledgments, 'checkout');
-    const result = db
-      .transaction(() => {
-        const idem = idempotency(store, req, 'checkout');
+    const result = await db
+      .transaction(async () => {
+        const idem = await idempotency(store, req, 'checkout');
         if (idem.previous) return idem.previous;
-        const user = store.getUser(req.user.id);
+        const user = await store.getUser(req.user.id);
         if (!user.active || !user.authorizedDriver)
           fail(403, 'Driver authorization is no longer active.');
         if (
@@ -120,7 +121,7 @@ export function installTrips(app, store, { reportService } = {}) {
           !user.manager.trim()
         )
           fail(400, 'Complete your name, charter and manager in My profile before checkout.');
-        const vehicle = store.getVehicle(b.vehicleId);
+        const vehicle = await store.getVehicle(b.vehicleId);
         if (!vehicle || vehicle.archived) fail(404, 'Vehicle not found.');
         if (vehicle.status !== 'available')
           fail(409, 'This vehicle was just checked out or placed on hold. Choose another vehicle.');
@@ -129,7 +130,7 @@ export function installTrips(app, store, { reportService } = {}) {
             409,
             'The mileage has changed or does not match the accepted reading. Refresh or report a discrepancy.',
           );
-        const photos = validatePhotos(store, {
+        const photos = await validatePhotos(store, {
           ids: b.photoIds,
           employeeId: req.user.id,
           vehicleId: vehicle.id,
@@ -138,7 +139,7 @@ export function installTrips(app, store, { reportService } = {}) {
         });
         const id = randomUUID(),
           time = now(),
-          settings = store.getSettings(),
+          settings = await store.getSettings(),
           flags = inspectionFlags(b.inspection),
           needsReview = settings.reviewMode === 'representative' || flags.length > 0;
         const snapshot = {
@@ -157,36 +158,39 @@ export function installTrips(app, store, { reportService } = {}) {
           },
           signedAt: time,
         };
-        db.prepare(
-          'INSERT INTO trips(id,vehicle_id,employee_id,status,checkout_at,projected_return_at,starting_mileage,vehicle_mileage_version,checkout_json,flags_json) VALUES(?,?,?,?,?,?,?,?,?,?)',
-        ).run(
-          id,
-          vehicle.id,
-          user.id,
-          needsReview ? 'pending_checkout' : 'active',
-          time,
-          b.projectedReturnAt,
-          b.startingMileage,
-          vehicle.mileageVersion,
-          store.encodeJSON(snapshot),
-          JSON.stringify(flags),
-        );
-        const updated = db
+        await db
+          .prepare(
+            'INSERT INTO trips(id,vehicle_id,employee_id,status,checkout_at,projected_return_at,starting_mileage,vehicle_mileage_version,checkout_json,flags_json) VALUES(?,?,?,?,?,?,?,?,?,?)',
+          )
+          .run(
+            id,
+            vehicle.id,
+            user.id,
+            needsReview ? 'pending_checkout' : 'active',
+            time,
+            b.projectedReturnAt,
+            b.startingMileage,
+            vehicle.mileageVersion,
+            store.encodeJSON(snapshot),
+            JSON.stringify(flags),
+          );
+        const updated = await db
           .prepare("UPDATE vehicles SET status=?,updated_at=? WHERE id=? AND status='available'")
           .run(needsReview ? 'pending_review' : 'checked_out', time, vehicle.id);
         if (updated.changes !== 1) fail(409, 'The vehicle is no longer available.');
         for (const photo of photos)
-          db.prepare('UPDATE photos SET finalized=1,trip_id=? WHERE id=? AND finalized=0').run(
-            id,
-            photo.id,
-          );
-        store.enqueueNotification(id, 'checkout');
+          await db
+            .prepare('UPDATE photos SET finalized=1,trip_id=? WHERE id=? AND finalized=0')
+            .run(id, photo.id);
+        await store.enqueueNotification(id, 'checkout');
         if (needsReview)
-          db.prepare(
-            "UPDATE notifications SET status='awaiting_review',error='Awaiting authenticated representative signature' WHERE trip_id=? AND stage='checkout'",
-          ).run(id);
-        const response = { trip: store.getTrip(id) };
-        idem.save(response);
+          await db
+            .prepare(
+              "UPDATE notifications SET status='awaiting_review',error='Awaiting authenticated representative signature' WHERE trip_id=? AND stage='checkout'",
+            )
+            .run(id);
+        const response = { trip: await store.getTrip(id) };
+        await idem.save(response);
         return response;
       })
       .immediate();
@@ -195,9 +199,9 @@ export function installTrips(app, store, { reportService } = {}) {
   });
   app.post('/api/trips/:id/return', async (req, res) => {
     const operation = `return:${req.params.id}`,
-      replay = idempotency(store, req, operation);
+      replay = await idempotency(store, req, operation);
     if (replay.previous) return res.json(replay.previous);
-    const trip = requireTripAccess(store, req, req.params.id);
+    const trip = await requireTripAccess(store, req, req.params.id);
     if (trip.employeeId !== req.user.id)
       fail(403, 'The authenticated employee must complete and sign their own return.');
     const b = validate(
@@ -227,11 +231,11 @@ export function installTrips(app, store, { reportService } = {}) {
       );
     await validateSignature(b.signature);
     const acknowledgments = checkAcknowledgments(b.acknowledgments, 'return');
-    const result = db
-      .transaction(() => {
-        const idem = idempotency(store, req, operation);
+    const result = await db
+      .transaction(async () => {
+        const idem = await idempotency(store, req, operation);
         if (idem.previous) return idem.previous;
-        const current = store.getTrip(trip.id);
+        const current = await store.getTrip(trip.id);
         if (current.status !== 'active')
           fail(
             409,
@@ -246,7 +250,7 @@ export function installTrips(app, store, { reportService } = {}) {
             409,
             'Refresh the trip and acknowledge the documented odometer replacement before return.',
           );
-        const photos = validatePhotos(store, {
+        const photos = await validatePhotos(store, {
           ids: b.photoIds,
           employeeId: req.user.id,
           vehicleId: trip.vehicleId,
@@ -254,9 +258,9 @@ export function installTrips(app, store, { reportService } = {}) {
           draftId: b.draftId,
           tripId: trip.id,
         });
-        const settings = store.getSettings(),
+        const settings = await store.getSettings(),
           time = now(),
-          vehicle = store.getVehicle(trip.vehicleId),
+          vehicle = await store.getVehicle(trip.vehicleId),
           flags = inspectionFlags(b.inspection);
         const distance = current.odometerReplacement
           ? current.odometerReplacement.oldReading -
@@ -283,28 +287,36 @@ export function installTrips(app, store, { reportService } = {}) {
             logoUrl: settings.logoUrl,
           },
         };
-        db.prepare(
-          "UPDATE trips SET status='returned',returned_at=?,ending_mileage=?,return_json=?,flags_json=?,return_mileage_version=? WHERE id=? AND status='active'",
-        ).run(
-          time,
-          b.endingMileage,
-          store.encodeJSON(signed),
-          JSON.stringify(flagUnion(current.flags, flags)),
-          vehicle.mileageVersion + 1,
-          trip.id,
-        );
-        db.prepare(
-          'UPDATE vehicles SET current_mileage=?,mileage_version=mileage_version+1,status=?,updated_at=? WHERE id=?',
-        ).run(b.endingMileage, hold ? 'pending_review' : 'available', time, trip.vehicleId);
+        await db
+          .prepare(
+            "UPDATE trips SET status='returned',returned_at=?,ending_mileage=?,return_json=?,flags_json=?,return_mileage_version=? WHERE id=? AND status='active'",
+          )
+          .run(
+            time,
+            b.endingMileage,
+            store.encodeJSON(signed),
+            JSON.stringify(flagUnion(current.flags, flags)),
+            vehicle.mileageVersion + 1,
+            trip.id,
+          );
+        await db
+          .prepare(
+            'UPDATE vehicles SET current_mileage=?,mileage_version=mileage_version+1,status=?,updated_at=? WHERE id=?',
+          )
+          .run(b.endingMileage, hold ? 'pending_review' : 'available', time, trip.vehicleId);
         for (const photo of photos)
-          db.prepare('UPDATE photos SET finalized=1 WHERE id=? AND finalized=0').run(photo.id);
-        store.enqueueNotification(trip.id, 'return');
+          await db
+            .prepare('UPDATE photos SET finalized=1 WHERE id=? AND finalized=0')
+            .run(photo.id);
+        await store.enqueueNotification(trip.id, 'return');
         if (settings.reviewMode === 'representative')
-          db.prepare(
-            "UPDATE notifications SET status='awaiting_review',error='Awaiting authenticated representative signature' WHERE trip_id=? AND stage='return'",
-          ).run(trip.id);
-        const response = { trip: store.getTrip(trip.id) };
-        idem.save(response);
+          await db
+            .prepare(
+              "UPDATE notifications SET status='awaiting_review',error='Awaiting authenticated representative signature' WHERE trip_id=? AND stage='return'",
+            )
+            .run(trip.id);
+        const response = { trip: await store.getTrip(trip.id) };
+        await idem.save(response);
         return response;
       })
       .immediate();
@@ -312,13 +324,14 @@ export function installTrips(app, store, { reportService } = {}) {
     res.status(201).json(result);
   });
   app.get('/api/trips/:id/report', async (req, res) => {
-    const trip = requireTripAccess(store, req, req.params.id),
+    const trip = await requireTripAccess(store, req, req.params.id),
       stage = req.query.stage === 'checkout' ? 'checkout' : 'return';
     if (stage === 'return' && !trip.returnedAt)
       fail(400, 'A return report is available after the vehicle is physically returned.');
     if (!reportService)
       fail(503, 'Report generation is not configured. The signed inspection is saved.');
-    const buffer = await reportService({ store, tripId: trip.id, stage });
+    const buffer = await reportService({ store, tripId: trip.id, stage, download: true });
+    if (typeof buffer === 'string') return res.redirect(303, buffer);
     res
       .type('pdf')
       .set('Content-Disposition', `attachment; filename="fleet-${trip.id}-${stage}.pdf"`)
@@ -338,16 +351,20 @@ export function installTrips(app, store, { reportService } = {}) {
       req.body,
     );
     await validateSignature(b.signature);
-    const result = db
-      .transaction(() => {
-        const trip = store.getTrip(req.params.id);
+    const result = await db
+      .transaction(async () => {
+        const trip = await store.getTrip(req.params.id);
         if (!trip) fail(404, 'Trip not found.');
         if (trip.employeeId === req.user.id)
           fail(
             403,
             'A different administrator must provide representative review for your own trip.',
           );
-        if (db.prepare('SELECT 1 FROM reviews WHERE trip_id=? AND stage=?').get(trip.id, b.stage))
+        if (
+          await db
+            .prepare('SELECT 1 FROM reviews WHERE trip_id=? AND stage=?')
+            .get(trip.id, b.stage)
+        )
           fail(
             409,
             'This inspection already has an authenticated representative signature. Use documented vehicle changes for later availability decisions.',
@@ -358,135 +375,142 @@ export function installTrips(app, store, { reportService } = {}) {
           fail(409, 'Record the physical return before representative review.');
         if (
           b.decision === 'approve' &&
-          db
+          (await db
             .prepare('SELECT 1 FROM revisions WHERE trip_id=? AND acknowledged_at IS NULL')
-            .get(trip.id)
+            .get(trip.id))
         )
           fail(409, 'The employee must acknowledge pending mileage revisions before release.');
         const time = now();
-        db.prepare('INSERT INTO reviews VALUES(?,?,?,?,?,?,?,?,?,?)').run(
-          randomUUID(),
-          trip.id,
-          b.stage,
-          req.user.id,
-          b.initials,
-          b.signature,
-          b.decision,
-          b.reason,
-          time,
-          store.encodeJSON(req.user),
-        );
-        const before = store.getVehicle(trip.vehicleId);
+        await db
+          .prepare('INSERT INTO reviews VALUES(?,?,?,?,?,?,?,?,?,?)')
+          .run(
+            randomUUID(),
+            trip.id,
+            b.stage,
+            req.user.id,
+            b.initials,
+            b.signature,
+            b.decision,
+            b.reason,
+            time,
+            store.encodeJSON(req.user),
+          );
+        const before = await store.getVehicle(trip.vehicleId);
         if (b.stage === 'checkout') {
           if (b.decision === 'approve') {
-            db.prepare("UPDATE trips SET status='active' WHERE id=?").run(trip.id);
-            db.prepare("UPDATE vehicles SET status='checked_out',updated_at=? WHERE id=?").run(
-              time,
-              trip.vehicleId,
-            );
+            await db.prepare("UPDATE trips SET status='active' WHERE id=?").run(trip.id);
+            await db
+              .prepare("UPDATE vehicles SET status='checked_out',updated_at=? WHERE id=?")
+              .run(time, trip.vehicleId);
           } else {
-            db.prepare("UPDATE trips SET status='cancelled' WHERE id=?").run(trip.id);
-            db.prepare("UPDATE vehicles SET status='out_of_service',updated_at=? WHERE id=?").run(
-              time,
-              trip.vehicleId,
-            );
+            await db.prepare("UPDATE trips SET status='cancelled' WHERE id=?").run(trip.id);
+            await db
+              .prepare("UPDATE vehicles SET status='out_of_service',updated_at=? WHERE id=?")
+              .run(time, trip.vehicleId);
           }
         } else {
-          const latest = db
+          const latest = await db
             .prepare(
-              'SELECT id FROM trips WHERE vehicle_id=? ORDER BY checkout_at DESC,rowid DESC LIMIT 1',
+              'SELECT id FROM trips WHERE vehicle_id=? ORDER BY vehicle_mileage_version DESC,checkout_at DESC,id DESC LIMIT 1',
             )
             .get(trip.vehicleId);
           if (latest.id === trip.id)
-            db.prepare('UPDATE vehicles SET status=?,updated_at=? WHERE id=?').run(
-              b.decision === 'approve' ? 'available' : 'out_of_service',
-              time,
-              trip.vehicleId,
-            );
+            await db
+              .prepare('UPDATE vehicles SET status=?,updated_at=? WHERE id=?')
+              .run(b.decision === 'approve' ? 'available' : 'out_of_service', time, trip.vehicleId);
         }
-        store.audit(
+        await store.audit(
           req.user.id,
           'representative_review',
           'trip',
           trip.id,
           before,
-          { vehicle: store.getVehicle(trip.vehicleId), decision: b.decision, stage: b.stage },
+          { vehicle: await store.getVehicle(trip.vehicleId), decision: b.decision, stage: b.stage },
           b.reason,
         );
-        db.prepare(
-          "UPDATE notifications SET status=CASE WHEN recipients_json='[]' THEN 'failed' ELSE 'pending' END,error=CASE WHEN recipients_json='[]' THEN 'No notification recipient configured' ELSE NULL END,updated_at=? WHERE trip_id=? AND stage=? AND status='awaiting_review'",
-        ).run(time, trip.id, b.stage);
-        return { trip: store.getTrip(trip.id) };
+        const queued = await db
+          .prepare('SELECT recipients_json FROM notifications WHERE trip_id=? AND stage=?')
+          .get(trip.id, b.stage);
+        const hasRecipients = queued && store.decodeJSON(queued.recipients_json).length > 0;
+        await db
+          .prepare(
+            "UPDATE notifications SET status=?,error=?,updated_at=? WHERE trip_id=? AND stage=? AND status='awaiting_review'",
+          )
+          .run(
+            hasRecipients ? 'pending' : 'failed',
+            hasRecipients ? null : 'No notification recipient configured',
+            time,
+            trip.id,
+            b.stage,
+          );
+        return { trip: await store.getTrip(trip.id) };
       })
       .immediate();
     await materialize(result.trip.id, b.stage);
     res.json(result);
   });
-  app.post('/api/vehicles/:id/discrepancy', (req, res) => {
+  app.post('/api/vehicles/:id/discrepancy', async (req, res) => {
     const b = validate(
       z.object({ observedMileage: mileageSchema, reason: reasonSchema }).strict(),
       req.body,
     );
     if (!req.user.authorizedDriver)
       fail(403, 'Only authorized drivers can report a checkout discrepancy.');
-    db.transaction(() => {
-      const before = store.getVehicle(req.params.id);
-      if (!before) fail(404, 'Vehicle not found.');
-      if (before.status !== 'available') fail(409, 'This vehicle is not available for checkout.');
-      db.prepare("UPDATE vehicles SET status='pending_review',updated_at=? WHERE id=?").run(
-        now(),
-        before.id,
-      );
-      store.audit(
-        req.user.id,
-        'mileage_discrepancy',
-        'vehicle',
-        before.id,
-        before,
-        { ...store.getVehicle(before.id), observedMileage: b.observedMileage },
-        b.reason,
-      );
-    }).immediate();
-    res.json({ vehicle: store.getVehicle(req.params.id) });
+    await db
+      .transaction(async () => {
+        const before = await store.getVehicle(req.params.id);
+        if (!before) fail(404, 'Vehicle not found.');
+        if (before.status !== 'available') fail(409, 'This vehicle is not available for checkout.');
+        await db
+          .prepare("UPDATE vehicles SET status='pending_review',updated_at=? WHERE id=?")
+          .run(now(), before.id);
+        await store.audit(
+          req.user.id,
+          'mileage_discrepancy',
+          'vehicle',
+          before.id,
+          before,
+          { ...(await store.getVehicle(before.id)), observedMileage: b.observedMileage },
+          b.reason,
+        );
+      })
+      .immediate();
+    res.json({ vehicle: await store.getVehicle(req.params.id) });
   });
-  app.post('/api/trips/:id/odometer-replacement', requireAdmin, (req, res) => {
+  app.post('/api/trips/:id/odometer-replacement', requireAdmin, async (req, res) => {
     const b = validate(
       z
         .object({ oldReading: mileageSchema, newReading: mileageSchema, reason: reasonSchema })
         .strict(),
       req.body,
     );
-    db.transaction(() => {
-      const trip = store.getTrip(req.params.id);
-      if (!trip) fail(404, 'Trip not found.');
-      if (trip.status !== 'active')
-        fail(409, 'An odometer replacement can be recorded on an active trip.');
-      if (trip.odometerReplacement) fail(409, 'This trip already has a documented replacement.');
-      if (b.oldReading < trip.startingMileage)
-        fail(400, 'The old odometer reading must be at least the checkout reading.');
-      const id = randomUUID();
-      db.prepare('INSERT INTO odometer_replacements VALUES(?,?,?,?,?,?,?)').run(
-        id,
-        trip.id,
-        b.oldReading,
-        b.newReading,
-        b.reason,
-        req.user.id,
-        now(),
-      );
-      store.audit(
-        req.user.id,
-        'odometer_replacement',
-        'trip',
-        trip.id,
-        null,
-        { ...b, id },
-        b.reason,
-      );
-    }).immediate();
-    res.status(201).json({ trip: store.getTrip(req.params.id) });
+    await db
+      .transaction(async () => {
+        const trip = await store.getTrip(req.params.id);
+        if (!trip) fail(404, 'Trip not found.');
+        if (trip.status !== 'active')
+          fail(409, 'An odometer replacement can be recorded on an active trip.');
+        if (trip.odometerReplacement) fail(409, 'This trip already has a documented replacement.');
+        if (b.oldReading < trip.startingMileage)
+          fail(400, 'The old odometer reading must be at least the checkout reading.');
+        const id = randomUUID();
+        await db
+          .prepare('INSERT INTO odometer_replacements VALUES(?,?,?,?,?,?,?)')
+          .run(id, trip.id, b.oldReading, b.newReading, b.reason, req.user.id, now());
+        await store.audit(
+          req.user.id,
+          'odometer_replacement',
+          'trip',
+          trip.id,
+          null,
+          { ...b, id },
+          b.reason,
+        );
+      })
+      .immediate();
+    res.status(201).json({ trip: await store.getTrip(req.params.id) });
   });
-  app.post('/api/trips/:id/corrections', requireAdmin, (req, res) => {
+  app.post('/api/trips/:id/corrections', requireAdmin, async (req, res) => {
     const b = validate(
       z
         .object({
@@ -498,16 +522,16 @@ export function installTrips(app, store, { reportService } = {}) {
         .strict(),
       req.body,
     );
-    const result = db
-      .transaction(() => {
-        const trip = store.getTrip(req.params.id);
+    const result = await db
+      .transaction(async () => {
+        const trip = await store.getTrip(req.params.id);
         if (!trip) fail(404, 'Trip not found.');
         if (trip.status !== 'returned')
           fail(
             409,
             'Trip corrections are available after a physical return. Use a vehicle discrepancy hold for an unsubmitted checkout.',
           );
-        const revisions = store.getRevisions(trip.id),
+        const revisions = await store.getRevisions(trip.id),
           latest = [...revisions].reverse().find((r) => r.field === b.field && r.acknowledgedAt),
           originalValue = latest?.correctedValue ?? trip[b.field];
         if (revisions.some((r) => r.field === b.field && !r.acknowledgedAt))
@@ -529,11 +553,13 @@ export function installTrips(app, store, { reportService } = {}) {
             400,
             'This change would create negative trip mileage. Record an explicit odometer replacement exception if applicable.',
           );
-        const row = db.prepare('SELECT return_mileage_version FROM trips WHERE id=?').get(trip.id),
-          vehicle = store.getVehicle(trip.vehicleId);
-        const latestTrip = db
+        const row = await db
+            .prepare('SELECT return_mileage_version FROM trips WHERE id=?')
+            .get(trip.id),
+          vehicle = await store.getVehicle(trip.vehicleId);
+        const latestTrip = await db
           .prepare(
-            'SELECT id FROM trips WHERE vehicle_id=? ORDER BY checkout_at DESC,rowid DESC LIMIT 1',
+            'SELECT id FROM trips WHERE vehicle_id=? ORDER BY vehicle_mileage_version DESC,checkout_at DESC,id DESC LIMIT 1',
           )
           .get(trip.vehicleId);
         const affectsCurrent =
@@ -541,25 +567,29 @@ export function installTrips(app, store, { reportService } = {}) {
           latestTrip.id === trip.id &&
           vehicle.mileageVersion === row.return_mileage_version;
         const id = randomUUID();
-        db.prepare(
-          'INSERT INTO revisions(id,trip_id,field,original_value,corrected_value,reason,user_id,created_at,odometer_replacement,affects_current) VALUES(?,?,?,?,?,?,?,?,?,?)',
-        ).run(
-          id,
-          trip.id,
-          b.field,
-          originalValue,
-          b.value,
-          b.reason,
-          req.user.id,
-          now(),
-          +b.odometerReplacement,
-          +affectsCurrent,
-        );
+        await db
+          .prepare(
+            'INSERT INTO revisions(id,trip_id,field,original_value,corrected_value,reason,user_id,created_at,odometer_replacement,affects_current) VALUES(?,?,?,?,?,?,?,?,?,?)',
+          )
+          .run(
+            id,
+            trip.id,
+            b.field,
+            originalValue,
+            b.value,
+            b.reason,
+            req.user.id,
+            now(),
+            +b.odometerReplacement,
+            +affectsCurrent,
+          );
         if (affectsCurrent)
-          db.prepare(
-            "UPDATE vehicles SET status='pending_review',updated_at=? WHERE id=? AND status='available'",
-          ).run(now(), trip.vehicleId);
-        store.audit(
+          await db
+            .prepare(
+              "UPDATE vehicles SET status='pending_review',updated_at=? WHERE id=? AND status='available'",
+            )
+            .run(now(), trip.vehicleId);
+        await store.audit(
           req.user.id,
           'propose_trip_correction',
           'trip',
@@ -573,46 +603,52 @@ export function installTrips(app, store, { reportService } = {}) {
           },
           b.reason,
         );
-        return store.getRevisions(trip.id).find((r) => r.id === id);
+        return (await store.getRevisions(trip.id)).find((r) => r.id === id);
       })
       .immediate();
     res.status(201).json({ revision: result });
   });
   app.post('/api/trips/:id/revisions/:revisionId/acknowledge', async (req, res) => {
-    const trip = requireTripAccess(store, req, req.params.id);
+    const trip = await requireTripAccess(store, req, req.params.id);
     if (req.user.id !== trip.employeeId)
       fail(403, 'Only the original employee can acknowledge a revision.');
     await validateSignature(req.body.signature);
-    const revision = db
-      .transaction(() => {
-        const row = db
+    const revision = await db
+      .transaction(async () => {
+        const row = await db
           .prepare('SELECT * FROM revisions WHERE id=? AND trip_id=?')
           .get(req.params.revisionId, trip.id);
         if (!row) fail(404, 'Revision not found.');
         if (row.acknowledged_at) fail(409, 'This revision was already acknowledged.');
-        db.prepare(
-          'UPDATE revisions SET acknowledged_at=?,acknowledged_by=?,acknowledgment_signature=? WHERE id=?',
-        ).run(now(), req.user.id, req.body.signature, row.id);
+        await db
+          .prepare(
+            'UPDATE revisions SET acknowledged_at=?,acknowledged_by=?,acknowledgment_signature=? WHERE id=?',
+          )
+          .run(now(), req.user.id, req.body.signature, row.id);
         if (row.affects_current) {
-          const current = store.getVehicle(trip.vehicleId),
-            tripRow = db
+          const current = await store.getVehicle(trip.vehicleId),
+            tripRow = await db
               .prepare('SELECT return_mileage_version FROM trips WHERE id=?')
               .get(trip.id),
-            latest = db
+            latest = await db
               .prepare(
-                'SELECT id FROM trips WHERE vehicle_id=? ORDER BY checkout_at DESC,rowid DESC LIMIT 1',
+                'SELECT id FROM trips WHERE vehicle_id=? ORDER BY vehicle_mileage_version DESC,checkout_at DESC,id DESC LIMIT 1',
               )
               .get(trip.vehicleId);
           if (latest.id === trip.id && current.mileageVersion === tripRow.return_mileage_version) {
-            db.prepare(
-              'UPDATE vehicles SET current_mileage=?,mileage_version=mileage_version+1,updated_at=? WHERE id=?',
-            ).run(row.corrected_value, now(), trip.vehicleId);
-            db.prepare(
-              'UPDATE trips SET return_mileage_version=return_mileage_version+1 WHERE id=?',
-            ).run(trip.id);
-          } else db.prepare('UPDATE revisions SET affects_current=0 WHERE id=?').run(row.id);
+            await db
+              .prepare(
+                'UPDATE vehicles SET current_mileage=?,mileage_version=mileage_version+1,updated_at=? WHERE id=?',
+              )
+              .run(row.corrected_value, now(), trip.vehicleId);
+            await db
+              .prepare(
+                'UPDATE trips SET return_mileage_version=return_mileage_version+1 WHERE id=?',
+              )
+              .run(trip.id);
+          } else await db.prepare('UPDATE revisions SET affects_current=0 WHERE id=?').run(row.id);
         }
-        store.audit(
+        await store.audit(
           req.user.id,
           'acknowledge_trip_correction',
           'trip',
@@ -621,7 +657,7 @@ export function installTrips(app, store, { reportService } = {}) {
           { revisionId: row.id },
           'Employee signed renewed acknowledgment of documented correction',
         );
-        return store.getRevisions(trip.id).find((r) => r.id === row.id);
+        return (await store.getRevisions(trip.id)).find((r) => r.id === row.id);
       })
       .immediate();
     await materialize(trip.id, 'return');

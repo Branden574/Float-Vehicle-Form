@@ -1,0 +1,15 @@
+.git
+node_modules
+data
+backups
+artifacts
+tmp
+output
+test-results
+playwright-report
+secrets
+supabase/.temp
+.env
+.env.*
+!.env.example
+*.log

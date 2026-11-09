@@ -4,7 +4,7 @@
 
 Sign in with the initial administrator invitation created by IT. The app opens with no invented staff or vehicles.
 
-1. **Settings:** enter the organization/app name, site and timezone (default `America/Los_Angeles`). Supply an approved logo URL/accent if desired. Set real notification recipients after IT configures the approved mail provider.
+1. **Settings:** enter the organization/app name, site and timezone (default `America/Los_Angeles`). Supply an approved logo URL/accent if desired. Use **Form emails** to add approved admin assistant recipients after the mail provider is configured.
 2. **Vehicles:** add each exact vehicle, its plate/asset ID, VIN last four, location and verified initial odometer reading. Save it, then upload its identification photograph or configure an approved HTTPS image URL.
 3. **Staff:** staff can verify their email with a one-time code, then save their name, charter and manager. You can also invite them. Explicitly grant authorized-driver eligibility after checking their access. Administrator status alone does not authorize someone to drive.
 4. Choose **Self-service** or **Representative review**. Representative review requires a different authenticated administrator to sign. Nobody can enter someone else's approval automatically.
@@ -75,13 +75,21 @@ Use **Edit access** to update department, manager, eligibility, active status or
 
 Archive retired vehicles instead of deleting them. Active trips must be completed or declined before mileage/status/archive changes. Vehicle IDs remain stable when names change. Complete any required representative return signature before releasing that vehicle.
 
+## Form email recipients
+
+Open **Administration → Form emails**. Enter each admin assistant's address, use **Add recipient** for additional addresses, and choose **Save email recipients**. Up to 20 addresses are supported; recipients do not need app accounts. Enable the employee-copy checkbox if the driver should also receive the report. Saving the list does not send old reports or a test email.
+
+Each checkout automatically queues one PDF with the completed checkout front, check-in back clearly marked **Not yet returned**, signatures, damage marks, and checkout photos. Each check-in queues both completed forms plus all checkout and return photos. When representative review is required, sending waits for the required signature.
+
+The sending history lists recipient addresses, status, and failures. **Accepted** means the email provider accepted the message; it is not an inbox-delivery confirmation. After changing recipients, use **Retry failed notification** for older failed reports. Successful or uncertain sends require an explicit resend reason to avoid accidental duplicates.
+
 ## Reports, notifications, storage and audit
 
 - Trip history searches vehicle, employee, trip ID, status and date text (`YYYY-MM-DD`). Filters include active, pending, returned, overdue and flagged trips.
-- **Checkout PDF** starts with the completed original checkout page. **Both forms & photos** starts with the original checkout and check-in pages. Both include supporting details, authentic signatures, corrections, timestamps and the relevant finalized photographs. The original layout and branding are preserved in a clean reconstruction with newly drawn form rules, labels and diagram. Download again to get the updated original-form layout for existing trips; previously saved PDF files are retained. The stray x from the source scan is absent. Blue numbered marks retain the exact positions selected on the iPad. Older area-only records remain approximate, with full notes in the supporting pages.
+- **Checkout PDF** starts with the completed original checkout page and a blank check-in back marked Not yet returned. **Both forms & photos** starts with the original checkout and check-in pages. Both include supporting details, authentic signatures, corrections, timestamps and the relevant finalized photographs. The original layout and branding are preserved in a clean reconstruction with newly drawn form rules, labels and diagram. Download again to get the updated original-form layout for existing trips; previously saved PDF files are retained. The stray x from the source scan is absent. Blue numbered marks retain the exact positions selected on the iPad. Older area-only records remain approximate, with full notes in the supporting pages.
 - Photo comparisons link to stamped viewing copies and authenticated original downloads. Downloaded files and emailed attachments are outside the app's access/session controls; handle them under organization policy.
 - **Export CSV** exports original trip readings and status. Correction addenda are available in trip reports and the database backup; they do not silently replace signed CSV values.
-- **Notifications** shows queued, awaiting review, failed, accepted or unknown states. Configure recipients/provider, then retry failures. Check provider records before explicitly resending an accepted/unknown message and enter a reason. Provider acceptance is not confirmed inbox delivery.
+- **Form emails → Sending history** shows queued, awaiting review, failed, accepted or unknown states. Configure recipients/provider, then retry failures. Check provider records before explicitly resending an accepted/unknown message and enter a reason. Provider acceptance is not confirmed inbox delivery.
 - **Private storage** shows disk use against the configured photo budget. Reports and database growth require extra headroom. No evidence is automatically deleted at the limit.
 - **Audit** shows the most recent 500 administrative events. The full audit trail is in the database and backup. Passwords and invitation tokens are excluded from audit entries.
 - Follow the organization's retention schedule and [backup/restore procedure](DEPLOYMENT.md). Retention settings do not run an automatic purge.

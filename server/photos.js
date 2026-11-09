@@ -1,8 +1,6 @@
 import multer from 'multer';
 import sharp from 'sharp';
 import { randomUUID } from 'node:crypto';
-import { writeFile, unlink } from 'node:fs/promises';
-import path from 'node:path';
 import { z } from 'zod';
 import { hash, now } from './store.js';
 import { fail, validate } from './validation.js';
@@ -42,8 +40,7 @@ function formatTime(value, timezone) {
 
 export function installPhotos(app, store) {
   const { db } = store;
-  const save = async (req, res, stageOverride) => {
-    if (!req.file) fail(400, 'Choose or capture a photo first.');
+  const authorize = async (req, stageOverride) => {
     const body = stageOverride
       ? { ...req.body, stage: 'vehicle', view: 'other', source: 'upload', draftId: randomUUID() }
       : req.body;
@@ -61,25 +58,30 @@ export function installPhotos(app, store) {
     );
     if (data.stage === 'vehicle' && req.user.role !== 'admin')
       fail(403, 'Only administrators can add vehicle photographs.');
-    const vehicle = store.getVehicle(data.vehicleId);
+    const vehicle = await store.getVehicle(data.vehicleId);
     if (!vehicle || vehicle.archived) fail(404, 'Vehicle not found.');
     if (data.stage === 'checkout' && (!req.user.authorizedDriver || vehicle.status !== 'available'))
       fail(409, 'This vehicle is unavailable or you are not an authorized driver.');
     if (data.stage === 'return') {
       if (!data.tripId) fail(400, 'Return photos need the original trip.');
-      const trip = requireTripAccess(store, req, data.tripId);
+      const trip = await requireTripAccess(store, req, data.tripId);
       if (trip.employeeId !== req.user.id)
         fail(403, 'Only the employee can upload their return evidence.');
       if (trip.status !== 'active' || trip.vehicleId !== vehicle.id)
         fail(409, 'This trip cannot receive return photographs.');
     }
-    const settings = store.getSettings();
+    const settings = await store.getSettings();
     if (data.stage !== 'vehicle' && data.source === 'upload' && !settings.allowPhotoImports)
       fail(400, 'Your site requires camera capture. Use Take photo.');
     if (data.source === 'camera' && !data.deviceCapturedAt)
       fail(400, 'Camera captures need a device-reported timestamp.');
+    return { data, vehicle, settings };
+  };
+  const save = async (req, res, stageOverride) => {
+    if (!req.file) fail(400, 'Choose or capture a photo first.');
+    const { data, vehicle, settings } = await authorize(req, stageOverride);
     const digest = hash(req.file.buffer);
-    const previous = db
+    const previous = await db
       .prepare(
         'SELECT * FROM photos WHERE employee_id=? AND draft_id=? AND view_label=? AND sha256=? AND finalized=0',
       )
@@ -87,9 +89,9 @@ export function installPhotos(app, store) {
     if (previous) return res.json({ photo: store.publicPhoto(store.mapPhoto(previous)) });
     if (
       data.stage === 'return' &&
-      db
+      (await db
         .prepare('SELECT 1 FROM photos WHERE trip_id=? AND stage=? AND sha256=? AND finalized=1')
-        .get(data.tripId, 'checkout', digest)
+        .get(data.tripId, 'checkout', digest))
     )
       fail(400, 'Return photos must be newly captured. This file was used at checkout.');
     let display, metadata;
@@ -135,88 +137,183 @@ export function installPhotos(app, store) {
       .jpeg({ quality: 84 })
       .toBuffer();
     const bytes = req.file.buffer.length + stamped.length;
-    const used = db.prepare('SELECT COALESCE(SUM(bytes),0) AS total FROM photos').get().total;
+    const used = (await db.prepare('SELECT COALESCE(SUM(bytes),0) AS total FROM photos').get())
+      .total;
     if (used + bytes > settings.storageLimitBytes)
       fail(
         507,
         'Photo storage is full. An administrator must increase approved capacity or export and review retention. No evidence was deleted.',
       );
     const id = randomUUID(),
-      originalPath = path.join('photos', `${id}.original`),
-      displayPath = path.join('photos', `${id}.jpg`);
+      originalPath = `photos/${id}.original`,
+      displayPath = `photos/${id}.jpg`;
     try {
-      await writeFile(path.join(store.dataDir, originalPath), req.file.buffer, {
-        mode: 0o600,
-        flag: 'wx',
-      });
-      await writeFile(path.join(store.dataDir, displayPath), stamped, { mode: 0o600, flag: 'wx' });
-      db.transaction(() => {
-        // Recheck quota inside the serialized write transaction after image processing.
-        if (
-          db.prepare('SELECT COALESCE(SUM(bytes),0) AS total FROM photos').get().total + bytes >
-          settings.storageLimitBytes
-        )
-          fail(
-            507,
-            'Storage capacity was reached during upload. Ask an administrator to increase capacity.',
-          );
-        db.prepare(
-          'INSERT INTO photos(id,employee_id,vehicle_id,trip_id,draft_id,stage,view_label,source,device_captured_at,received_at,original_path,display_path,sha256,bytes,mime_type,finalized) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-        ).run(
-          id,
-          req.user.id,
-          vehicle.id,
-          data.tripId || null,
-          data.draftId,
-          data.stage,
-          data.view,
-          data.source,
-          data.deviceCapturedAt || null,
-          receivedAt,
-          originalPath,
-          displayPath,
-          digest,
-          bytes,
-          metadata.format === 'jpeg'
-            ? 'image/jpeg'
-            : metadata.format === 'heif'
-              ? 'image/heic'
-              : `image/${metadata.format}`,
-          data.stage === 'vehicle' ? 1 : 0,
-        );
-        if (data.stage === 'vehicle') {
-          const before = store.getVehicle(vehicle.id);
-          db.prepare('UPDATE vehicles SET photo_url=?,updated_at=? WHERE id=?').run(
-            `/api/photos/${id}`,
-            now(),
-            vehicle.id,
-          );
-          store.audit(
-            req.user.id,
-            'vehicle_photo',
-            'vehicle',
-            vehicle.id,
-            before,
-            store.getVehicle(vehicle.id),
-            String(req.body.reason || 'Administrator updated vehicle identification photograph'),
-          );
-        }
-      }).immediate();
+      await store.evidence.put(originalPath, req.file.buffer);
+      await store.evidence.put(displayPath, stamped, 'image/jpeg');
+      await db
+        .transaction(async () => {
+          // Recheck quota inside the serialized write transaction after image processing.
+          if (
+            (await db.prepare('SELECT COALESCE(SUM(bytes),0) AS total FROM photos').get()).total +
+              bytes >
+            settings.storageLimitBytes
+          )
+            fail(
+              507,
+              'Storage capacity was reached during upload. Ask an administrator to increase capacity.',
+            );
+          await db
+            .prepare(
+              'INSERT INTO photos(id,employee_id,vehicle_id,trip_id,draft_id,stage,view_label,source,device_captured_at,received_at,original_path,display_path,sha256,bytes,mime_type,finalized) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+            )
+            .run(
+              id,
+              req.user.id,
+              vehicle.id,
+              data.tripId || null,
+              data.draftId,
+              data.stage,
+              data.view,
+              data.source,
+              data.deviceCapturedAt || null,
+              receivedAt,
+              originalPath,
+              displayPath,
+              digest,
+              bytes,
+              metadata.format === 'jpeg'
+                ? 'image/jpeg'
+                : metadata.format === 'heif'
+                  ? 'image/heic'
+                  : `image/${metadata.format}`,
+              data.stage === 'vehicle' ? 1 : 0,
+            );
+          if (data.stage === 'vehicle') {
+            const before = await store.getVehicle(vehicle.id);
+            await db
+              .prepare('UPDATE vehicles SET photo_url=?,updated_at=? WHERE id=?')
+              .run(`/api/photos/${id}`, now(), vehicle.id);
+            await store.audit(
+              req.user.id,
+              'vehicle_photo',
+              'vehicle',
+              vehicle.id,
+              before,
+              await store.getVehicle(vehicle.id),
+              String(req.body.reason || 'Administrator updated vehicle identification photograph'),
+            );
+          }
+        })
+        .immediate();
     } catch (e) {
       await Promise.allSettled([
-        unlink(path.join(store.dataDir, originalPath)),
-        unlink(path.join(store.dataDir, displayPath)),
+        store.evidence.remove(originalPath),
+        store.evidence.remove(displayPath),
       ]);
       throw e;
     }
-    res.status(201).json({ photo: store.publicPhoto(store.getPhoto(id)) });
+    res.status(201).json({ photo: store.publicPhoto(await store.getPhoto(id)) });
   };
+  app.post('/api/photos/upload-ticket', async (req, res) => {
+    if (!store.evidence.cloud) return res.json({ direct: false });
+    const { data, settings } = await authorize(req);
+    const bytes = Number(req.body.bytes);
+    if (!Number.isInteger(bytes) || bytes < 1 || bytes > 12 * 1024 * 1024)
+      fail(413, 'Photo must be no larger than 12 MB.');
+    const id = randomUUID(),
+      objectPath = `staging/${req.user.id}/${id}`;
+    await db.transaction(async () => {
+      const pending = await db
+        .prepare(
+          'SELECT COUNT(*) AS count FROM upload_tickets WHERE employee_id=? AND expires_at>? AND photo_id IS NULL',
+        )
+        .get(req.user.id, now());
+      if (pending.count >= 40)
+        fail(
+          429,
+          'Upload capacity reached. Wait for pending uploads to expire before adding more photos.',
+        );
+      const reserved =
+        (
+          await db
+            .prepare('SELECT COUNT(*) AS count FROM upload_tickets WHERE expires_at>?')
+            .get(now())
+        ).count *
+        12 *
+        1024 *
+        1024;
+      const used = (await db.prepare('SELECT COALESCE(SUM(bytes),0) AS total FROM photos').get())
+        .total;
+      if (used + reserved + 24 * 1024 * 1024 > settings.storageLimitBytes)
+        fail(507, 'Photo storage capacity reached. Contact your administrator.');
+      await db
+        .prepare(
+          'INSERT INTO upload_tickets(id,employee_id,object_path,metadata_json,bytes,expires_at) VALUES(?,?,?,?,?,?)',
+        )
+        .run(
+          id,
+          req.user.id,
+          objectPath,
+          store.encodeJSON({ ...data, reason: String(req.body.reason || '').slice(0, 1000) }),
+          bytes,
+          new Date(Date.now() + store.evidence.uploadSeconds * 1000).toISOString(),
+        );
+    })();
+    res.json({
+      direct: true,
+      headers: store.evidence.uploadHeaders,
+      ticketId: id,
+      url: await store.evidence.signedUpload(objectPath, bytes),
+    });
+  });
+  app.post('/api/photos/upload-ticket/:id/complete', async (req, res) => {
+    const ticket = await db
+      .prepare('SELECT * FROM upload_tickets WHERE id=? AND employee_id=?')
+      .get(req.params.id, req.user.id);
+    if (!ticket || Date.parse(ticket.expires_at) < Date.now())
+      fail(404, 'Upload expired. Retry the photograph.');
+    if (ticket.photo_id)
+      return res.json({ photo: store.publicPhoto(await store.getPhoto(ticket.photo_id)) });
+    // Atomic claim prevents concurrent finalizers from creating duplicate evidence.
+    if (
+      !(
+        await db
+          .prepare(
+            'UPDATE upload_tickets SET processing=1 WHERE id=? AND processing=0 AND photo_id IS NULL',
+          )
+          .run(ticket.id)
+      ).changes
+    )
+      fail(409, 'This photo is being processed. Wait briefly, then retry.');
+    try {
+      const buffer = await store.evidence.read(ticket.object_path);
+      if (buffer.length !== ticket.bytes || buffer.length > 12 * 1024 * 1024)
+        fail(400, 'Uploaded photo size did not match. Retry the photo.');
+      req.body = store.decodeJSON(ticket.metadata_json);
+      req.file = { buffer };
+      let result;
+      const response = {
+        status: () => response,
+        json: (value) => {
+          result = value;
+        },
+      };
+      await save(req, response);
+      await db
+        .prepare('UPDATE upload_tickets SET photo_id=?,processing=0 WHERE id=?')
+        .run(result.photo.id, ticket.id);
+      res.status(201).json(result);
+    } catch (error) {
+      await db.prepare('UPDATE upload_tickets SET processing=0 WHERE id=?').run(ticket.id);
+      throw error;
+    }
+  });
   app.post('/api/photos', upload.single('file'), (req, res) => save(req, res));
   app.post('/api/admin/vehicle-images', requireAdmin, upload.single('file'), (req, res) =>
     save(req, res, 'vehicle'),
   );
-  app.get('/api/photos/:id', (req, res) => {
-    const photo = store.getPhoto(req.params.id);
+  app.get('/api/photos/:id', async (req, res) => {
+    const photo = await store.getPhoto(req.params.id);
     if (!photo) fail(404, 'Photo not found.');
     if (photo.stage !== 'vehicle' && req.user.role !== 'admin' && photo.employeeId !== req.user.id)
       fail(403, 'You can only view your own inspection photographs.');
@@ -227,18 +324,31 @@ export function installPhotos(app, store) {
         'Content-Disposition',
         `attachment; filename="${photo.id}-original.${photo.mimeType.split('/')[1]}"`,
       );
+      if (store.evidence.cloud)
+        return res.redirect(
+          303,
+          await store.evidence.signedRead(
+            photo.originalPath,
+            `${photo.id}-original.${photo.mimeType.split('/')[1]}`,
+          ),
+        );
       res.sendFile(photo.originalPath);
     } else {
       res.type('jpeg');
+      if (store.evidence.cloud)
+        return res.redirect(303, await store.evidence.signedRead(photo.displayPath));
       res.sendFile(photo.displayPath);
     }
   });
 }
 
-export function validatePhotos(store, { ids, employeeId, vehicleId, stage, draftId, tripId }) {
+export async function validatePhotos(
+  store,
+  { ids, employeeId, vehicleId, stage, draftId, tripId },
+) {
   if (!Array.isArray(ids) || ids.length < 4 || ids.length > 30 || new Set(ids).size !== ids.length)
     fail(400, 'Provide four required views and at most 30 distinct photographs.');
-  const photos = ids.map((id) => store.getPhoto(id));
+  const photos = await Promise.all(ids.map((id) => store.getPhoto(id)));
   if (
     photos.some(
       (p) =>
@@ -256,7 +366,13 @@ export function validatePhotos(store, { ids, employeeId, vehicleId, stage, draft
       'A photo does not belong to this employee, vehicle, or inspection draft. Upload it again.',
     );
   const required = [
-    ...new Set(['front', 'rear', 'driver', 'passenger', ...store.getSettings().requiredPhotoViews]),
+    ...new Set([
+      'front',
+      'rear',
+      'driver',
+      'passenger',
+      ...(await store.getSettings()).requiredPhotoViews,
+    ]),
   ];
   if (required.some((view) => !photos.some((p) => p.view === view)))
     fail(
@@ -270,10 +386,11 @@ export function validatePhotos(store, { ids, employeeId, vehicleId, stage, draft
     );
   if (stage === 'return') {
     const checkout = new Set(
-      store.db
-        .prepare("SELECT sha256 FROM photos WHERE trip_id=? AND stage='checkout' AND finalized=1")
-        .all(tripId)
-        .map((x) => x.sha256),
+      (
+        await store.db
+          .prepare("SELECT sha256 FROM photos WHERE trip_id=? AND stage='checkout' AND finalized=1")
+          .all(tripId)
+      ).map((x) => x.sha256),
     );
     if (photos.some((p) => checkout.has(p.sha256)))
       fail(400, 'Return evidence must not reuse checkout photographs.');

@@ -13,38 +13,38 @@ test('complete checkout/return carries 42500 → 42625, saves PDFs and snapshots
   assert.equal(checkout.status, 201, JSON.stringify(checkout.data));
   const trip = checkout.data.trip;
   assert.equal(trip.status, 'active');
-  assert.equal(f.store.getVehicle(vehicle.id).status, 'checked_out');
+  assert.equal((await f.store.getVehicle(vehicle.id)).status, 'checked_out');
   const duplicate = await f.s.request('/trips/checkout', {
     method: 'POST',
     body: checkout.body,
     headers: { 'Idempotency-Key': checkout.key },
   });
   assert.equal(duplicate.data.trip.id, trip.id);
-  assert.equal(f.store.db.prepare('SELECT COUNT(*) AS n FROM trips').get().n, 1);
+  assert.equal((await f.store.db.prepare('SELECT COUNT(*) AS n FROM trips').get()).n, 1);
   await f.a.request(`/admin/vehicles/${vehicle.id}`, {
     method: 'PATCH',
     body: { name: 'Renamed pool vehicle', reason: 'Fleet naming updated' },
   });
-  assert.equal(f.store.getTrip(trip.id).vehicleSnapshot.name, 'Test pool vehicle');
+  assert.equal((await f.store.getTrip(trip.id)).vehicleSnapshot.name, 'Test pool vehicle');
   const returned = await f.returnTrip(f.s, trip);
   assert.equal(returned.status, 201, JSON.stringify(returned.data));
   assert.equal(returned.data.trip.tripMileage, 125);
-  assert.equal(f.store.getVehicle(vehicle.id).currentMileage, 42625);
-  assert.equal(f.store.getVehicle(vehicle.id).status, 'available');
+  assert.equal((await f.store.getVehicle(vehicle.id)).currentMileage, 42625);
+  assert.equal((await f.store.getVehicle(vehicle.id)).status, 'available');
   const returnedAgain = await f.s.request(`/trips/${trip.id}/return`, {
     method: 'POST',
     body: returned.body,
     headers: { 'Idempotency-Key': returned.key },
   });
   assert.equal(returnedAgain.data.trip.endingMileage, 42625);
-  assert.equal(f.store.listNotifications().length, 2);
-  assert.equal(f.store.getTripBundle(trip.id).photos.length, 8);
+  assert.equal((await f.store.listNotifications()).length, 2);
+  assert.equal((await f.store.getTripBundle(trip.id)).photos.length, 8);
   const report = await createReport({ store: f.store, tripId: trip.id, stage: 'return' });
   assert.equal(report.subarray(0, 5).toString(), '%PDF-');
   assert.ok(report.length > 10000);
   await mkdir('artifacts', { recursive: true });
   await writeFile('artifacts/sample-completed-trip.pdf', report);
-  const next = await f.checkout(f.o, f.store.getVehicle(vehicle.id));
+  const next = await f.checkout(f.o, await f.store.getVehicle(vehicle.id));
   assert.equal(next.status, 201);
   assert.equal(next.data.trip.startingMileage, 42625);
 });
@@ -66,12 +66,12 @@ test('simultaneous requests from two app/database connections produce one checko
     acknowledgments,
   });
   const { createApp } = await import('../server/app.js');
-  const app2 = createApp({ dataDir: f.directory, secureCookies: false });
+  const app2 = await createApp({ dataDir: f.directory, secureCookies: false });
   const server2 = app2.listen(0, '127.0.0.1');
   await new Promise((resolve) => server2.once('listening', resolve));
   t.after(async () => {
-    await new Promise((resolve) => server2.close(resolve));
-    app2.locals.store.close();
+    await new Promise(async (resolve) => await server2.close(resolve));
+    await app2.locals.store.close();
   });
   const url = `http://127.0.0.1:${server2.address().port}/api/trips/checkout`;
   const [a, b] = await Promise.all([
@@ -93,7 +93,7 @@ test('simultaneous requests from two app/database connections produce one checko
   ]);
   assert.deepEqual([a.status, b.status].sort(), [201, 409]);
   assert.equal(
-    f.store.db.prepare("SELECT COUNT(*) AS n FROM trips WHERE status='active'").get().n,
+    (await f.store.db.prepare("SELECT COUNT(*) AS n FROM trips WHERE status='active'").get()).n,
     1,
   );
 });
@@ -102,14 +102,14 @@ test('database unique index independently blocks two open trips for a vehicle', 
   const f = await fixture(t),
     vehicle = await f.addVehicle();
   await f.checkout(f.s, vehicle);
-  assert.throws(
-    () =>
-      f.store.db
+  await assert.rejects(
+    async () =>
+      await f.store.db
         .prepare(
           'INSERT INTO trips SELECT ?,vehicle_id,employee_id,status,checkout_at,projected_return_at,returned_at,starting_mileage,ending_mileage,vehicle_mileage_version,return_mileage_version,checkout_json,return_json,flags_json FROM trips LIMIT 1',
         )
         .run(randomUUID()),
-    /UNIQUE/,
+    /UNIQUE|unique constraint/,
   );
 });
 
@@ -147,7 +147,7 @@ test('staff isolation, CSRF, session expiry, invitation and driver eligibility a
     403,
   );
   const c = await f.checkout(f.s, v),
-    p = f.store.getTripBundle(c.data.trip.id).photos[0];
+    p = (await f.store.getTripBundle(c.data.trip.id)).photos[0];
   assert.equal((await f.o.request(`/trips/${c.data.trip.id}`)).status, 403);
   assert.equal((await f.o.request(`/photos/${p.id}`)).status, 403);
   assert.equal((await fetch(f.url + `/api/photos/${p.id}`)).status, 401);
@@ -171,7 +171,7 @@ test('staff isolation, CSRF, session expiry, invitation and driver eligibility a
   const unauth = await f.client('invite@example.test'),
     available = await f.addVehicle({ plate: 'TEST-002' });
   assert.equal((await f.upload(unauth, available.id)).status, 409);
-  f.store.db
+  await f.store.db
     .prepare("UPDATE sessions SET last_seen_at='2000-01-01T00:00:00.000Z' WHERE user_id=?")
     .run(f.staff.id);
   assert.equal((await f.s.request('/auth/me')).status, 401);
@@ -187,7 +187,7 @@ test('required photo storage, retry, distinct views, originals and return freshn
   assert.equal(a.status, 201);
   assert.equal(retry.status, 200);
   assert.equal(a.data.photo.id, retry.data.photo.id);
-  const stored = f.store.getPhoto(a.data.photo.id);
+  const stored = await f.store.getPhoto(a.data.photo.id);
   assert.deepEqual(await readFile(stored.originalPath), buffer);
   assert.notDeepEqual(await readFile(stored.displayPath), buffer);
   const body = {
@@ -211,7 +211,7 @@ test('required photo storage, retry, distinct views, originals and return freshn
     ).status,
     400,
   );
-  assert.equal(f.store.getVehicle(v.id).status, 'available');
+  assert.equal((await f.store.getVehicle(v.id)).status, 'available');
   const d = await f.draft(f.s, v);
   const fakeIds = [...d.photoIds];
   fakeIds[3] = fakeIds[0];
@@ -227,7 +227,7 @@ test('required photo storage, retry, distinct views, originals and return freshn
   );
   const c = await f.checkout(f.s, v),
     trip = c.data.trip;
-  const original = await readFile(f.store.getTripBundle(trip.id).photos[0].originalPath);
+  const original = await readFile((await f.store.getTripBundle(trip.id)).photos[0].originalPath);
   assert.equal(
     (await f.upload(f.s, v.id, { stage: 'return', tripId: trip.id, buffer: original })).status,
     400,
@@ -292,8 +292,8 @@ test('invalid mileage and damaged return hold; physical return remains completed
     headers: { 'Idempotency-Key': randomUUID() },
   });
   assert.equal(result.status, 201);
-  assert.equal(f.store.getTrip(trip.id).status, 'returned');
-  assert.equal(f.store.getVehicle(v.id).status, 'pending_review');
+  assert.equal((await f.store.getTrip(trip.id)).status, 'returned');
+  assert.equal((await f.store.getVehicle(v.id)).status, 'pending_review');
   const review = await f.a.request(`/trips/${trip.id}/review`, {
     method: 'POST',
     body: {
@@ -305,7 +305,7 @@ test('invalid mileage and damaged return hold; physical return remains completed
     },
   });
   assert.equal(review.status, 200);
-  assert.equal(f.store.getVehicle(v.id).status, 'out_of_service');
+  assert.equal((await f.store.getVehicle(v.id)).status, 'out_of_service');
 });
 
 test('representative approval is separate and declined checkout can be closed without a false return', async (t) => {
@@ -332,7 +332,7 @@ test('representative approval is separate and declined checkout can be closed wi
     (await f.a.request(`/trips/${c.data.trip.id}/review`, { method: 'POST', body: review })).status,
     200,
   );
-  assert.equal(f.store.getTrip(c.data.trip.id).status, 'active');
+  assert.equal((await f.store.getTrip(c.data.trip.id)).status, 'active');
   const second = await f.addVehicle({ plate: 'TEST-002' }),
     declined = await f.checkout(f.s, second);
   const r = await f.a.request(`/trips/${declined.data.trip.id}/review`, {
@@ -361,9 +361,9 @@ test('historical corrections preserve signed forms and newer mileage; current re
     v = await f.addVehicle(),
     first = await f.checkout(f.s, v);
   await f.returnTrip(f.s, first.data.trip);
-  const latest = await f.checkout(f.o, f.store.getVehicle(v.id));
+  const latest = await f.checkout(f.o, await f.store.getVehicle(v.id));
   await f.returnTrip(f.o, latest.data.trip);
-  const mileage = f.store.getVehicle(v.id).currentMileage;
+  const mileage = (await f.store.getVehicle(v.id)).currentMileage;
   const old = await f.a.request(`/trips/${first.data.trip.id}/corrections`, {
     method: 'POST',
     body: { field: 'endingMileage', value: 42600, reason: 'Old form transposition documented' },
@@ -379,8 +379,8 @@ test('historical corrections preserve signed forms and newer mileage; current re
     ).status,
     200,
   );
-  assert.equal(f.store.getVehicle(v.id).currentMileage, mileage);
-  assert.equal(f.store.getTrip(first.data.trip.id).endingMileage, 42625);
+  assert.equal((await f.store.getVehicle(v.id)).currentMileage, mileage);
+  assert.equal((await f.store.getTrip(first.data.trip.id)).endingMileage, 42625);
   const current = await f.a.request(`/trips/${latest.data.trip.id}/corrections`, {
     method: 'POST',
     body: {
@@ -390,7 +390,7 @@ test('historical corrections preserve signed forms and newer mileage; current re
     },
   });
   assert.equal(current.status, 201);
-  assert.equal(f.store.getVehicle(v.id).status, 'pending_review');
+  assert.equal((await f.store.getVehicle(v.id)).status, 'pending_review');
   assert.equal(
     (
       await f.a.request(`/admin/vehicles/${v.id}`, {
@@ -418,8 +418,8 @@ test('historical corrections preserve signed forms and newer mileage; current re
     ).status,
     200,
   );
-  assert.equal(f.store.getVehicle(v.id).currentMileage, mileage + 10);
-  assert.equal(f.store.getTrip(latest.data.trip.id).endingMileage, mileage);
+  assert.equal((await f.store.getVehicle(v.id)).currentMileage, mileage + 10);
+  assert.equal((await f.store.getTrip(latest.data.trip.id)).endingMileage, mileage);
 });
 
 test('live odometer replacement is documented and explicitly acknowledged with correct distance', async (t) => {
@@ -459,8 +459,8 @@ test('live odometer replacement is documented and explicitly acknowledged with c
   });
   assert.equal(returned.status, 201, JSON.stringify(returned.data));
   assert.equal(returned.data.trip.tripMileage, 125);
-  assert.equal(f.store.getVehicle(v.id).currentMileage, 75);
-  assert.equal(f.store.getVehicle(v.id).status, 'pending_review');
+  assert.equal((await f.store.getVehicle(v.id)).currentMileage, 75);
+  assert.equal((await f.store.getVehicle(v.id)).status, 'pending_review');
 });
 
 test('discrepancy, unusually large mileage, storage ceiling and archive policies', async (t) => {
@@ -475,17 +475,17 @@ test('discrepancy, unusually large mileage, storage ceiling and archive policies
     ).status,
     200,
   );
-  assert.equal(f.store.getVehicle(v.id).currentMileage, 42500);
-  assert.equal(f.store.getVehicle(v.id).status, 'pending_review');
+  assert.equal((await f.store.getVehicle(v.id)).currentMileage, 42500);
+  assert.equal((await f.store.getVehicle(v.id)).status, 'pending_review');
   await f.a.request(`/admin/vehicles/${v.id}`, {
     method: 'PATCH',
     body: { currentMileage: 42600, status: 'available', reason: 'Dashboard discrepancy verified' },
   });
-  const c = await f.checkout(f.s, f.store.getVehicle(v.id)),
+  const c = await f.checkout(f.s, await f.store.getVehicle(v.id)),
     r = await f.returnTrip(f.s, c.data.trip, { endingMileage: 44000 });
   assert.equal(r.status, 201);
   assert.ok(r.data.trip.flags.includes('Unusually large mileage increase'));
-  assert.equal(f.store.getVehicle(v.id).status, 'pending_review');
+  assert.equal((await f.store.getVehicle(v.id)).status, 'pending_review');
   assert.equal(
     (
       await f.a.request(`/admin/vehicles/${v.id}`, {
@@ -496,10 +496,10 @@ test('discrepancy, unusually large mileage, storage ceiling and archive policies
     200,
   );
   assert.equal((await f.a.request('/vehicles')).data.vehicles.length, 0);
-  assert.equal(f.store.getTrip(c.data.trip.id).vehicleSnapshot.archived, false);
+  assert.equal((await f.store.getTrip(c.data.trip.id)).vehicleSnapshot.archived, false);
   const v2 = await f.addVehicle();
-  f.store.db
+  await f.store.db
     .prepare('UPDATE settings SET data_json=? WHERE id=1')
-    .run(JSON.stringify({ ...f.store.getSettings(), storageLimitBytes: 1 }));
+    .run(JSON.stringify({ ...(await f.store.getSettings()), storageLimitBytes: 1 }));
   assert.equal((await f.upload(f.s, v2.id)).status, 507);
 });

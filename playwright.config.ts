@@ -1,5 +1,6 @@
 import { defineConfig } from '@playwright/test';
 
+const port = process.env.FLEET_E2E_PORT || '4173';
 export default defineConfig({
   testDir: './tests/e2e',
   testMatch: '**/*.spec.ts',
@@ -9,7 +10,7 @@ export default defineConfig({
   expect: { timeout: 10000 },
   reporter: 'list',
   use: {
-    baseURL: 'http://127.0.0.1:4173',
+    baseURL: `http://127.0.0.1:${port}`,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     serviceWorkers: 'block',
@@ -40,8 +41,9 @@ export default defineConfig({
   ],
   webServer: {
     command: 'node tests/e2e/server.js',
-    url: 'http://127.0.0.1:4173/api/health',
+    url: `http://127.0.0.1:${port}/api/health`,
     reuseExistingServer: false,
-    timeout: 15000,
+    gracefulShutdown: { signal: 'SIGTERM', timeout: 30000 },
+    timeout: 60000,
   },
 });

@@ -1,3 +1,4 @@
+import { rateLimitStore } from './rate-limits.js';
 import express from 'express';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
@@ -11,9 +12,9 @@ import { installPhotos } from './photos.js';
 import { installTrips } from './trips.js';
 import { installAdmin } from './admin.js';
 
-export function createApp(options = {}) {
+export async function createApp(options = {}) {
   const app = express(),
-    store = options.store || openStore(options.dataDir);
+    store = options.store || (await openStore(options.dataDir));
   app.locals.store = store;
   app.locals.db = store.db;
   app.disable('x-powered-by');
@@ -27,7 +28,7 @@ export function createApp(options = {}) {
           styleSrc: ["'self'", "'unsafe-inline'"],
           imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
           mediaSrc: ["'self'", 'blob:'],
-          connectSrc: ["'self'"],
+          connectSrc: ["'self'", ...(process.env.R2_ENDPOINT ? [process.env.R2_ENDPOINT] : [])],
           objectSrc: ["'none'"],
           frameAncestors: ["'none'"],
           upgradeInsecureRequests: options.secureCookies ? [] : null,
@@ -38,8 +39,8 @@ export function createApp(options = {}) {
   );
   app.use(express.json({ limit: '1mb' }));
   app.use(cookieParser());
-  app.get('/manifest.webmanifest', (req, res) => {
-    const settings = store.getSettings();
+  app.get('/manifest.webmanifest', async (req, res) => {
+    const settings = await store.getSettings();
     res
       .set('Cache-Control', 'no-cache')
       .type('application/manifest+json')
@@ -58,18 +59,21 @@ export function createApp(options = {}) {
         ],
       });
   });
-  app.get('/api/health', (req, res) =>
+  app.get('/api/health', async (req, res) =>
     res
       .set('Cache-Control', 'no-store')
-      .json({ ok: store.db.prepare('SELECT 1').get()['1'] === 1 }),
+      .json({ ok: (await store.db.prepare('SELECT 1 AS healthy').get()).healthy === 1 }),
   );
-  installAuth(app, store, options);
+  await installAuth(app, store, options);
   app.use(
     '/api/photos',
     rateLimit({
+      store: rateLimitStore(store.db, 'photos'),
       windowMs: 5 * 60000,
-      limit: 100,
-      skip: (req) => ['GET', 'HEAD'].includes(req.method),
+      limit: store.evidence.cloud ? 200 : 100,
+      skip: (req) =>
+        ['GET', 'HEAD'].includes(req.method) ||
+        (!store.evidence.cloud && req.path === '/upload-ticket'),
       keyGenerator: (req) => req.user.id,
       standardHeaders: 'draft-8',
       legacyHeaders: false,

@@ -1,3 +1,4 @@
+import { cloudFixture } from './cloud-fixture.js';
 import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -7,6 +8,10 @@ import assert from 'node:assert/strict';
 import { createApp } from '../server/app.js';
 import { createReport } from '../server/reports.js';
 
+if (process.env.DATABASE_URL && !process.env.FLEET_TEST_ADMIN_DATABASE_URL)
+  throw new Error(
+    'Cloud tests require an isolated test schema; refusing to use the live fleet schema.',
+  );
 export const password = 'Test-only-private-password-123!';
 export const inspection = {
   fuelFull: true,
@@ -57,15 +62,16 @@ export async function signature() {
   );
 }
 export async function fixture(t, { reports = false, sendSignInCode } = {}) {
+  const cleanCloud = await cloudFixture(t);
   const directory = await realpath(await mkdtemp(path.join(tmpdir(), 'fleet-test-')));
-  const app = createApp({
+  const app = await createApp({
     dataDir: directory,
     sendSignInCode,
     secureCookies: false,
     reportService: reports ? createReport : undefined,
   });
   const store = app.locals.store;
-  const admin = store.createUser({
+  const admin = await store.createUser({
     charter: 'Test Charter',
     name: 'Test Administrator',
     email: 'admin@example.test',
@@ -73,7 +79,7 @@ export async function fixture(t, { reports = false, sendSignInCode } = {}) {
     authorizedDriver: true,
     password,
   });
-  const staff = store.createUser({
+  const staff = await store.createUser({
     charter: 'Test Charter',
     name: 'Test Driver',
     email: 'driver@example.test',
@@ -82,7 +88,7 @@ export async function fixture(t, { reports = false, sendSignInCode } = {}) {
     authorizedDriver: true,
     password,
   });
-  const other = store.createUser({
+  const other = await store.createUser({
     name: 'Other Driver',
     charter: 'Test Charter',
     email: 'other@example.test',
@@ -95,8 +101,9 @@ export async function fixture(t, { reports = false, sendSignInCode } = {}) {
   await new Promise((resolve) => server.once('listening', resolve));
   const url = `http://127.0.0.1:${server.address().port}`;
   t?.after(async () => {
-    await new Promise((resolve) => server.close(resolve));
-    store.close();
+    await new Promise(async (resolve) => await server.close(resolve));
+    await store.close();
+    await cleanCloud?.();
     await rm(directory, { recursive: true, force: true });
   });
   async function client(email) {

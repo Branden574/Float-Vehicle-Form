@@ -40,11 +40,11 @@ test('backup restores referenced private photos and database, revokes sessions a
     offline: true,
   });
   const db = new Database(path.join(restored.destination, 'fleet.sqlite'));
-  assert.equal(db.prepare('SELECT COUNT(*) n FROM trips').get().n, 1);
-  assert.equal(db.prepare('SELECT COUNT(*) n FROM sessions').get().n, 0);
-  assert.equal(db.prepare('SELECT status FROM notifications').get().status, 'unknown');
-  assert.equal(db.prepare('SELECT COUNT(*) n FROM login_codes').get().n, 0);
-  db.close();
+  assert.equal((await db.prepare('SELECT COUNT(*) n FROM trips').get()).n, 1);
+  assert.equal((await db.prepare('SELECT COUNT(*) n FROM sessions').get()).n, 0);
+  assert.equal((await db.prepare('SELECT status FROM notifications').get()).status, 'unknown');
+  assert.equal((await db.prepare('SELECT COUNT(*) n FROM login_codes').get()).n, 0);
+  await db.close();
   await writeFile(path.join(source, backup.manifest.files[1].path), 'corruption');
   await assert.rejects(
     restoreBackup({ source, dataDir: path.join(root, 'corrupt'), offline: true }),
@@ -63,9 +63,9 @@ test('backup rejects symlinked evidence and never overwrites a snapshot', async 
     createBackup({ dataDir: f.directory, destination: path.join(root, 'snapshot') }),
     /exist/,
   );
-  const p = f.store.getTripBundle(c.data.trip.id).photos[0].originalPath;
+  const p = (await f.store.getTripBundle(c.data.trip.id)).photos[0].originalPath;
   await rm(p);
-  await symlink(f.store.getTripBundle(c.data.trip.id).photos[1].originalPath, p);
+  await symlink((await f.store.getTripBundle(c.data.trip.id)).photos[1].originalPath, p);
   await assert.rejects(
     createBackup({ dataDir: f.directory, destination: path.join(root, 'symlink') }),
     /non-regular/,

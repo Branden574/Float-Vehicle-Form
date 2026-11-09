@@ -17,6 +17,59 @@
   --soft: #eaf0e7;
   font-size: 15px;
 }
+.form-email-settings {
+  max-width: 760px;
+  margin-bottom: 40px;
+  padding-bottom: 32px;
+  border-bottom: 1px solid var(--line);
+}
+.form-email-settings fieldset {
+  border: 0;
+  padding: 0;
+  margin: 24px 0;
+  min-width: 0;
+}
+.form-email-settings legend {
+  font-weight: 650;
+  margin-bottom: 8px;
+}
+.form-email-settings .check-label {
+  margin-top: 24px;
+}
+.form-email-schedule {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  border-block: 1px solid var(--line);
+  padding-block: 20px;
+  margin-block: 24px;
+}
+.form-email-schedule p {
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 8px 0 0;
+  font-size: 14px;
+}
+.form-recipient-row {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.form-recipient-row label {
+  flex: 1;
+  min-width: 0;
+}
+.form-recipient-row .icon-button {
+  margin-bottom: 2px;
+  flex-shrink: 0;
+}
+@media (max-width: 540px) {
+  .form-email-schedule {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+}
 * {
   box-sizing: border-box;
 }

@@ -49,7 +49,7 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   }
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    if (response.status === 401 && !path.startsWith('/auth/login'))
+    if (response.status === 401 && csrfToken && !path.startsWith('/auth/login'))
       window.dispatchEvent(new Event('session-expired'));
     throw new ApiError(
       typeof error.error === 'string' ? error.error : 'This request could not be completed.',
@@ -63,7 +63,52 @@ export const post = <T>(path: string, body: unknown, headers?: Record<string, st
   api<T>(path, { method: 'POST', body: JSON.stringify(body), headers });
 export const patch = <T>(path: string, body: unknown) =>
   api<T>(path, { method: 'PATCH', body: JSON.stringify(body) });
-export function uploadPhoto(data: FormData, progress: (value: number) => void): Promise<Photo> {
+export async function uploadPhoto(
+  data: FormData,
+  progress: (value: number) => void,
+): Promise<Photo> {
+  const epoch = sessionEpoch;
+  const file = data.get('file');
+  if (!(file instanceof File)) throw new ApiError('Choose a photo first.', 400);
+  const metadata = Object.fromEntries([...data.entries()].filter(([key]) => key !== 'file'));
+  const ticket = await post<{
+    direct: boolean;
+    ticketId?: string;
+    url?: string;
+    headers?: Record<string, string>;
+  }>('/photos/upload-ticket', { ...metadata, bytes: file.size });
+  if (ticket.direct && ticket.url && ticket.ticketId) {
+    await new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('PUT', ticket.url!);
+      activeUploads.add(xhr);
+      xhr.onloadend = () => activeUploads.delete(xhr);
+      xhr.onabort = () => reject(new ApiError('Upload cancelled when this session ended.', 0));
+      xhr.timeout = 120000;
+      for (const [key, value] of Object.entries(ticket.headers || {}))
+        xhr.setRequestHeader(key, value);
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) progress(Math.round((e.loaded / e.total) * 90));
+      };
+      xhr.onload = () =>
+        xhr.status >= 200 && xhr.status < 300
+          ? resolve()
+          : reject(new ApiError('Photo upload failed. Tap Retry.', xhr.status));
+      xhr.onerror = xhr.ontimeout = () =>
+        reject(new ApiError('Upload interrupted. Reconnect, then tap Retry.', 0));
+      xhr.send(file);
+    });
+    if (epoch !== sessionEpoch) throw new ApiError('The signed-in session changed.', 409);
+    const result = await post<{ photo: Photo }>(
+      `/photos/upload-ticket/${ticket.ticketId}/complete`,
+      {},
+    );
+    progress(100);
+    return result.photo;
+  }
+  return uploadLocalPhoto(data, progress);
+}
+function uploadLocalPhoto(data: FormData, progress: (value: number) => void): Promise<Photo> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/photos');

@@ -12,9 +12,9 @@ if (!email || !name) {
   );
   process.exit(1);
 }
-const store = openStore();
+const store = await openStore();
 try {
-  if (store.db.prepare("SELECT 1 FROM users WHERE role='admin' AND active=1").get())
+  if (await store.db.prepare("SELECT 1 FROM users WHERE role='admin' AND active=1").get())
     throw new Error(
       'An administrator already exists. Sign in to manage invitations; setup will not overwrite accounts.',
     );
@@ -23,8 +23,8 @@ try {
   if (password && (password.length < 12 || password.length > 200))
     throw new Error('Administrator password must contain 12 to 200 characters.');
   const inviteToken = password ? undefined : randomBytes(32).toString('hex');
-  const user = store.createUser({ ...data, password, inviteToken });
-  store.audit(
+  const user = await store.createUser({ ...data, password, inviteToken });
+  await store.audit(
     user.id,
     'bootstrap_administrator',
     'user',
@@ -44,5 +44,5 @@ try {
   console.error(error.message);
   process.exitCode = 1;
 } finally {
-  store.close();
+  await store.close();
 }

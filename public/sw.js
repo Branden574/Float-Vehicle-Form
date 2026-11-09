@@ -1,5 +1,5 @@
 /* Only public application assets are cached. Authenticated API, photos and reports never enter CacheStorage. */
-const CACHE = 'fleet-shell-v3-profiles';
+const CACHE = 'fleet-shell-v4-cloud-form-emails';
 const SHELL = [
   '/',
   '/index.html',

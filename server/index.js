@@ -16,13 +16,13 @@ if (production && (!publicOrigin || !publicOrigin.startsWith('https://')))
 if (publicOrigin && new URL(publicOrigin).origin !== publicOrigin)
   throw new Error('PUBLIC_ORIGIN must be an exact origin without a path or trailing slash.');
 const send = createEmailSender();
-const app = createApp({
+const app = await createApp({
   dataDir: process.env.DATA_DIR,
   secureCookies,
   publicOrigin,
   trustProxy: process.env.TRUST_PROXY === '1' ? 1 : false,
   reportService: createReport,
-  notificationService: (options) => processNotification({ ...options, send }),
+  notificationService: async (options) => await processNotification({ ...options, send }),
 });
 const worker = startNotificationWorker({ store: app.locals.store, send });
 const server = app.listen(Number(process.env.PORT || 3000), process.env.HOST || '127.0.0.1', () =>
@@ -31,10 +31,10 @@ const server = app.listen(Number(process.env.PORT || 3000), process.env.HOST || 
   ),
 );
 server.requestTimeout = 180000;
-function stop() {
+async function stop() {
   worker.stop();
-  server.close(() => {
-    app.locals.store.close();
+  await server.close(async () => {
+    await app.locals.store.close();
     process.exit(0);
   });
 }

@@ -72,9 +72,16 @@ test('clean forms matching the original layout lead the report, retain identity,
     ['4', '2', '6', '2', '5'],
   );
   const checkout = await PDFDocument.load(await originalForms({ ...input, stage: 'checkout' }));
-  assert.equal(checkout.getPageCount(), 2);
+  assert.equal(checkout.getPageCount(), 3);
   assert.ok(strings(operators(checkout, 0)).includes('10:00 AM'));
   assert.ok(!strings(operators(checkout, 0)).includes('04:00 PM'));
+  const pending = strings(operators(checkout, 1));
+  assert.ok(pending.some((text) => text.includes('NOT YET RETURNED')));
+  assert.ok(!pending.includes('04:00 PM'));
+  assert.ok(
+    !/Image.* Do/.test(operators(checkout, 1)),
+    'pending back must not contain a return signature',
+  );
 });
 test('representative signatures are authentic stage-specific images; combined return fuel/receipt question records No when receipt is missing', async () => {
   const input = await sample();

@@ -2,9 +2,9 @@
 
 A shared-server vehicle checkout and return application for staff iPads and desktop administrators. The working name, organization, site, branding, fleet, authorized drivers, inspection policy and notification recipients are configurable.
 
-**Included:** React PWA, password-free email-code sign-in, encrypted saved profiles and invited accounts, server-enforced staff/admin permissions, transactional SQLite database, private original and timestamped photos, finger signatures, linked returns, mileage carry-forward, representative review, signed-form PDFs, SMTP/optional Resend outbox, corrections with employee acknowledgment, audit history, CSV export, and verified backup/restore tools.
+**Included:** React PWA, password-free email-code sign-in, encrypted saved profiles and invited accounts, server-enforced staff/admin permissions, transactional SQLite or Postgres database, private original and timestamped photos, finger signatures, linked returns, mileage carry-forward, representative review, signed-form PDFs, SMTP/optional Resend outbox, corrections with employee acknowledgment, audit history, CSV export, and verified local backup/restore tools.
 
-**Deployment is not activated by cloning this repository.** An approved always-on host, HTTPS address, organization administrator and authorized sending service still need to be configured. There are no default accounts, production seed vehicles, email recipients, or secrets. Nothing enables a paid service automatically. Physical iPad acceptance testing is a separate requirement; see [verification](docs/VERIFICATION.md).
+The hosted test app is available at [fleetcheckout.app](https://fleetcheckout.app), using Vercel, a separate Free Supabase project, private Cloudflare R2 evidence storage, and Resend. See [cloud setup and recovery](docs/CLOUD-MIGRATION.md). Cloning this repository does not grant access or provision services. There are no default accounts, production seed vehicles, email recipients, or secrets. Physical iPad acceptance testing remains a separate requirement; see [verification](docs/VERIFICATION.md).
 
 ## Start locally
 
@@ -43,6 +43,7 @@ The frontend runs at [localhost:5173](http://127.0.0.1:5173), proxying its API t
 
 ## Deployment and operation
 
+- [Vercel, Supabase, R2 and the existing-data migration](docs/CLOUD-MIGRATION.md)
 - [Paper-form mapping and architecture](docs/FORM-MAPPING.md)
 - [Verified service limits, workplace eligibility and cost estimates](docs/COSTS.md)
 - [Deployment, HTTPS, email and backups](docs/DEPLOYMENT.md)
@@ -50,7 +51,7 @@ The frontend runs at [localhost:5173](http://127.0.0.1:5173), proxying its API t
 - [Test results and remaining acceptance checks](docs/VERIFICATION.md)
 - [API contract](docs/API-CONTRACT.md)
 
-Production can use the included Docker/Caddy deployment or an organization-managed Node server behind an HTTPS proxy. SQLite and photo data must stay on the same server's persistent local disk; never use an ephemeral hosting filesystem or a network-mounted SQLite database. A single server is intentionally the smallest architecture, not a high-availability cluster.
+The hosted deployment uses Postgres and R2 rather than Vercel's ephemeral filesystem. Alternatively, the included Docker/Caddy deployment or an organization-managed Node server can use SQLite and local evidence storage. In local mode, SQLite and photo data must stay on the same server's persistent local disk; never use an ephemeral hosting filesystem or a network-mounted SQLite database.
 
 ## Verify changes
 

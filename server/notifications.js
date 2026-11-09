@@ -69,6 +69,7 @@ export function createEmailSender(env = process.env) {
           to: message.to,
           subject: message.subject,
           text: message.text,
+          html: message.html,
           attachments: message.attachments.map((a) => ({
             filename: a.filename,
             content: a.content.toString('base64'),
@@ -93,18 +94,18 @@ export function createEmailSender(env = process.env) {
 
 export async function processNotification({ store, notificationId, send, report = createReport }) {
   const { db } = store;
-  const claimed = db
+  const claimed = await db
     .prepare(
       "UPDATE notifications SET status='processing',attempts=attempts+1,updated_at=?,error=NULL WHERE id=? AND status='pending'",
     )
     .run(time(), notificationId);
   if (!claimed.changes)
     return store.mapNotification(
-      db.prepare('SELECT * FROM notifications WHERE id=?').get(notificationId),
+      await db.prepare('SELECT * FROM notifications WHERE id=?').get(notificationId),
     );
   let attemptingDelivery = false;
   try {
-    const row = db.prepare('SELECT * FROM notifications WHERE id=?').get(notificationId);
+    const row = await db.prepare('SELECT * FROM notifications WHERE id=?').get(notificationId);
     const recipients = store.decodeJSON(row.recipients_json);
     const pdf = await report({ store, tripId: row.trip_id, stage: row.stage });
     if (!recipients.length)
@@ -119,14 +120,14 @@ export async function processNotification({ store, notificationId, send, report 
         ),
         { definiteFailure: true },
       );
-    const trip = store.getTrip(row.trip_id);
-    const settings = trip.checkoutSettings || store.getSettings();
+    const trip = await store.getTrip(row.trip_id);
+    const settings = trip.checkoutSettings || (await store.getSettings());
     const label = row.stage === 'checkout' ? 'Vehicle checkout' : 'Vehicle checkout and check-in';
     const message = {
       to: recipients,
       messageId: row.message_id,
       subject: `${settings.appName} | ${label} | ${trip.id}`,
-      text: `${label}\nTrip: ${trip.id}\nEmployee: ${trip.employeeSnapshot.name}\nVehicle: ${trip.vehicleSnapshot.name}\n\nThe attached report includes the signed inspection${row.stage === 'return' ? 's, checkout and return sections,' : ','} and a labeled condition photo appendix. Representative review may still be pending; check the report. This message contains private workplace records.\n\nEmail acceptance does not confirm delivery.`,
+      text: `${label}\nTrip: ${trip.id}\nEmployee: ${trip.employeeSnapshot.name}\nVehicle: ${trip.vehicleSnapshot.name}\n\n${row.stage === 'return' ? 'Attached: both completed forms (checkout front and check-in back), signatures, damage marks, and checkout and return photos.' : 'Attached: the completed checkout front, the check-in back marked "Not yet returned," signatures, damage marks, and checkout photos.'}\n\nThis message contains private workplace records.`,
       attachments: [
         {
           filename: `fleet-${trip.id}-${row.stage}.pdf`,
@@ -139,20 +140,19 @@ export async function processNotification({ store, notificationId, send, report 
     const result = await send(message);
     if (!result?.accepted)
       throw new Error('Provider did not confirm acceptance. Review the provider before resending.');
-    db.prepare(
-      "UPDATE notifications SET status='accepted',provider_id=?,accepted_at=?,updated_at=?,error=NULL WHERE id=?",
-    ).run(result.id || row.message_id, time(), time(), notificationId);
+    await db
+      .prepare(
+        "UPDATE notifications SET status='accepted',provider_id=?,accepted_at=?,updated_at=?,error=NULL WHERE id=?",
+      )
+      .run(result.id || row.message_id, time(), time(), notificationId);
   } catch (error) {
     const status = !attemptingDelivery || error.definiteFailure ? 'failed' : 'unknown';
-    db.prepare('UPDATE notifications SET status=?,error=?,updated_at=? WHERE id=?').run(
-      status,
-      safeError(error),
-      time(),
-      notificationId,
-    );
+    await db
+      .prepare('UPDATE notifications SET status=?,error=?,updated_at=? WHERE id=?')
+      .run(status, safeError(error), time(), notificationId);
   }
   return store.mapNotification(
-    db.prepare('SELECT * FROM notifications WHERE id=?').get(notificationId),
+    await db.prepare('SELECT * FROM notifications WHERE id=?').get(notificationId),
   );
 }
 
@@ -165,12 +165,12 @@ export function startNotificationWorker({ store, send, intervalMs = 15_000 }) {
     busy = true;
     try {
       // A process that died during an SMTP send cannot safely retry blindly.
-      store.db
+      await store.db
         .prepare(
           "UPDATE notifications SET status='unknown',error='Interrupted send. Check the provider before an explicit resend.',updated_at=? WHERE status='processing' AND updated_at<?",
         )
         .run(time(), new Date(Date.now() - 15 * 60_000).toISOString());
-      const rows = store.db
+      const rows = await store.db
         .prepare(
           "SELECT * FROM notifications WHERE status IN ('pending','failed') ORDER BY created_at LIMIT 100",
         )
@@ -183,7 +183,7 @@ export function startNotificationWorker({ store, send, intervalMs = 15_000 }) {
             await createReport({ store, tripId: row.trip_id, stage: row.stage });
             generated.add(row.id);
           } catch (error) {
-            store.db
+            await store.db
               .prepare('UPDATE notifications SET error=?,updated_at=? WHERE id=?')
               .run(`Report generation failed: ${safeError(error)}`, time(), row.id);
           }

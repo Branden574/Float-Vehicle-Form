@@ -56,7 +56,7 @@ test('submitted and reopened checkout/return retain separate damage positions an
     inspection: { ...inspection, damage: [second] },
   });
   assert.equal(returned.status, 201, JSON.stringify(returned.data));
-  const saved = f.store.getTrip(c.data.trip.id);
+  const saved = await f.store.getTrip(c.data.trip.id);
   assert.deepEqual(saved.checkoutInspection.damage, [first]);
   assert.deepEqual(saved.returnInspection.damage, [second]);
 });

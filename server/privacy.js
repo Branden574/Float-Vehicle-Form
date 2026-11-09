@@ -3,14 +3,14 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 export function openPrivacy(dataDir, explicit = process.env.PROFILE_ENCRYPTION_KEY_FILE) {
-  if (process.env.NODE_ENV === 'production' && !explicit)
+  if (process.env.NODE_ENV === 'production' && !explicit && !process.env.PROFILE_ENCRYPTION_KEY)
     throw new Error(
-      'PROFILE_ENCRYPTION_KEY_FILE is required in production. Keep this key separate from database backups.',
+      'PROFILE_ENCRYPTION_KEY or PROFILE_ENCRYPTION_KEY_FILE is required in production. Keep this key separate from database backups.',
     );
   const filename = explicit || path.join(dataDir, '.development-profile-key');
-  if (!existsSync(filename) && !explicit)
+  if (!process.env.PROFILE_ENCRYPTION_KEY && !existsSync(filename) && !explicit)
     writeFileSync(filename, randomBytes(32).toString('hex'), { mode: 0o600, flag: 'wx' });
-  const encoded = readFileSync(filename, 'utf8').trim();
+  const encoded = (process.env.PROFILE_ENCRYPTION_KEY || readFileSync(filename, 'utf8')).trim();
   if (!/^[a-f0-9]{64}$/i.test(encoded))
     throw new Error('Profile encryption key must contain exactly 32 random bytes encoded as hex.');
   const key = Buffer.from(encoded, 'hex');

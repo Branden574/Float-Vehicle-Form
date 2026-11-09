@@ -1,3 +1,4 @@
+import { uploadPhoto } from '../api';
 import { useEffect, useState } from 'react';
 import { Plus, Save, ShieldCheck, Upload, X } from 'lucide-react';
 import { api, errorMessage, formatDate, humanize, miles, patch, post } from '../api';
@@ -36,7 +37,10 @@ export function Admin({
     [replacement, setReplacement] = useState(false),
     [invitation, setInvitation] = useState('');
   const [config, setConfig] = useState(settings),
-    [recipients, setRecipients] = useState(settings.notificationRecipients.join(', '));
+    [recipients, setRecipients] = useState<string[]>(
+      settings.notificationRecipients.length ? settings.notificationRecipients : [''],
+    ),
+    [employeeCopy, setEmployeeCopy] = useState(settings.employeeCopy);
   async function load() {
     try {
       setOverview(await api<Overview>('/admin/overview'));
@@ -110,16 +114,31 @@ export function Admin({
     void perform(async () => {
       const result = await patch<{ settings: Settings }>('/admin/settings', {
         ...config,
-        notificationRecipients: recipients
-          .split(/[\n,;]/)
-          .map((s) => s.trim())
-          .filter(Boolean),
         reason,
       });
       setConfig(result.settings);
       onSettings(result.settings);
       setReason('');
       setNotice('Organization settings saved.');
+    });
+  }
+  function saveRecipients(e: React.FormEvent) {
+    e.preventDefault();
+    void perform(async () => {
+      const notificationRecipients = [
+        ...new Set(recipients.map((email) => email.trim().toLowerCase()).filter(Boolean)),
+      ];
+      const result = await patch<{ settings: Settings }>('/admin/settings', {
+        notificationRecipients,
+        employeeCopy,
+        reason: 'Administrator updated completed-form email recipients',
+      });
+      setRecipients(notificationRecipients.length ? notificationRecipients : ['']);
+      setConfig((current) => ({ ...current, notificationRecipients, employeeCopy }));
+      onSettings(result.settings);
+      setNotice(
+        'Form email recipients saved. Future checkout and check-in reports will use this list.',
+      );
     });
   }
   const used = overview?.storage.bytes || 0,
@@ -149,7 +168,7 @@ export function Admin({
               setReason('');
             }}
           >
-            {humanize(value)}
+            {value === 'notifications' ? 'Form emails' : humanize(value)}
           </button>
         ))}
       </div>
@@ -336,11 +355,12 @@ export function Admin({
                                 'reason',
                                 reason || 'Vehicle identification photograph updated',
                               );
-                              const r = await api<{ photo: { url: string } }>(
-                                '/admin/vehicle-images',
-                                { method: 'POST', body: form },
-                              );
-                              setVehicle({ ...vehicle, photoUrl: r.photo.url });
+                              form.append('stage', 'vehicle');
+                              form.append('view', 'other');
+                              form.append('source', 'upload');
+                              form.append('draftId', crypto.randomUUID());
+                              const photo = await uploadPhoto(form, () => {});
+                              setVehicle({ ...vehicle, photoUrl: photo.url });
                               setNotice('Vehicle photograph stored privately.');
                             });
                           e.target.value = '';
@@ -681,26 +701,16 @@ export function Admin({
                 />
                 Allow labeled imported photographs in addition to camera captures
               </label>
-              <h3>Completed-form notifications</h3>
-              <label>
-                Recipient emails (comma separated)
-                <textarea
-                  value={recipients}
-                  onChange={(e) => setRecipients(e.target.value)}
-                  placeholder="Enter approved recipients"
-                />
-              </label>
-              <label className="check-label">
-                <input
-                  type="checkbox"
-                  checked={config.employeeCopy}
-                  onChange={(e) => setConfig({ ...config, employeeCopy: e.target.checked })}
-                />
-                Send an optional copy to the employee
-              </label>
               <p className="fine">
-                IT configures the approved mail provider on the server. No addresses are supplied by
-                default. Notifications remain visible when delivery fails.
+                Manage assistant recipients and employee copies in the{' '}
+                <button
+                  type="button"
+                  className="text-button"
+                  onClick={() => setTab('notifications')}
+                >
+                  Form emails tab
+                </button>
+                .
               </p>
               <label>
                 Reason for configuration changes
@@ -718,7 +728,92 @@ export function Admin({
           )}
           {tab === 'notifications' && (
             <>
-              <h2>Report notifications</h2>
+              <form className="form-email-settings" onSubmit={saveRecipients}>
+                <div className="form-email-heading">
+                  <h2>Form email recipients</h2>
+                  <p>
+                    Add your admin assistants and anyone responsible for keeping vehicle records.
+                  </p>
+                </div>
+                <div className="form-email-schedule">
+                  <div>
+                    <strong>At checkout</strong>
+                    <p>
+                      Completed checkout front, check-in back marked “Not yet returned,” and
+                      checkout photos.
+                    </p>
+                  </div>
+                  <div>
+                    <strong>At check-in</strong>
+                    <p>
+                      Both completed forms, signatures, damage marks, and all checkout and return
+                      photos.
+                    </p>
+                  </div>
+                </div>
+                <fieldset disabled={busy}>
+                  <legend>Assistant email addresses</legend>
+                  <p className="fine">
+                    Up to 20 recipients. They receive the PDF by email and do not need an app
+                    account.
+                  </p>
+                  {recipients.map((email, index) => (
+                    <div className="form-recipient-row" key={index}>
+                      <label>
+                        Email address {index + 1}
+                        <input
+                          type="email"
+                          value={email}
+                          placeholder="assistant@yourorganization.org"
+                          maxLength={254}
+                          onChange={(e) =>
+                            setRecipients((current) =>
+                              current.map((value, i) => (i === index ? e.target.value : value)),
+                            )
+                          }
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        className="icon-button"
+                        aria-label={`Remove recipient ${index + 1}`}
+                        onClick={() =>
+                          setRecipients((current) =>
+                            current.length === 1 ? [''] : current.filter((_, i) => i !== index),
+                          )
+                        }
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    className="button secondary"
+                    disabled={recipients.length >= 20}
+                    onClick={() => setRecipients((current) => [...current, ''])}
+                  >
+                    <Plus size={17} /> Add recipient
+                  </button>
+                  <label className="check-label">
+                    <input
+                      type="checkbox"
+                      checked={employeeCopy}
+                      onChange={(e) => setEmployeeCopy(e.target.checked)}
+                    />
+                    Also email a copy to the employee who checked out the vehicle
+                  </label>
+                </fieldset>
+                <p className="fine">
+                  Reports send automatically after submission, or after the required representative
+                  signature. Changes apply to future reports; earlier failed reports can be retried
+                  below.
+                </p>
+                <button className="button primary" disabled={busy}>
+                  <Save size={17} /> Save email recipients
+                </button>
+              </form>
+              <h2>Sending history</h2>
               <p>
                 Accepted means the provider accepted the message, not that it reached an inbox.
                 Unknown sends require provider review before an explicit resend.

@@ -4,7 +4,8 @@ import { readFile } from 'node:fs/promises';
 import { signature } from '../helpers.js';
 
 async function login(page: Page, email = 'admin@example.test') {
-  await page.goto('/');
+  if (!(await page.getByRole('heading', { name: 'Welcome back' }).isVisible()))
+    await page.goto('/');
   await page.getByLabel('Work email').fill(email);
   await page.getByRole('button', { name: 'Use existing password', exact: true }).click();
   await page.getByLabel('Password', { exact: true }).fill('Local-test-password-123!');
@@ -120,7 +121,7 @@ test('administrator setup, staff checkout/return, photos, signatures, PDF and sh
   await inspect(page);
   // An interrupted upload must remain incomplete and be explicitly retried.
   let interrupted = false;
-  await page.route('**/api/photos', async (route) => {
+  await page.route(/\/api\/photos(?:\/upload-ticket\/[^/]+\/complete)?$/, async (route) => {
     if (route.request().method() === 'POST' && !interrupted) {
       interrupted = true;
       await route.abort('failed');
@@ -135,10 +136,10 @@ test('administrator setup, staff checkout/return, photos, signatures, PDF and sh
     .locator('.photo-slot input[type=file]')
     .first()
     .setInputFiles({ name: 'interrupted.jpg', mimeType: 'image/jpeg', buffer: first });
-  await expect(page.getByText('Upload interrupted.', { exact: false })).toBeVisible();
+  await expect(page.getByRole('alert').filter({ hasText: /interrupted/i })).toBeVisible();
   await page.getByRole('button', { name: 'Retry upload', exact: false }).click();
   await expect(page.locator('.photo-label').filter({ hasText: 'Stored' })).toHaveCount(1);
-  await page.unroute('**/api/photos');
+  await page.unroute(/\/api\/photos(?:\/upload-ticket\/[^/]+\/complete)?$/);
   await photos(page, 31);
   await page.screenshot({
     path: `artifacts/review-${testInfo.project.name}.png`,
@@ -498,4 +499,42 @@ test('email codes create and remember an encrypted profile on a shared device', 
     path: `artifacts/saved-profile-${testInfo.project.name}.png`,
     fullPage: true,
   });
+});
+
+test('administrators can add, save and remove assistant form-email recipients', async ({
+  page,
+}, testInfo) => {
+  await login(page);
+  await page.getByRole('button', { name: 'Administration', exact: false }).click();
+  await page.getByRole('tab', { name: 'Form emails', exact: true }).click();
+  await page.getByLabel('Email address 1', { exact: true }).fill('assistant.one@example.test');
+  await page.getByRole('button', { name: 'Add recipient', exact: true }).click();
+  await page.getByLabel('Email address 2', { exact: true }).fill('assistant.two@example.test');
+  await page.getByLabel('Also email a copy to the employee who checked out the vehicle').check();
+  await page.getByRole('button', { name: 'Save email recipients', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('Form email recipients saved');
+  await page.reload();
+  await page.getByRole('button', { name: 'Administration', exact: false }).click();
+  await page.getByRole('tab', { name: 'Form emails', exact: true }).click();
+  await expect(page.getByLabel('Email address 1', { exact: true })).toHaveValue(
+    'assistant.one@example.test',
+  );
+  await expect(page.getByLabel('Email address 2', { exact: true })).toHaveValue(
+    'assistant.two@example.test',
+  );
+  await expect(
+    page.getByLabel('Also email a copy to the employee who checked out the vehicle'),
+  ).toBeChecked();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1),
+  ).toBe(false);
+  await page.screenshot({
+    path: `artifacts/form-emails-${testInfo.project.name}.png`,
+    fullPage: true,
+  });
+  await page.getByRole('button', { name: 'Remove recipient 2', exact: true }).click();
+  await page.getByRole('button', { name: 'Save email recipients', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('Form email recipients saved');
+  const session = await (await page.request.get('/api/auth/me')).json();
+  expect(session.settings.notificationRecipients).toEqual(['assistant.one@example.test']);
 });

@@ -23,13 +23,31 @@ export async function originalForms({ trip, reviews, zone, stage, appendix }) {
   const source = await PDFDocument.load(templateBytes);
   const font = await output.embedFont(StandardFonts.Helvetica);
   const bold = await output.embedFont(StandardFonts.HelveticaBold);
-  const count = stage === 'return' ? 2 : 1;
+  const count = 2;
   for (let index = 0; index < count; index++) {
     const returning = index === 1,
       kind = returning ? 'return' : 'checkout';
     const page = output.addPage([612, 792]);
     const original = await output.embedPage(source.getPage(index));
     page.drawPage(original, { x: 0, y: 0, width: 612, height: 792 });
+    if (returning && stage === 'checkout') {
+      // Include the back at checkout without fabricating answers, mileage or signatures.
+      page.drawText('NOT YET RETURNED - Complete this form at vehicle check-in', {
+        x: 50,
+        y: 22,
+        size: 9,
+        font: bold,
+        color: BLUE,
+      });
+      page.drawText(`Trip ${trip.id} | Check-in pending | 2`, {
+        x: 50,
+        y: 10,
+        size: 7,
+        font,
+        color: BLUE,
+      });
+      continue;
+    }
     const sx = 612 / (returning ? 1085 : 1082),
       sy = 792 / 1400;
     // Scanned form has no AcroFields. Overlay completed values without replacing its artwork.

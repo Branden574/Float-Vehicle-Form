@@ -7,8 +7,8 @@ Local verification completed **November 9, 2026**. This record separates perform
 | Check                                  | Result                                         | Scope                                                                                                                                                 |
 | -------------------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | TypeScript + production frontend build | Passed                                         | `npm run build`; Vite production bundle                                                                                                               |
-| Server/integration tests               | **27 passed**                                  | `npm test`; real temporary SQLite databases and HTTP requests                                                                                         |
-| Browser tests                          | **20 passed, 1 explicitly skipped/unverified** | Chromium desktop 1440×1000, WebKit tablet 820×1180, Chromium phone 390×844                                                                            |
+| Server/integration tests               | **28 passed; 1 opt-in cloud test skipped**     | `npm test`; real temporary SQLite databases and HTTP requests                                                                                         |
+| Browser tests                          | **23 passed, 1 explicitly skipped/unverified** | Chromium desktop 1440×1000, WebKit tablet 820×1180, Chromium phone 390×844                                                                            |
 | Formatting                             | Passed                                         | `npm run format:check`                                                                                                                                |
 | Dependency audit                       | No known vulnerabilities reported              | `npm audit` on the installed lockfile; not a guarantee that all vulnerabilities are known                                                             |
 | Container build/start                  | Passed                                         | Docker image builds on Linux ARM64; health endpoint returns HTTP 200; process runs as UID 1000                                                        |
@@ -34,7 +34,7 @@ The browser suite's WebKit offline-reload attempt returned **“WebKit encounter
 - Failed mail does not roll back a trip. Atomic outbox claims avoid duplicate worker sends. Provider acceptance is distinct from delivery; ambiguous sends require an explicit reasoned resend.
 - Archive history, discrepancy holds, private backup integrity, restore session revocation and notification uncertainty after restore are covered.
 
-Original-form regression checks verify embedded source pages, local dates, odometer digits, stage-specific signatures and checkout-only page selection. Return fuel/receipt is Yes only when both separate answers are Yes. Template bytes and renderer version participate in the report cache key: fresh downloads use the new layout, while previously saved report files remain immutable.
+Original-form regression checks verify embedded source pages, local dates, odometer digits, stage-specific signatures and checkout isolation with a clearly pending check-in back. Return fuel/receipt is Yes only when both separate answers are Yes. Template bytes and renderer version participate in the report cache key: fresh downloads use the new layout, while previously saved report files remain immutable.
 
 ## Browser coverage
 
@@ -88,3 +88,15 @@ Server tests cover code expiry, five-guess lockout, single use/replay, resend co
 Browser tests verify first-time email-code sign-in using an isolated test mailbox, profile completion, sign-out and repeat code sign-in with prefilled details. The checkout dashboard links to the employee's active trip. Return tests preserve the original checkout mark and add a separate new mark on the same touch diagram. PDF operator checks and Poppler rendering confirm C/N labels on the return form, including the no-new-damage case.
 
 The extended browser run exposed a photo rate-limit issue: read requests consumed the same per-IP budget as uploads, so thumbnail viewing and shared-network traffic could block uploads. Photo mutation limits now apply per authenticated user and do not count read-only photo requests. The complete suite passed after the fix. This is not a load-test claim.
+
+## Cloud migration and form-email update
+
+The server suite also passed 16 Postgres integration cases against disposable schemas in the Free Supabase project. The new assistant-recipient test separately passed against Postgres, including administrator-only changes, persistent recipient settings, the optional employee copy, and real checkout/return PDF attachments. No human recipients are used in these tests.
+
+Private R2 integration verified uploads larger than Vercel's request limit, byte-identical original downloads, rejection of object replacement and foreign-user access, idempotent completion, and signed PDF downloads. The original records and all 26 migrated evidence files matched their source data and hashes. The restricted app role uses verified TLS; Supabase security advisors reported no issues.
+
+Browser tests now cover adding, saving, reopening and removing assistant addresses on desktop, tablet and phone. Checkout PDFs include the blank check-in back marked Not yet returned; return PDFs contain both completed forms and both sets of photos. PDF regression checks prevent future return values/signatures from leaking into a checkout-stage report.
+
+The HTML sign-in email was visually checked at desktop and 390px phone widths with no horizontal overflow. Resend accepted the new-domain HTML message sent to its delivery simulator. This is not a Gmail/Outlook rendering or actual inbox-delivery confirmation.
+
+Four WebKit tablet workflows passed against the actual Supabase database and private R2 bucket using disposable test records: checkout/return with interrupted-upload retry and PDF download; touch damage with checkout/return separation; email-code profile reuse; and assistant recipient editing. Physical iPad camera, Home Screen and real recipient inbox acceptance remain user acceptance checks.

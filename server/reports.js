@@ -1,8 +1,6 @@
 import PDFDocument from 'pdfkit';
 import { originalForms, templateHash } from './original-forms.js';
-import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, readFile, writeFile, link, unlink, access } from 'node:fs/promises';
-import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { inspectionFlags } from './validation.js';
 
 const INK = '#1e302c';
@@ -37,8 +35,8 @@ function timestamp(value, timezone) {
 }
 
 /** An immutable content-addressed copy is retained for each report revision. */
-export async function createReport({ store, tripId, stage = 'return' }) {
-  const bundle = store.getTripBundle(tripId);
+export async function createReport({ store, tripId, stage = 'return', download = false }) {
+  const bundle = await store.getTripBundle(tripId);
   if (!bundle.trip) throw new Error('Trip not found');
   if (!['checkout', 'return'].includes(stage)) throw new Error('Invalid report stage');
   if (stage === 'return' && !bundle.trip.returnedAt)
@@ -46,7 +44,7 @@ export async function createReport({ store, tripId, stage = 'return' }) {
   const { trip, photos, reviews, revisions } = bundle;
   const settings = trip.checkoutSettings || bundle.settings;
   const reportData = {
-    version: 4,
+    version: 5,
     templateHash,
     stage,
     trip,
@@ -58,11 +56,13 @@ export async function createReport({ store, tripId, stage = 'return' }) {
     revisions,
   };
   const digest = createHash('sha256').update(JSON.stringify(reportData)).digest('hex');
-  const directory = path.join(store.dataDir, 'reports');
-  await mkdir(directory, { recursive: true, mode: 0o700 });
-  const filename = path.join(directory, `${trip.id}-${stage}-${digest}.pdf`);
+  const filename = `reports/${trip.id}-${stage}-${digest}.pdf`;
+  const resultFor = async (buffer) =>
+    download && store.evidence.cloud
+      ? store.evidence.signedRead(filename, `fleet-${trip.id}-${stage}.pdf`)
+      : buffer;
   try {
-    return await readFile(filename);
+    return await resultFor(await store.evidence.read(filename));
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
   }
@@ -180,7 +180,7 @@ export async function createReport({ store, tripId, stage = 'return' }) {
         pair('Replacement reason', replacement.reason);
         pair(
           'Recorded by administrator',
-          `${store.getUser(replacement.userId)?.name || replacement.userId} · ${timestamp(replacement.createdAt, zone)}`,
+          `${(await store.getUser(replacement.userId))?.name || replacement.userId} · ${timestamp(replacement.createdAt, zone)}`,
         );
         pair(
           'Trip mileage',
@@ -281,7 +281,7 @@ export async function createReport({ store, tripId, stage = 'return' }) {
       pair('Reason', revision.reason);
       pair(
         'Recorded by',
-        `${store.getUser(revision.userId)?.name || revision.userId} · ${timestamp(revision.createdAt, zone)}`,
+        `${(await store.getUser(revision.userId))?.name || revision.userId} · ${timestamp(revision.createdAt, zone)}`,
       );
       pair('Odometer replacement exception', yesNo(revision.odometerReplacement));
       pair('Updated current vehicle mileage', yesNo(revision.affectsCurrent));
@@ -310,8 +310,11 @@ export async function createReport({ store, tripId, stage = 'return' }) {
       `${photo.stage === 'checkout' ? 'Checkout' : 'Return'} · ${names[photo.view] || photo.view} · ${photo.source === 'camera' ? 'Camera capture' : 'Imported upload'}`,
     );
     try {
-      await access(photo.displayPath);
-      doc.image(photo.displayPath, 42, y, { fit: [width, 180], align: 'center', valign: 'center' });
+      doc.image(await store.evidence.read(photo.displayPath), 42, y, {
+        fit: [width, 180],
+        align: 'center',
+        valign: 'center',
+      });
     } catch {
       text(
         'Photo viewing copy is unavailable. Contact an administrator; the record references the original photo below.',
@@ -340,28 +343,18 @@ export async function createReport({ store, tripId, stage = 'return' }) {
         width: 430,
         lineBreak: false,
       });
-    doc.text(
-      `${index + 1 + (stage === 'return' ? 2 : 1)} / ${pages.count + (stage === 'return' ? 2 : 1)}`,
-      510,
-      731,
-      {
-        width: 60,
-        align: 'right',
-        lineBreak: false,
-      },
-    );
+    doc.text(`${index + 3} / ${pages.count + 2}`, 510, 731, {
+      width: 60,
+      align: 'right',
+      lineBreak: false,
+    });
   }
   doc.end();
   const result = await originalForms({ trip, reviews, zone, stage, appendix: await finished });
-  const temporary = `${filename}.${randomUUID()}.tmp`;
-  await writeFile(temporary, result, { mode: 0o600 });
   try {
-    // Publish once without replacing a report another request already saved.
-    await link(temporary, filename);
+    await store.evidence.put(filename, result, 'application/pdf');
   } catch (error) {
     if (error.code !== 'EEXIST') throw error;
-  } finally {
-    await unlink(temporary);
   }
-  return readFile(filename);
+  return resultFor(await store.evidence.read(filename));
 }

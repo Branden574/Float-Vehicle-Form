@@ -60,14 +60,14 @@ test('email code signs into the same account, is single-use, and profiles are sa
     ).status,
     400,
   );
-  const second = openStore(f.directory);
-  assert.equal(second.getUser(f.staff.id).charter, profile.charter);
-  second.close();
-  const row = f.store.db.prepare('SELECT * FROM users WHERE id=?').get(f.staff.id);
+  const second = await openStore(f.directory);
+  assert.equal((await second.getUser(f.staff.id)).charter, profile.charter);
+  await second.close();
+  const row = await f.store.db.prepare('SELECT * FROM users WHERE id=?').get(f.staff.id);
   assert.equal(row.name, '');
   assert.notEqual(row.email, profile.email);
   assert.match(row.profile_json, /^enc:v1:/);
-  f.store.db.pragma('wal_checkpoint(TRUNCATE)');
+  await f.store.db.pragma('wal_checkpoint(TRUNCATE)');
   const bytes = await readFile(path.join(f.directory, 'fleet.sqlite'));
   for (const value of [profile.name, profile.email, profile.charter, profile.manager])
     assert.equal(bytes.includes(Buffer.from(value)), false, value);
@@ -96,17 +96,17 @@ test('email verification limits guesses, expires codes, refuses disabled account
     assert.equal((await post(f, 'verify-code', { ...limited, code: wrong })).status, 401);
   assert.equal((await post(f, 'verify-code', limited)).status, 401);
   const expired = await request('expired@example.test');
-  f.store.db
+  await f.store.db
     .prepare('UPDATE login_codes SET expires_at=? WHERE id=?')
     .run('2000-01-01T00:00:00.000Z', expired.challengeId);
   assert.equal((await post(f, 'verify-code', expired)).status, 401);
   const disabled = await request(f.other.email);
-  f.store.updateUser(f.other.id, { ...f.other, active: false });
+  await f.store.updateUser(f.other.id, { ...f.other, active: false });
   assert.equal((await post(f, 'verify-code', disabled)).status, 401);
   failDelivery = true;
   assert.equal((await post(f, 'request-code', { email: 'failed@example.test' })).status, 503);
   assert.equal(
-    f.store.db
+    await f.store.db
       .prepare('SELECT id FROM login_codes WHERE email_lookup=?')
       .get(f.store.emailLookup('failed@example.test')),
     undefined,
@@ -163,30 +163,33 @@ test('legacy profiles and snapshots migrate without changing signed content; wro
   const f = await fixture(t);
   const vehicle = await f.addVehicle();
   const checkout = await f.checkout(f.s, vehicle);
-  const snapshot = f.store.getTrip(checkout.data.trip.id).employeeSnapshot;
-  f.store.db
+  const snapshot = (await f.store.getTrip(checkout.data.trip.id)).employeeSnapshot;
+  await f.store.db
     .prepare('UPDATE users SET email=?,name=?,department=?,manager=?,profile_json=NULL WHERE id=?')
     .run(f.staff.email, f.staff.name, f.staff.department, f.staff.manager, f.staff.id);
-  const row = f.store.db
+  const row = await f.store.db
     .prepare('SELECT checkout_json FROM trips WHERE id=?')
     .get(checkout.data.trip.id);
   const decoded = f.store.decodeJSON(row.checkout_json);
-  f.store.db
+  await f.store.db
     .prepare('UPDATE trips SET checkout_json=? WHERE id=?')
     .run(JSON.stringify(decoded), checkout.data.trip.id);
-  const migrated = openStore(f.directory);
-  assert.equal(migrated.getUser(f.staff.id).email, f.staff.email);
-  assert.deepEqual(migrated.getTrip(checkout.data.trip.id).employeeSnapshot, snapshot);
-  migrated.close();
+  const migrated = await openStore(f.directory);
+  assert.equal((await migrated.getUser(f.staff.id)).email, f.staff.email);
+  assert.deepEqual((await migrated.getTrip(checkout.data.trip.id)).employeeSnapshot, snapshot);
+  await migrated.close();
   const keyPath = path.join(f.directory, '.development-profile-key');
   const correctKey = await readFile(keyPath);
   await writeFile(keyPath, 'cd'.repeat(32));
   try {
-    assert.throws(() => openStore(f.directory), /Incorrect profile encryption key/);
+    await assert.rejects(
+      async () => await openStore(f.directory),
+      /Incorrect profile encryption key/,
+    );
   } finally {
     await writeFile(keyPath, correctKey);
   }
-  const reopened = openStore(f.directory);
-  assert.equal(reopened.getUser(f.staff.id).email, f.staff.email);
-  reopened.close();
+  const reopened = await openStore(f.directory);
+  assert.equal((await reopened.getUser(f.staff.id)).email, f.staff.email);
+  await reopened.close();
 });
