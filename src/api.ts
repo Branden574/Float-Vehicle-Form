@@ -2,6 +2,8 @@ import type { Photo } from './types';
 let csrfToken = '';
 let sessionEpoch = 0;
 const activeUploads = new Set<XMLHttpRequest>();
+const activeDownloads = new Set<AbortController>();
+const downloadUrls = new Set<string>();
 export function setCsrf(value: string) {
   if (csrfToken !== value) sessionEpoch += 1;
   csrfToken = value;
@@ -11,6 +13,10 @@ export function clearPrivateState() {
   csrfToken = '';
   for (const xhr of activeUploads) xhr.abort();
   activeUploads.clear();
+  for (const download of activeDownloads) download.abort();
+  activeDownloads.clear();
+  for (const url of downloadUrls) URL.revokeObjectURL(url);
+  downloadUrls.clear();
   sessionStorage.clear();
   navigator.serviceWorker?.controller?.postMessage('CLEAR_PRIVATE_DATA');
 }
@@ -63,6 +69,52 @@ export const post = <T>(path: string, body: unknown, headers?: Record<string, st
   api<T>(path, { method: 'POST', body: JSON.stringify(body), headers });
 export const patch = <T>(path: string, body: unknown) =>
   api<T>(path, { method: 'PATCH', body: JSON.stringify(body) });
+
+/** Follow private storage redirects as a CORS fetch, keeping the workspace open. */
+export async function savePrivateFile(path: string, filename: string) {
+  if (!path.startsWith('/api/')) throw new ApiError('Invalid download address.', 400);
+  const epoch = sessionEpoch;
+  const controller = new AbortController();
+  activeDownloads.add(controller);
+  const timeout = window.setTimeout(() => controller.abort(), 120000);
+  try {
+    const response = await fetch(path, {
+      credentials: 'same-origin',
+      cache: 'no-store',
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      if (response.status === 401 && csrfToken) window.dispatchEvent(new Event('session-expired'));
+      throw new ApiError('The file could not be downloaded. Please retry.', response.status);
+    }
+    if (Number(response.headers.get('Content-Length')) > 120 * 1024 * 1024) {
+      controller.abort();
+      throw new ApiError('This file exceeds the supported download size.', 413);
+    }
+    const blob = await response.blob();
+    if (epoch !== sessionEpoch || controller.signal.aborted)
+      throw new ApiError('The session changed. Download cancelled.', 409);
+    const url = URL.createObjectURL(blob);
+    downloadUrls.add(url);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename.replace(/[^a-zA-Z0-9_.-]/g, '_');
+    link.hidden = true;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => {
+      URL.revokeObjectURL(url);
+      downloadUrls.delete(url);
+    }, 60000);
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ApiError('Download interrupted. Reconnect and try again.', 0);
+  } finally {
+    window.clearTimeout(timeout);
+    activeDownloads.delete(controller);
+  }
+}
 export async function uploadPhoto(
   data: FormData,
   progress: (value: number) => void,

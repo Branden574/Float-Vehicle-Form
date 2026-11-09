@@ -1,7 +1,7 @@
 import { DamageDiagram } from './DamageDiagram';
 import { useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, Download, RefreshCw } from 'lucide-react';
-import { api, errorMessage, formatDate, humanize, miles, post } from '../api';
+import { api, errorMessage, formatDate, humanize, miles, post, savePrivateFile } from '../api';
 import type { Settings, Trip, TripDetail, User } from '../types';
 import { Status } from '../App';
 import { SignaturePad } from './SignaturePad';
@@ -25,6 +25,7 @@ export function TripView({
   const [data, setData] = useState<TripDetail | null>(null),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false),
+    [downloading, setDownloading] = useState(false),
     [signature, setSignature] = useState(''),
     [initials, setInitials] = useState(''),
     [reason, setReason] = useState(''),
@@ -40,6 +41,23 @@ export function TripView({
       setData(await api<TripDetail>(`/trips/${id}`));
     } catch (e) {
       setError(errorMessage(e));
+    }
+  }
+  async function download(
+    event: React.MouseEvent<HTMLAnchorElement>,
+    path: string,
+    filename: string,
+  ) {
+    event.preventDefault();
+    if (downloading) return;
+    setDownloading(true);
+    setError('');
+    try {
+      await savePrivateFile(path, filename);
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setDownloading(false);
     }
   }
   useEffect(() => {
@@ -94,11 +112,25 @@ export function TripView({
         </div>
       )}
       <div className="trip-detail-actions">
-        <a className="button secondary" href={`/api/trips/${id}/report?stage=checkout`}>
+        <a
+          className="button secondary"
+          href={`/api/trips/${id}/report?stage=checkout`}
+          aria-disabled={downloading}
+          onClick={(e) =>
+            void download(e, `/api/trips/${id}/report?stage=checkout`, `fleet-${id}-checkout.pdf`)
+          }
+        >
           <Download size={17} /> Checkout PDF
         </a>
         {trip.returnedAt && (
-          <a className="button secondary" href={`/api/trips/${id}/report?stage=return`}>
+          <a
+            className="button secondary"
+            href={`/api/trips/${id}/report?stage=return`}
+            aria-disabled={downloading}
+            onClick={(e) =>
+              void download(e, `/api/trips/${id}/report?stage=return`, `fleet-${id}-return.pdf`)
+            }
+          >
             <Download size={17} /> Both forms & photos
           </a>
         )}
@@ -111,6 +143,11 @@ export function TripView({
           <RefreshCw size={18} />
         </button>
       </div>
+      {downloading && (
+        <p role="status" className="fine">
+          Preparing your download… Keep this page open.
+        </p>
+      )}
       {trip.status === 'pending_checkout' && (
         <div className="notice warning">
           Checkout inspection saved. Do not take the vehicle until an administrator approves it.
@@ -227,7 +264,19 @@ export function TripView({
                         <br />
                         Server received: {formatDate(p.receivedAt, settings.timezone)}
                         <br />
-                        <a href={p.originalUrl}>Download original</a>
+                        <a
+                          href={p.originalUrl}
+                          aria-disabled={downloading}
+                          onClick={(e) =>
+                            void download(
+                              e,
+                              p.originalUrl,
+                              `${p.id}-original.${p.mimeType.split('/')[1]}`,
+                            )
+                          }
+                        >
+                          Download original
+                        </a>
                       </figcaption>
                     </figure>
                   ))}

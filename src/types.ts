@@ -97,6 +97,7 @@ export type Photo = {
   source: 'camera' | 'upload';
   url: string;
   originalUrl: string;
+  mimeType: string;
   bytes: number;
 };
 export type Review = {
