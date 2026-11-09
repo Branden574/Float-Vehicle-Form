@@ -337,3 +337,81 @@ test('late responses from a signed-out administrator are discarded after staff s
   ).toBeVisible();
   await expect(page.getByText('PRIVATE OLD ADMIN RESPONSE')).toHaveCount(0);
 });
+
+test('touch diagram marks can be moved, removed, undone and saved with exact positions', async ({
+  page,
+}, testInfo) => {
+  await login(page);
+  const session = await (await page.request.get('/api/auth/me')).json();
+  const name = `Diagram test ${testInfo.project.name}`;
+  const result = await page.request.post('/api/admin/vehicles', {
+    headers: { 'X-CSRF-Token': session.csrfToken },
+    data: {
+      name,
+      make: 'Ford',
+      model: 'Escape',
+      year: 2024,
+      plate: 'MARK-01',
+      vinLast4: '1111',
+      site: 'QA',
+      currentMileage: 42500,
+      status: 'available',
+    },
+  });
+  expect(result.status()).toBe(201);
+  await signOut(page);
+  await login(page, 'driver@example.test');
+  await page.getByLabel('Search vehicles', { exact: true }).fill(name);
+  await page.getByRole('button', { name: 'Check out', exact: true }).click();
+  await page.getByLabel('Projected return date and time', { exact: true }).fill('2027-01-01T17:00');
+  await page.getByRole('checkbox', { name: /I compared the dashboard/ }).check();
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  const svg = page.getByRole('application', { name: 'Vehicle damage diagram' });
+  const place = async (x: number, y: number) => {
+    await svg.scrollIntoViewIfNeeded();
+    const b = (await svg.boundingBox())!;
+    const options = { position: { x: b.width * x, y: b.height * y } };
+    if (testInfo.project.use.hasTouch) await svg.tap(options);
+    else await svg.click(options);
+  };
+  await place(0.2, 0.5);
+  await expect(page.locator('.damage-row')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Move mark', exact: true }).click();
+  await place(0.25, 0.45);
+  await page.getByRole('button', { name: 'Scratch', exact: false }).first().click();
+  await place(0.7, 0.7);
+  await page.getByRole('button', { name: 'Remove mark', exact: true }).click();
+  await place(0.6, 0.2);
+  await page.getByRole('button', { name: 'Undo last mark', exact: true }).click();
+  await expect(page.locator('.damage-row')).toHaveCount(1);
+  await page
+    .locator('.damage-row')
+    .getByLabel('Notes', { exact: true })
+    .fill('Door dent marked on diagram');
+  await page.screenshot({
+    path: `artifacts/damage-diagram-${testInfo.project.name}.png`,
+    fullPage: true,
+  });
+  await inspect(page);
+  await photos(page, 157);
+  await signAndSubmit(page);
+  await expect(
+    page.getByText(
+      'Checkout inspection saved. Do not take the vehicle until an administrator approves it.',
+    ),
+  ).toBeVisible();
+  const trips = (await (await page.request.get('/api/trips')).json()).trips;
+  const trip = trips.find((t: any) => t.vehicleSnapshot.name === name);
+  expect(trip.checkoutInspection.damage).toHaveLength(1);
+  expect(trip.checkoutInspection.damage[0].position.x).toBeCloseTo(0.25, 2);
+  expect(trip.checkoutInspection.damage[0].position.y).toBeCloseTo(0.45, 2);
+  expect(trip.checkoutInspection.damage[0].notes).toBe('Door dent marked on diagram');
+  await page.reload();
+  await page.getByRole('button', { name: 'Trip history', exact: true }).click();
+  // API reread and saved diagram are independent of the in-memory inspection draft.
+  const saved = await page.request.get(`/api/trips/${trip.id}`);
+  expect(saved.status()).toBe(200);
+  const report = await page.request.get(`/api/trips/${trip.id}/report?stage=checkout`);
+  expect(report.status()).toBe(200);
+  expect((await report.body()).subarray(0, 5).toString()).toBe('%PDF-');
+});

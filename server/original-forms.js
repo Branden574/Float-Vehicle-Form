@@ -1,11 +1,10 @@
+import diagram from '../shared/vehicle-diagram.json' with { type: 'json' };
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
-import { readFile } from 'node:fs/promises';
+import { buildCleanTemplate, diagramBounds } from './clean-template.js';
 import { createHash } from 'node:crypto';
 
-// Keep the supplied scan intact. Coordinates refer to the reviewed 1400px-high renders.
-export const templateBytes = await readFile(
-  new URL('./templates/learn4life-original.pdf', import.meta.url),
-);
+// Rebuilt form retains the original layout without scan artifacts.
+export const templateBytes = await buildCleanTemplate();
 export const templateHash = createHash('sha256').update(templateBytes).digest('hex');
 const BLUE = rgb(0.04, 0.18, 0.48);
 const AREAS = {
@@ -112,12 +111,9 @@ export async function originalForms({ trip, reviews, zone, stage, appendix }) {
     box(trip.employeeSnapshot.manager, 310, returning ? 450 : 453, 255);
     box(trip.vehicleSnapshot.vinLast4, returning ? 595 : 580, returning ? 450 : 453, 180);
     const mode = returning ? trip.returnReviewMode : trip.checkoutReviewMode;
-    box(
-      review?.initials || (mode === 'representative' ? 'Pending' : 'N/A'),
-      800,
-      returning ? 450 : 453,
-      160,
-    );
+    const needsReview =
+      mode === 'representative' || (!returning && trip.status === 'pending_checkout');
+    box(review?.initials || (needsReview ? 'Pending' : 'N/A'), 800, returning ? 450 : 453, 160);
     const answers = returning
       ? [
           inspection.fuelFull && inspection.receiptReceived,
@@ -164,12 +160,34 @@ export async function originalForms({ trip, reviews, zone, stage, appendix }) {
       30,
       16,
     );
-    box('Black x is part of the supplied blank form.', 105, returning ? 789 : 802, 440, 24, 13);
+
     const seenAreas = new Set();
     inspection.damage.forEach((damage, i) => {
+      if (damage.position) {
+        const d = diagramBounds(returning);
+        const x = (d.x + damage.position.x * d.width) * sx;
+        const scale = (d.width / diagram.width) * sx;
+        const y = 792 - d.y * sy - damage.position.y * diagram.height * scale;
+        page.drawSvgPath(diagram.marks[damage.type], {
+          x,
+          y,
+          scale,
+          borderWidth: 2,
+          borderColor: BLUE,
+        });
+        page.drawText(String(i + 1), {
+          x: x + 11 * scale,
+          y: y + 9 * scale,
+          font: bold,
+          size: 13 * scale,
+          color: BLUE,
+        });
+        return;
+      }
       if (seenAreas.has(damage.area)) return;
       seenAreas.add(damage.area);
-      const extra = inspection.damage.filter((d) => d.area === damage.area).length - 1;
+      const extra =
+        inspection.damage.filter((d) => !d.position && d.area === damage.area).length - 1;
       const [x, y] = AREAS[damage.area] || [720, 940];
       // Only an area was recorded, never claim a precise point of impact.
       box(
@@ -205,7 +223,7 @@ export async function originalForms({ trip, reviews, zone, stage, appendix }) {
       box(date(review.createdAt), returning ? 704 : 710, returning ? 1210 : 1242, 145, 26, 16);
     } else
       box(
-        mode === 'representative' ? 'Pending representative review' : 'N/A - self-service',
+        needsReview ? 'Pending representative review' : 'N/A - self-service',
         returning ? 285 : 310,
         returning ? 1200 : 1235,
         310,

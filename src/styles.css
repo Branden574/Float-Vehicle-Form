@@ -2300,3 +2300,73 @@ figcaption {
   object-fit: contain;
   flex-shrink: 0;
 }
+
+.damage-diagram {
+  margin: 20px 0;
+}
+.damage-tools,
+.damage-edit-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px;
+}
+.damage-tools button {
+  min-height: 48px;
+  padding: 10px 20px;
+  border: 1px solid #bbc8c1;
+  background: white;
+  border-radius: 8px;
+  font: inherit;
+  cursor: pointer;
+}
+.damage-tools button[aria-pressed='true'] {
+  background: #126b61;
+  border-color: #126b61;
+  color: white;
+}
+.damage-tools span {
+  font-size: 24px;
+}
+.vehicle-damage-canvas {
+  display: block;
+  width: 100%;
+  max-width: 360px;
+  height: auto;
+  margin: 16px auto;
+  border: 1px solid #d5ddd8;
+  border-radius: 12px;
+  touch-action: pan-y;
+}
+.vehicle-damage-canvas[role='application'] {
+  cursor: crosshair;
+}
+.damage-pin {
+  cursor: pointer;
+}
+.keyboard-mark-cursor {
+  display: none;
+}
+.vehicle-damage-canvas:focus-visible .keyboard-mark-cursor {
+  display: block;
+}
+.damage-edit-tools label {
+  min-width: 180px;
+}
+.damage-edit-tools button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.damage-comparison {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+.damage-row > strong {
+  grid-column: 1 / -1;
+}
+@media (max-width: 600px) {
+  .damage-comparison {
+    grid-template-columns: 1fr;
+  }
+}

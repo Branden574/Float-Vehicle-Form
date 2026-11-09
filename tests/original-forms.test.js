@@ -48,7 +48,7 @@ async function sample() {
     },
   };
 }
-test('original scanned forms lead the report, retain identity, local dates, mileage, signatures and stage isolation', async () => {
+test('clean forms matching the original layout lead the report, retain identity, local dates, mileage, signatures and stage isolation', async () => {
   const input = await sample();
   const pdf = await PDFDocument.load(await originalForms(input));
   assert.equal((await PDFDocument.load(templateBytes)).getPageCount(), 2);
@@ -106,4 +106,61 @@ test('representative signatures are authentic stage-specific images; combined re
   assert.match(returned, /451\.2442396313364 489\.9085714285714 m/);
   await mkdir('artifacts', { recursive: true });
   await writeFile('artifacts/sample-original-exceptions.pdf', bytes);
+});
+
+test('clean template is deterministic and positioned damage preserves exact normalized coordinates on both forms', async () => {
+  const { buildCleanTemplate } = await import('../server/clean-template.js');
+  const { createHash } = await import('node:crypto');
+  assert.equal(
+    createHash('sha256')
+      .update(await buildCleanTemplate())
+      .digest('hex'),
+    templateHash,
+  );
+  const input = await sample();
+  const mark = {
+    area: 'driver',
+    type: 'scratch',
+    notes: 'Door',
+    position: { x: 0.25, y: 0.5, diagram: 'vehicle-v1' },
+  };
+  input.trip.checkoutInspection = { ...inspection, damage: [mark] };
+  input.trip.returnInspection = {
+    ...inspection,
+    damage: [{ ...mark, position: { ...mark.position, x: 0.75, y: 0.7 } }],
+  };
+  const bytes = await originalForms(input),
+    pdf = await PDFDocument.load(bytes);
+  for (const [i, x, y, top] of [
+    [0, 0.25, 0.5, 750],
+    [1, 0.75, 0.7, 730],
+  ]) {
+    const sx = 612 / (i ? 1085 : 1082),
+      sy = 792 / 1400,
+      scale = (250 / 360) * sx;
+    const content = operators(pdf, i);
+    const expectedX = (600 + x * 250) * sx,
+      expectedY = 792 - top * sy - y * 560 * scale;
+    const transforms = [...content.matchAll(/1 0 0 1 ([\d.]+) ([\d.]+) cm/g)].map((m) => [
+      Number(m[1]),
+      Number(m[2]),
+    ]);
+    assert.ok(
+      transforms.some(
+        ([tx, ty]) => Math.abs(tx - expectedX) < 0.001 && Math.abs(ty - expectedY) < 0.001,
+      ),
+      'mark position matches shared diagram',
+    );
+  }
+  await writeFile('artifacts/sample-positioned-damage.pdf', bytes);
+});
+
+test('damage-held checkout says representative pending even in self-service mode', async () => {
+  const input = await sample();
+  input.trip.status = 'pending_checkout';
+  const pdf = await PDFDocument.load(await originalForms({ ...input, stage: 'checkout' }));
+  const text = strings(operators(pdf, 0));
+  assert.ok(text.includes('Pending'));
+  assert.ok(text.includes('Pending representative review'));
+  assert.ok(!text.includes('N/A - self-service'));
 });

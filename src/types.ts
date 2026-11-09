@@ -40,7 +40,12 @@ export type Settings = {
   sessionMinutes: number;
   requiredPhotoViews?: string[];
 };
-export type Damage = { area: string; type: 'chip' | 'dent' | 'scratch'; notes: string };
+export type Damage = {
+  area: string;
+  type: 'chip' | 'dent' | 'scratch';
+  notes: string;
+  position?: { x: number; y: number; diagram: 'vehicle-v1' };
+};
 export type Inspection = {
   fuelFull: boolean;
   interiorClean: boolean;

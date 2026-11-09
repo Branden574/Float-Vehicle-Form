@@ -1,3 +1,4 @@
+import { DamageDiagram } from './DamageDiagram';
 import { useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, Download, RefreshCw } from 'lucide-react';
 import { api, errorMessage, formatDate, humanize, miles, post } from '../api';
@@ -159,6 +160,35 @@ export function TripView({
           </ul>
         </div>
       )}
+      <div className="detail-section">
+        <h2>Damage diagrams</h2>
+        <div className="damage-comparison">
+          {(['checkout', 'return'] as const).map((stage) => {
+            const inspection =
+              stage === 'checkout' ? trip.checkoutInspection : trip.returnInspection;
+            return (
+              <div key={stage}>
+                <h3>{stage === 'checkout' ? 'Checkout' : 'Return'}</h3>
+                {inspection ? (
+                  <>
+                    <DamageDiagram damage={inspection.damage} label={`${stage} saved damage`} />
+                    <ol>
+                      {inspection.damage.map((d, i) => (
+                        <li key={i}>
+                          {d.type} — {d.area}
+                          {d.notes ? `: ${d.notes}` : ''}
+                        </li>
+                      ))}
+                    </ol>
+                  </>
+                ) : (
+                  <p>Awaiting return inspection.</p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
       <div className="detail-section">
         <h2>Condition comparison</h2>
         <p>

@@ -4,16 +4,16 @@ Local verification completed **November 9, 2026**. This record separates perform
 
 ## Performed checks
 
-| Check                                  | Result                                         | Scope                                                                                                                                              |
-| -------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| TypeScript + production frontend build | Passed                                         | `npm run build`; Vite production bundle                                                                                                            |
-| Server/integration tests               | **18 passed**                                  | `npm test`; real temporary SQLite databases and HTTP requests                                                                                      |
-| Browser tests                          | **14 passed, 1 explicitly skipped/unverified** | Chromium desktop 1440×1000, WebKit tablet 820×1180, Chromium phone 390×844                                                                         |
-| Formatting                             | Passed                                         | `npm run format:check`                                                                                                                             |
-| Dependency audit                       | No known vulnerabilities reported              | `npm audit` on the installed lockfile; not a guarantee that all vulnerabilities are known                                                          |
-| Container build/start                  | Passed                                         | Docker image builds on Linux ARM64; health endpoint returns HTTP 200; process runs as UID 1000                                                     |
-| PDF rendering                          | Reviewed                                       | Original-form overlays rendered with Poppler; field/checkmark placement, both signatures, No answers, damage markings and photo appendix inspected |
-| Backup/restore                         | Passed                                         | Consistent SQLite snapshot, original/viewing-photo checksums, isolated restore, session revocation, corrupt-file/symlink rejection                 |
+| Check                                  | Result                                         | Scope                                                                                                                                                 |
+| -------------------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TypeScript + production frontend build | Passed                                         | `npm run build`; Vite production bundle                                                                                                               |
+| Server/integration tests               | **22 passed**                                  | `npm test`; real temporary SQLite databases and HTTP requests                                                                                         |
+| Browser tests                          | **17 passed, 1 explicitly skipped/unverified** | Chromium desktop 1440×1000, WebKit tablet 820×1180, Chromium phone 390×844                                                                            |
+| Formatting                             | Passed                                         | `npm run format:check`                                                                                                                                |
+| Dependency audit                       | No known vulnerabilities reported              | `npm audit` on the installed lockfile; not a guarantee that all vulnerabilities are known                                                             |
+| Container build/start                  | Passed                                         | Docker image builds on Linux ARM64; health endpoint returns HTTP 200; process runs as UID 1000                                                        |
+| PDF rendering                          | Reviewed                                       | Clean form reconstruction rendered with Poppler; field/checkmark placement, both signatures, No answers, damage markings and photo appendix inspected |
+| Backup/restore                         | Passed                                         | Consistent SQLite snapshot, original/viewing-photo checksums, isolated restore, session revocation, corrupt-file/symlink rejection                    |
 
 The browser suite's WebKit offline-reload attempt returned **“WebKit encountered an internal error”** during navigation. That specific case is explicitly skipped in repeat runs and **is not counted as passed**. WebKit online workflow, upload retry, permission-denial handling, session switching, manifest/worker registration and private-cache exclusion passed. Chromium offline shell reload passed. Actual Safari/Home Screen offline behavior remains a physical iPad acceptance item.
 
@@ -76,3 +76,7 @@ docker build -t learn4life-fleet:verification .
 ```
 
 Local generated PDFs and screenshots are written to ignored `artifacts/`; failure traces go to ignored `test-results/`. Do not publish real fleet evidence in these directories. The GitHub workflow runs formatting, build, API tests, browser tests and dependency audit with read-only repository permissions and no production credentials.
+
+## Diagram and clean-template verification
+
+The clean template reproduces the paper form layout, using original branding and newly authored labels, rules and car outlines. Tests check deterministic template hashing, exact normalized mark placement on checkout and check-in PDFs, invalid/out-of-range coordinates, diagram version validation, backward compatibility with area-only entries, and independent persistence of checkout and return marks. Browser tests place, move, remove and undo marks with touch events in tablet/phone emulation, enter notes, submit the inspection, reload and read back stored positions, and download its PDF. Physical iPad acceptance remains user testing; browser emulation is not a hardware test.

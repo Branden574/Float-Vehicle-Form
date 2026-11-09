@@ -50,6 +50,14 @@ export const inspectionSchema = z
           ]),
           type: z.enum(['chip', 'dent', 'scratch']),
           notes: z.string().max(1000).default(''),
+          position: z
+            .object({
+              x: z.number().finite().min(0).max(1),
+              y: z.number().finite().min(0).max(1),
+              diagram: z.literal('vehicle-v1'),
+            })
+            .strict()
+            .optional(),
         }),
       )
       .max(40),

@@ -1,3 +1,4 @@
+import { DamageDiagram } from './DamageDiagram';
 import { useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
@@ -436,7 +437,7 @@ export function Workflow({
               <div className="section-heading">
                 <div>
                   <h3>Damage record</h3>
-                  <p>Mark chips, dents or scratches by vehicle area.</p>
+                  <p>Tap the diagram to mark chips, dents or scratches.</p>
                 </div>
                 <button
                   className="button secondary compact"
@@ -450,15 +451,30 @@ export function Workflow({
                       ],
                     }))
                   }
+                  disabled={(inspection.damage?.length || 0) >= 40}
                 >
                   <Plus size={17} /> Add damage
                 </button>
               </div>
+              <DamageDiagram
+                damage={inspection.damage || []}
+                onChange={(damage) => setInspection((current) => ({ ...current, damage }))}
+              />
+              {trip && (
+                <details>
+                  <summary>Compare checkout marks</summary>
+                  <DamageDiagram
+                    damage={trip.checkoutInspection.damage}
+                    label="Checkout damage reference"
+                  />
+                </details>
+              )}
               {!inspection.damage?.length && (
                 <p className="empty-inline">No damage marked. Add any damage you observe.</p>
               )}
               {inspection.damage?.map((damage, index) => (
                 <div key={index} className="damage-row">
+                  <strong>Mark {index + 1}</strong>
                   <label>
                     Area
                     <select
@@ -602,6 +618,7 @@ export function Workflow({
                   <strong>{inspection.damage?.length || 0}</strong>
                 </div>
               </div>
+              <DamageDiagram damage={inspection.damage || []} label="Review damage marks" />
               {inspection.notes && <p className="notice neutral">{inspection.notes}</p>}
               <div className="notice neutral">
                 <ClipboardCheck size={20} />
