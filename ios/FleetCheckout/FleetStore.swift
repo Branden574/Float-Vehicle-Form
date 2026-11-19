@@ -1,4 +1,46 @@
 import SwiftUI
+import UserNotifications
+
+final class FleetNotificationDelegate: NSObject, UIApplicationDelegate,
+  UNUserNotificationCenterDelegate
+{
+  func application(
+    _ application: UIApplication,
+    didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+  ) -> Bool {
+    UNUserNotificationCenter.current().delegate = self
+    return true
+  }
+
+  func userNotificationCenter(
+    _ center: UNUserNotificationCenter, willPresent notification: UNNotification
+  ) async -> UNNotificationPresentationOptions {
+    [.banner, .sound]
+  }
+}
+
+private enum SignInNotice {
+  static let identifier = "sign-in-email"
+
+  static func show() async throws -> Bool {
+    let center = UNUserNotificationCenter.current()
+    guard try await center.requestAuthorization(options: [.alert, .sound]) else { return false }
+    try Task.checkCancellation()
+    let content = UNMutableNotificationContent()
+    content.title = "Sign-in code requested"
+    content.body = "Check your email for the latest Fleet Checkout code."
+    content.sound = .default
+    try await center.add(
+      UNNotificationRequest(identifier: identifier, content: content, trigger: nil))
+    return true
+  }
+
+  static func clear() {
+    let center = UNUserNotificationCenter.current()
+    center.removePendingNotificationRequests(withIdentifiers: [identifier])
+    center.removeDeliveredNotifications(withIdentifiers: [identifier])
+  }
+}
 
 @MainActor final class FleetStore: ObservableObject {
   let api: FleetAPI
@@ -68,6 +110,7 @@ import SwiftUI
   }
 }
 @main struct FleetCheckoutApp: App {
+  @UIApplicationDelegateAdaptor(FleetNotificationDelegate.self) private var notificationDelegate
   @StateObject private var store = FleetStore()
   @Environment(\.scenePhase) private var phase
   var body: some Scene {
@@ -111,6 +154,10 @@ struct SignInView: View {
   @State private var message = ""
   @State private var error = ""
   @State private var showingReview = false
+  @FocusState private var codeFocused: Bool
+  @AppStorage("signInEmailAlerts") private var wantsCodeAlerts = false
+  @State private var alertsDenied = false
+  @State private var noticeTask: Task<Void, Never>?
   var body: some View {
     NavigationStack {
       ScrollView {
@@ -126,15 +173,26 @@ struct SignInView: View {
             ).textInputAutocapitalization(.never).autocorrectionDisabled().disabled(
               !challenge.isEmpty || busy
             ).textFieldStyle(.roundedBorder).accessibilityIdentifier("email")
+            if challenge.isEmpty {
+              Toggle("Notify me when my code is sent", isOn: $wantsCodeAlerts)
+                .font(.subheadline).disabled(busy)
+            }
             if !challenge.isEmpty {
               TextField("6-digit code", text: $code).keyboardType(.numberPad).textContentType(
                 .oneTimeCode
               ).textFieldStyle(.roundedBorder).accessibilityIdentifier("code")
+                .focused($codeFocused)
+                .onAppear { codeFocused = true }
                 .onChange(of: code) { _, value in code = String(value.filter(\.isNumber).prefix(6))
                 }
               Text("Check your inbox or spam folder. Your code expires in 10 minutes.").font(
                 .footnote
               ).foregroundStyle(.secondary)
+              if alertsDenied,
+                let url = URL(string: UIApplication.openNotificationSettingsURLString)
+              {
+                Link("Enable Fleet Checkout alerts in Settings", destination: url).font(.footnote)
+              }
             }
             if !message.isEmpty {
               Text(message).font(.callout).foregroundStyle(.tint).accessibilityAddTraits(
@@ -144,7 +202,8 @@ struct SignInView: View {
             if !store.error.isEmpty { Text(store.error).foregroundStyle(.red) }
             TimelineView(.periodic(from: .now, by: 1)) { timeline in
               let remaining = max(0, Int(ceil(cooldown.timeIntervalSince(timeline.date))))
-              let unavailable = busy || email.isEmpty || (challenge.isEmpty && remaining > 0)
+              let unavailable =
+                busy || email.isEmpty || (challenge.isEmpty && remaining > 0)
                 || (!challenge.isEmpty && code.count != 6)
               Button {
                 Task { await submit() }
@@ -165,6 +224,7 @@ struct SignInView: View {
                   Task { await sendCode(resend: true) }
                 }.disabled(busy || remaining > 0)
                 Button("Change email") {
+                  clearNotice()
                   challenge = ""
                   code = ""
                   message = ""
@@ -188,7 +248,14 @@ struct SignInView: View {
           ).font(.footnote).foregroundStyle(.secondary)
         }.padding(32).frame(maxWidth: 560).frame(maxWidth: .infinity)
       }.navigationTitle("Fleet Checkout").navigationBarTitleDisplayMode(.inline)
+        .onDisappear { clearNotice() }
     }
+  }
+  private func clearNotice() {
+    noticeTask?.cancel()
+    noticeTask = nil
+    alertsDenied = false
+    SignInNotice.clear()
   }
   func sendCode(resend: Bool = false) async {
     guard !busy, Date() >= cooldown else { return }
@@ -201,11 +268,19 @@ struct SignInView: View {
         body: ["email": email.trimmingCharacters(in: .whitespacesAndNewlines)])
       challenge = response.challengeId
       code = ""
+      codeFocused = true
       cooldown = Date().addingTimeInterval(Double(response.retryAfterSeconds ?? 60))
       message =
         resend
-        ? "A new code was sent. Use the newest email; the previous code no longer works."
+        ? "A new code was sent. Use the code in your newest email."
         : "Your code is on its way."
+      if wantsCodeAlerts {
+        noticeTask?.cancel()
+        noticeTask = Task {
+          let allowed = try? await SignInNotice.show()
+          if !Task.isCancelled { alertsDenied = allowed == false }
+        }
+      }
     } catch let failure as FleetError {
       error = failure.localizedDescription
       if failure.retryAfter > 0 { cooldown = Date().addingTimeInterval(Double(failure.retryAfter)) }
