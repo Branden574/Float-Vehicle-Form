@@ -220,6 +220,8 @@ function InspectionForm({
       if (returning) checks.push('receiptReceived', 'keyReturned');
       if (checks.some((key) => typeof inspection[key as keyof Inspection] !== 'boolean'))
         return 'Answer each inspection question with Yes or No.';
+      if (inspection.emergencyKitsPresent === false && !inspection.missingEmergencyKits?.trim())
+        return 'Name the missing emergency kit or kits.';
       if (!inspection.windshield) return 'Select the windshield condition.';
     }
     if (index === 2 && slots.some((slot) => slot.file && !slot.photo))
@@ -335,7 +337,11 @@ function InspectionForm({
     }
   }
   function answer(key: keyof Inspection, value: boolean) {
-    setInspection((current) => ({ ...current, [key]: value }));
+    setInspection((current) => ({
+      ...current,
+      [key]: value,
+      ...(key === 'emergencyKitsPresent' && value ? { missingEmergencyKits: undefined } : {}),
+    }));
   }
   const checkQuestions: [keyof Inspection, string][] = [
     ['fuelFull', 'Is the fuel tank full?'],
@@ -562,6 +568,9 @@ function InspectionForm({
                             : trip.checkoutInspection.emergencyKitsPresent
                               ? 'Yes'
                               : 'No'}
+                          {trip.checkoutInspection.emergencyKitsPresent === false &&
+                            trip.checkoutInspection.missingEmergencyKits &&
+                            ' — ' + trip.checkoutInspection.missingEmergencyKits}
                         </small>
                       )}
                     </span>
@@ -581,6 +590,21 @@ function InspectionForm({
                   </div>
                 ))}
               </div>
+              {inspection.emergencyKitsPresent === false && (
+                <label>
+                  Which emergency kit or kits are missing?
+                  <input
+                    type="text"
+                    required
+                    maxLength={120}
+                    value={inspection.missingEmergencyKits ?? ''}
+                    onChange={(event) => {
+                      const name = event.target.value;
+                      setInspection((current) => ({ ...current, missingEmergencyKits: name }));
+                    }}
+                  />
+                </label>
+              )}
               <label>
                 Windshield condition
                 <select
@@ -781,6 +805,12 @@ function InspectionForm({
                     <strong>{inspection[key] ? 'Yes' : 'No'}</strong>
                   </div>
                 ))}
+                {inspection.emergencyKitsPresent === false && (
+                  <div>
+                    <span>Missing emergency kits</span>
+                    <strong>{inspection.missingEmergencyKits}</strong>
+                  </div>
+                )}
                 <div>
                   <span>Windshield</span>
                   <strong>{inspection.windshield}</strong>

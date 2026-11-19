@@ -20,6 +20,7 @@ struct InspectionDraft: Codable, Equatable {
   let checks: [String: String]
   let windshield: String
   let marks: [Damage]
+  var missingEmergencyKits: String?
   let notes: String
   let photos: [FleetPhoto]
   let uploads: [QueuedInspectionPhoto]

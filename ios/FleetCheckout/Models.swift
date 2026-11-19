@@ -76,6 +76,7 @@ struct Inspection: Codable {
   var interiorClean: Bool
   var gasCard: Bool
   var emergencyKitsPresent: Bool?
+  var missingEmergencyKits: String?
   var receiptReceived: Bool?
   var keyReturned: Bool?
   var windshield: String

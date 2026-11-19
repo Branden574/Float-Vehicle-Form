@@ -143,6 +143,13 @@ test('administrator setup, staff checkout/return, photos, signatures, PDF and sh
   });
   await expect(kits.getByRole('button', { name: 'Yes' })).toHaveAttribute('aria-pressed', 'false');
   await expect(kits.getByRole('button', { name: 'No' })).toHaveAttribute('aria-pressed', 'false');
+  const kitNames = page.getByLabel('Which emergency kit or kits are missing?');
+  await kits.getByRole('button', { name: 'No' }).click();
+  await kitNames.fill('First aid kit');
+  await kits.getByRole('button', { name: 'Yes' }).click();
+  await expect(kitNames).toHaveCount(0);
+  await kits.getByRole('button', { name: 'No' }).click();
+  await expect(kitNames).toHaveValue('');
   await inspect(page);
   // An interrupted upload must remain incomplete and be explicitly retried.
   let interrupted = false;
@@ -217,7 +224,14 @@ test('administrator setup, staff checkout/return, photos, signatures, PDF and sh
   await expect(page.getByText('Checkout answer: Yes')).toBeVisible();
   await expect(kits.getByRole('button', { name: 'Yes' })).toHaveAttribute('aria-pressed', 'false');
   await expect(kits.getByRole('button', { name: 'No' })).toHaveAttribute('aria-pressed', 'false');
-  await inspect(page);
+  const questions = page.locator('.question');
+  for (const q of await questions.all()) await q.getByRole('button', { name: 'Yes' }).click();
+  await kits.getByRole('button', { name: 'No' }).click();
+  await page.getByLabel('Windshield condition').selectOption('clear');
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await expect(page.getByText('Name the missing emergency kit or kits.')).toBeVisible();
+  await kitNames.fill('Roadside kit');
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await photos(page, 103);
   await signAndSubmit(page, true);
   await expect(

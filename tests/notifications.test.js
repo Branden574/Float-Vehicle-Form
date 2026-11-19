@@ -61,9 +61,19 @@ test('assistant recipients receive checkout and check-in PDFs; settings persist 
   }
   const unanswered = await f.returnTrip(f.s, checkout.data.trip, { ...receiptDraft, inspection });
   assert.equal(unanswered.status, 400);
-  const returned = await f.returnTrip(f.s, checkout.data.trip, {
+  const unnamed = await f.returnTrip(f.s, checkout.data.trip, {
     ...receiptDraft,
     inspection: { ...inspection, emergencyKitsPresent: false },
+  });
+  assert.equal(unnamed.status, 400);
+  assert.match(unnamed.data.error, /Name the missing/);
+  const returned = await f.returnTrip(f.s, checkout.data.trip, {
+    ...receiptDraft,
+    inspection: {
+      ...inspection,
+      emergencyKitsPresent: false,
+      missingEmergencyKits: 'Roadside kit',
+    },
   });
   assert.equal(returned.status, 201);
   assert.equal(returned.data.trip.returnInspection.emergencyKitsPresent, false);

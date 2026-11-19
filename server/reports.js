@@ -46,7 +46,7 @@ export async function createReport({ store, tripId, stage = 'return', download =
   const { trip, photos, reviews, revisions } = bundle;
   const settings = trip.checkoutSettings || bundle.settings;
   const reportData = {
-    version: 9,
+    version: 10,
     templateHash,
     stage,
     trip,
@@ -206,6 +206,11 @@ export async function createReport({ store, tripId, stage = 'return', download =
         yesNo(trip.checkoutInspection.emergencyKitsPresent),
       );
     pair('All assigned emergency service kits present', yesNo(inspection.emergencyKitsPresent));
+    if (inspection.emergencyKitsPresent === false)
+      pair(
+        returning ? 'Missing kits at check-in' : 'Missing kits at checkout',
+        inspection.missingEmergencyKits,
+      );
     if (returning) pair('Key returned', yesNo(inspection.keyReturned));
     pair(
       'Windshield',

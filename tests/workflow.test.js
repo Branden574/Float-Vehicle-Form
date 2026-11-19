@@ -521,8 +521,19 @@ test('checkout requires an explicit emergency kit answer and a missing kit goes 
   const unanswered = await f.checkout(f.s, vehicle, { inspection });
   assert.equal(unanswered.status, 400);
   assert.match(unanswered.data.error, /emergency service kit/);
+  for (const names of [undefined, '   ']) {
+    const invalid = await f.checkout(f.s, vehicle, {
+      inspection: { ...inspection, emergencyKitsPresent: false, missingEmergencyKits: names },
+    });
+    assert.equal(invalid.status, 400);
+    assert.match(invalid.data.error, /Name the missing/);
+  }
   const missing = await f.checkout(f.s, vehicle, {
-    inspection: { ...inspection, emergencyKitsPresent: false },
+    inspection: {
+      ...inspection,
+      emergencyKitsPresent: false,
+      missingEmergencyKits: ' First aid kit ',
+    },
   });
   assert.equal(missing.status, 201);
   assert.equal(missing.data.trip.status, 'pending_checkout');
@@ -530,5 +541,6 @@ test('checkout requires an explicit emergency kit answer and a missing kit goes 
     (await f.store.getTrip(missing.data.trip.id)).checkoutInspection.emergencyKitsPresent,
     false,
   );
+  assert.equal(missing.data.trip.checkoutInspection.missingEmergencyKits, 'First aid kit');
   assert.ok(missing.data.trip.flags.includes('Emergency service kit missing'));
 });

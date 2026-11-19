@@ -50,9 +50,26 @@ export function installTrips(app, store, { reportService } = {}) {
   // The separate demo fleet also serves the older binary currently in Apple review.
   const reviewDemo =
     process.env.REVIEW_WORKSPACE === 'true' && process.env.DATABASE_SCHEMA === 'fleet_review';
-  const signedInspection = inspectionSchema.extend({
-    emergencyKitsPresent: reviewDemo ? kitAnswer.optional() : kitAnswer,
-  });
+  const signedInspection = inspectionSchema
+    .extend({
+      emergencyKitsPresent: reviewDemo ? kitAnswer.optional() : kitAnswer,
+      missingEmergencyKits: z.string().trim().max(120).optional(),
+    })
+    .superRefine((value, ctx) => {
+      if (value.emergencyKitsPresent === false && !value.missingEmergencyKits)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['missingEmergencyKits'],
+          message:
+            'Name the missing emergency kit or kits. If the field is missing, use fleetcheckout.app or update the iPad app.',
+        });
+      if (value.emergencyKitsPresent !== false && value.missingEmergencyKits)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['missingEmergencyKits'],
+          message: 'Only list missing kits when the answer is No.',
+        });
+    });
   const materialize = async (tripId, stage) => {
     if (reportService) {
       try {

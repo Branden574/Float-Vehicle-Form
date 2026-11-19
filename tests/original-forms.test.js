@@ -261,3 +261,24 @@ test('completed check-in compares independently signed kit answers and flags onl
     );
   }
 });
+
+test('signed forms distinguish each stage’s missing kit names', async () => {
+  const input = await sample();
+  input.trip.checkoutInspection = {
+    ...inspection,
+    emergencyKitsPresent: false,
+    missingEmergencyKits: 'First aid kit',
+  };
+  input.trip.returnInspection = {
+    ...inspection,
+    emergencyKitsPresent: false,
+    missingEmergencyKits: 'First aid kit and roadside kit',
+  };
+  const pdf = await PDFDocument.load(await originalForms(input));
+  const front = strings(operators(pdf, 0)),
+    back = strings(operators(pdf, 1));
+  assert.ok(front.includes('Missing at checkout: First aid kit'));
+  assert.ok(back.includes('Missing at checkout: First aid kit'));
+  assert.ok(back.includes('Missing at check-in: First aid kit and roadside kit'));
+  assert.ok(!front.some((v) => v.includes('roadside kit')));
+});

@@ -17,6 +17,7 @@ struct InspectionView: View {
   @State private var checks: [String: String] = [:]
   @State private var windshield = ""
   @State private var marks: [Damage] = []
+  @State private var missingEmergencyKits = ""
   @State private var notes = ""
   @State private var area = "front"
   @State private var damageType = "dent"
@@ -283,7 +284,20 @@ struct InspectionView: View {
             value: trip.checkoutInspection.emergencyKitsPresent.map { $0 ? "Yes" : "No" }
               ?? "Not recorded")
         }
+        if let previous = trip?.checkoutInspection, previous.emergencyKitsPresent == false,
+          let names = previous.missingEmergencyKits
+        {
+          LabeledContent("Missing at checkout", value: names)
+        }
         conditionPicker("emergencyKitsPresent", Self.kitQuestion)
+          .onChange(of: checks["emergencyKitsPresent"]) { _, answer in
+            if answer != "no" { missingEmergencyKits = "" }
+          }
+        if checks["emergencyKitsPresent"] == "no" {
+          TextField(
+            "Which emergency kit or kits are missing?", text: $missingEmergencyKits, axis: .vertical
+          )
+        }
       }
       Section(returning ? "New damage on return" : "Record all observed damage") {
         if returning {
@@ -424,6 +438,9 @@ struct InspectionView: View {
         ForEach(questions, id: \.0) { key, label in
           LabeledContent(label, value: checks[key] == "yes" ? "Yes" : "No")
         }
+        if checks["emergencyKitsPresent"] == "no" {
+          LabeledContent("Missing emergency kits", value: missingEmergencyKits)
+        }
         LabeledContent("Windshield", value: humanize(windshield))
         if !notes.isEmpty { Text(notes) }
       }
@@ -447,6 +464,11 @@ struct InspectionView: View {
     }
   }
   func validate(_ index: Int) -> String {
+    if index == 1 && checks["emergencyKitsPresent"] == "no" {
+      let names = missingEmergencyKits.trimmingCharacters(in: .whitespacesAndNewlines)
+      if names.isEmpty { return "Name the missing emergency kit or kits." }
+      if names.utf16.count > 120 { return "Use 120 characters or fewer for the missing kit names." }
+    }
     if index == 2 && !queued.isEmpty {
       return "Upload or remove all waiting photos and receipt pages before continuing."
     }
@@ -482,7 +504,8 @@ struct InspectionView: View {
   var snapshot: InspectionDraft {
     InspectionDraft(
       draftID: draftID, step: step, mileage: mileage, due: due, confirmed: confirmed,
-      checks: checks, windshield: windshield, marks: marks, notes: notes, photos: photos,
+      checks: checks, windshield: windshield, marks: marks,
+      missingEmergencyKits: missingEmergencyKits, notes: notes, photos: photos,
       uploads: queued, pendingBody: pendingBody, pendingKey: pendingKey)
   }
   func unlock() async {
@@ -509,6 +532,7 @@ struct InspectionView: View {
     due = d.due
     confirmed = d.confirmed
     checks = d.checks
+    missingEmergencyKits = d.missingEmergencyKits ?? ""
     windshield = d.windshield
     marks = d.marks
     notes = d.notes
@@ -626,6 +650,8 @@ struct InspectionView: View {
         fuelFull: checks["fuelFull"] == "yes", interiorClean: checks["interiorClean"] == "yes",
         gasCard: checks["gasCard"] == "yes",
         emergencyKitsPresent: checks["emergencyKitsPresent"] == "yes",
+        missingEmergencyKits: checks["emergencyKitsPresent"] == "no"
+          ? missingEmergencyKits.trimmingCharacters(in: .whitespacesAndNewlines) : nil,
         receiptReceived: returning ? checks["receiptReceived"] == "yes" : nil,
         keyReturned: returning ? checks["keyReturned"] == "yes" : nil, windshield: windshield,
         damage: marks, damageScope: returning ? "new" : "all", notes: notes)

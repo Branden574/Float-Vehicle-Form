@@ -34,7 +34,7 @@ Trip: `{id,vehicleId,employeeId,status:'pending_checkout'|'active'|'returned'|'c
 
 Inspection: `{fuelFull:boolean,interiorClean:boolean,gasCard:boolean,receiptReceived?:boolean,keyReturned?:boolean,windshield:'clear'|'star'|'cracked',damage:[{area:'front'|'rear'|'driver'|'passenger'|'roof'|'interior'|'windshield'|'wheels',type:'chip'|'dent'|'scratch',notes:string}],notes:string}`. Representative initials/signatures are separate authenticated reviews, shown as not applicable in self-service and pending until signed in review mode. Never self-sign for representative.
 
-New checkouts and returns require an explicit boolean `inspection.emergencyKitsPresent`. A missing kit routes the inspection for review. A Yes at checkout and No at return flags a newly reported missing kit. Older signed records may have no answer.
+New checkouts and returns require an explicit boolean `inspection.emergencyKitsPresent`. A No answer requires a nonblank `inspection.missingEmergencyKits` description of up to 120 characters for that inspection. A missing kit routes the inspection for review. A Yes at checkout and No at return flags a newly reported missing kit. Older signed records may have no answer.
 
 Signature is PNG data URL from finger canvas; acknowledgment shape `{accurate:true,noEating:true,removeBelongings:true,fullTank:true}` required on checkout; return requires accurate plus fullTank/removeBelongings (UI may send all four).
 
