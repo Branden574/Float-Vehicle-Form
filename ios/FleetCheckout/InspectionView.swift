@@ -1,6 +1,5 @@
 import AVFoundation
 import PhotosUI
-import QuickLook
 import SwiftUI
 import VisionKit
 
@@ -45,7 +44,7 @@ struct InspectionView: View {
   @State private var ownerSession: UUID?
   @State private var error = ""
   @State private var cancel = false
-  @State private var preview: URL?
+  @State private var preview: FleetDocument?
   @State private var completed: Trip?
   var returning: Bool { trip != nil }
   var stage: String { returning ? "return" : "checkout" }
@@ -215,7 +214,7 @@ struct InspectionView: View {
       }
     }.navigationTitle(returning ? "Return vehicle" : "Check out vehicle")
       .navigationBarTitleDisplayMode(.inline)
-      .quickLookPreview($preview)
+      .sheet(item: $preview) { DocumentPreview(document: $0) }
       .toolbar {
         if completed == nil && vault != nil && saved == nil {
           Button("Save & exit") { if persist() { dismiss() } }.disabled(busy || loadingPhoto)
@@ -527,7 +526,10 @@ struct InspectionView: View {
       Task {
         busy = true
         defer { busy = false }
-        do { preview = try await store.api.file(photo.url, name: "\(photo.id).jpg") } catch {
+        do {
+          let url = try await store.api.file(photo.url, name: "\(photo.id).jpg")
+          preview = FleetDocument(url: url, title: "\(humanize(photo.view)) photo")
+        } catch {
           self.error = error.localizedDescription
         }
       }

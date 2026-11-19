@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		07C153949CEFD6D2A70FBBB4 /* CaptureViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61B49F3DD930176273C661BF /* CaptureViews.swift */; };
 		1D198A78433CD94AA13D8021 /* AccountDeletionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2E9618255FCBE338771B408 /* AccountDeletionView.swift */; };
+		28F6A3B6F1DBE3D1F56FC612 /* DocumentPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = A66C21237D3A3EF35B0E4DA0 /* DocumentPreview.swift */; };
 		400170B8BEEAD5A9EB090432 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 2F8527E4526D63C4EFA28D42 /* PrivacyInfo.xcprivacy */; };
 		4D9FA087869719C6A732FF23 /* InspectionDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F0D1F0AD3AA18464974C77 /* InspectionDraft.swift */; };
 		6EAC673B4613CFBB0DE700C2 /* AdminView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84CE1B405917790DD8A6DB50 /* AdminView.swift */; };
@@ -51,6 +52,7 @@
 		86750B8F23A808A945B063D1 /* InspectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InspectionView.swift; sourceTree = "<group>"; };
 		A2E9618255FCBE338771B408 /* AccountDeletionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountDeletionView.swift; sourceTree = "<group>"; };
 		A2FA0BD78FA23349A317CA42 /* FleetAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FleetAPI.swift; sourceTree = "<group>"; };
+		A66C21237D3A3EF35B0E4DA0 /* DocumentPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentPreview.swift; sourceTree = "<group>"; };
 		BA4579CFBBCE1AF8036A6650 /* VehicleDiagram.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VehicleDiagram.swift; sourceTree = "<group>"; };
 		CCCFB0F0C4B410CE05FF8951 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		DA961FED9B93CABC191FF0FB /* Passkey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Passkey.swift; sourceTree = "<group>"; };
@@ -84,6 +86,7 @@
 				84CE1B405917790DD8A6DB50 /* AdminView.swift */,
 				CCCFB0F0C4B410CE05FF8951 /* Assets.xcassets */,
 				61B49F3DD930176273C661BF /* CaptureViews.swift */,
+				A66C21237D3A3EF35B0E4DA0 /* DocumentPreview.swift */,
 				A2FA0BD78FA23349A317CA42 /* FleetAPI.swift */,
 				2F6CE982F4EC2A93B6DF32E5 /* FleetCheckout.entitlements */,
 				8658A67162BCDFF01EAA8D09 /* FleetRelease.swift */,
@@ -214,6 +217,7 @@
 				1D198A78433CD94AA13D8021 /* AccountDeletionView.swift in Sources */,
 				6EAC673B4613CFBB0DE700C2 /* AdminView.swift in Sources */,
 				07C153949CEFD6D2A70FBBB4 /* CaptureViews.swift in Sources */,
+				28F6A3B6F1DBE3D1F56FC612 /* DocumentPreview.swift in Sources */,
 				D6BDCA57845C0C02617910CE /* FleetAPI.swift in Sources */,
 				B05D1DF47AD7CB03DBDCDAA3 /* FleetRelease.swift in Sources */,
 				DF085C4484BA5F39F81044E6 /* FleetStore.swift in Sources */,
@@ -291,7 +295,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 19;
+				CURRENT_PROJECT_VERSION = 20;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -368,7 +372,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 19;
+				CURRENT_PROJECT_VERSION = 20;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;

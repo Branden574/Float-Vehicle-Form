@@ -1,4 +1,3 @@
-import QuickLook
 import SwiftUI
 
 struct WorkspaceView: View {
@@ -218,7 +217,7 @@ struct TripView: View {
   @State private var returning = false
   @State private var reviewing = false
   @State private var revision: MileageRevision?
-  @State private var preview: URL?
+  @State private var preview: FleetDocument?
   @State private var busy = false
   var body: some View {
     List {
@@ -324,7 +323,7 @@ struct TripView: View {
         ProgressView("Loading trip…")
       }
     }.navigationTitle("Trip record").task { await load() }.refreshable { await load() }
-      .quickLookPreview($preview)
+      .sheet(item: $preview) { DocumentPreview(document: $0) }
       .sheet(isPresented: $returning, onDismiss: { Task { await load() } }) {
         if let trip = detail?.trip {
           NavigationStack {
@@ -353,15 +352,20 @@ struct TripView: View {
     busy = true
     defer { busy = false }
     do {
-      preview = try await store.api.file(
+      let url = try await store.api.file(
         "/api/trips/\(tripID)/report?stage=\(stage)",
         name: detail?.reportFilenames?[stage] ?? "fleet-\(tripID)-\(stage).pdf")
+      preview = FleetDocument(
+        url: url, title: stage == "checkout" ? "Checkout form" : "Checkout and check-in forms")
     } catch { self.error = error.localizedDescription }
   }
   func photoFile(_ photo: FleetPhoto) async {
     busy = true
     defer { busy = false }
-    do { preview = try await store.api.file(photo.url, name: "\(photo.id).jpg") } catch {
+    do {
+      let url = try await store.api.file(photo.url, name: "\(photo.id).jpg")
+      preview = FleetDocument(url: url, title: "\(humanize(photo.view)) photo")
+    } catch {
       self.error = error.localizedDescription
     }
   }
