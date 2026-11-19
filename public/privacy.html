@@ -26,7 +26,15 @@
         padding: 56px 24px 80px;
       }
       nav {
-        margin-bottom: 56px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 20px;
+        margin-bottom: 40px;
+      }
+      nav a {
+        display: inline-flex;
+        align-items: center;
+        min-height: 44px;
       }
       a {
         color: #126b61;
@@ -84,8 +92,8 @@
   </head>
   <body>
     <main>
-      <nav><a href="/">Fleet Checkout</a> · <a href="/support">Support</a></nav>
-      <p class="eyebrow">Privacy · Updated November 9, 2026</p>
+      <nav><a href="/">Fleet Checkout</a> <a href="/support">Support</a></nav>
+      <p class="eyebrow">Privacy · Updated November 18, 2026</p>
       <h1>Your information, explained.</h1>
       <p>
         Fleet Checkout is operated by Branden Vincent-Walker for authorized staff. This policy
@@ -98,6 +106,12 @@
         inspections include mileage, dates, destinations, purpose, condition, damage marks,
         signatures and approval or correction history. Photos, scanned gas receipts and generated
         PDFs document your trip.
+      </p>
+      <p>
+        If you create a passkey, Fleet Checkout stores its public key and credential identifier to
+        verify sign-ins. Your device or password manager handles the private key and device
+        verification. Fleet Checkout never receives your face or fingerprint data. You can remove
+        your passkeys in My profile.
       </p>
       <p>
         Receipts can contain purchase amounts, merchant details and partial payment information.

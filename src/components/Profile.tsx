@@ -1,3 +1,5 @@
+import { PasskeySettings } from './PasskeySettings';
+import { supportsPasskeys } from '../passkeys';
 import { useState } from 'react';
 import { patch, post, errorMessage, clearPrivateState } from '../api';
 import { deleteLocalDrafts } from '../inspectionDraft';
@@ -84,7 +86,7 @@ export function Profile({
           Your saved profile is encrypted on the server. Your sign-in email is managed by your fleet
           administrator.
         </p>
-        <div className="profile-actions">
+        <div className="action-group">
           <button className="button primary" disabled={busy}>
             {busy ? 'Saving…' : 'Save my details'}
           </button>
@@ -98,10 +100,12 @@ export function Profile({
           </button>
         </div>
       </form>
-      <p>
-        <a href="/privacy">Privacy policy</a> · <a href="/support">Support</a>
-      </p>
-      <section className="notice" aria-label="Delete account">
+      {session.user.canAccessFleet !== false && supportsPasskeys() && <PasskeySettings />}
+      <nav className="policy-links" aria-label="Privacy and support">
+        <a href="/privacy">Privacy policy</a>
+        <a href="/support">Support</a>
+      </nav>
+      <section className="account-deletion" aria-label="Delete account">
         <h2>Delete your account</h2>
         <p>
           Permanently remove your profile, signed forms, photos, gas receipts and generated reports.
@@ -148,7 +152,7 @@ export function Profile({
                 autoComplete="off"
               />
             </label>
-            <div className="profile-actions">
+            <div className="action-group">
               <button className="button primary" disabled={busy || confirmation !== 'DELETE'}>
                 {busy ? 'Requesting deletion…' : 'Permanently delete my account'}
               </button>

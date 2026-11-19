@@ -21,6 +21,7 @@
 		D5707B9F59B3A885ADDE426E /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25181E0A9B555236CF1C4453 /* Models.swift */; };
 		D6BDCA57845C0C02617910CE /* FleetAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2FA0BD78FA23349A317CA42 /* FleetAPI.swift */; };
 		DF085C4484BA5F39F81044E6 /* FleetStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A73B3AB5E1A5C14CFAA68CE /* FleetStore.swift */; };
+		E494585D1845D964C303B6A2 /* Passkey.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA961FED9B93CABC191FF0FB /* Passkey.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -35,6 +36,7 @@
 
 /* Begin PBXFileReference section */
 		25181E0A9B555236CF1C4453 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		2F6CE982F4EC2A93B6DF32E5 /* FleetCheckout.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FleetCheckout.entitlements; sourceTree = "<group>"; };
 		2F8527E4526D63C4EFA28D42 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		4166948DCA49DFB8FC0AD361 /* ReviewWorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewWorkspaceView.swift; sourceTree = "<group>"; };
 		46BE6686576154A18E31E39C /* FleetCheckout.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = FleetCheckout.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -47,6 +49,7 @@
 		A2FA0BD78FA23349A317CA42 /* FleetAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FleetAPI.swift; sourceTree = "<group>"; };
 		BA4579CFBBCE1AF8036A6650 /* VehicleDiagram.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VehicleDiagram.swift; sourceTree = "<group>"; };
 		CCCFB0F0C4B410CE05FF8951 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		DA961FED9B93CABC191FF0FB /* Passkey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Passkey.swift; sourceTree = "<group>"; };
 		F8DE039F159C5B5B9BF6F53D /* FleetCheckoutTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = FleetCheckoutTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F8F0D1F0AD3AA18464974C77 /* InspectionDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InspectionDraft.swift; sourceTree = "<group>"; };
 		FBA3B6E149A6CD2BEA2C2B5D /* FleetCheckoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FleetCheckoutTests.swift; sourceTree = "<group>"; };
@@ -78,10 +81,12 @@
 				CCCFB0F0C4B410CE05FF8951 /* Assets.xcassets */,
 				61B49F3DD930176273C661BF /* CaptureViews.swift */,
 				A2FA0BD78FA23349A317CA42 /* FleetAPI.swift */,
+				2F6CE982F4EC2A93B6DF32E5 /* FleetCheckout.entitlements */,
 				4A73B3AB5E1A5C14CFAA68CE /* FleetStore.swift */,
 				F8F0D1F0AD3AA18464974C77 /* InspectionDraft.swift */,
 				86750B8F23A808A945B063D1 /* InspectionView.swift */,
 				25181E0A9B555236CF1C4453 /* Models.swift */,
+				DA961FED9B93CABC191FF0FB /* Passkey.swift */,
 				2F8527E4526D63C4EFA28D42 /* PrivacyInfo.xcprivacy */,
 				4166948DCA49DFB8FC0AD361 /* ReviewWorkspaceView.swift */,
 				BA4579CFBBCE1AF8036A6650 /* VehicleDiagram.swift */,
@@ -208,6 +213,7 @@
 				4D9FA087869719C6A732FF23 /* InspectionDraft.swift in Sources */,
 				C0ABB7285C28E1CCBF89DC8A /* InspectionView.swift in Sources */,
 				D5707B9F59B3A885ADDE426E /* Models.swift in Sources */,
+				E494585D1845D964C303B6A2 /* Passkey.swift in Sources */,
 				92D34089F885382C002AA214 /* ReviewWorkspaceView.swift in Sources */,
 				B0EE2ADE1AAD52038FC7D861 /* VehicleDiagram.swift in Sources */,
 				B591558243F29F02A6483C2E /* WorkspaceView.swift in Sources */,
@@ -277,7 +283,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 11;
+				CURRENT_PROJECT_VERSION = 12;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -354,7 +360,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 11;
+				CURRENT_PROJECT_VERSION = 12;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -390,11 +396,13 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = FleetCheckout/FleetCheckout.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Fleet Checkout";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Photograph vehicle condition and scan gas receipts for your signed checkout and return forms.";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Use Face ID to approve Fleet Checkout passkey sign-in.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -413,11 +421,13 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = FleetCheckout/FleetCheckout.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Fleet Checkout";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Photograph vehicle condition and scan gas receipts for your signed checkout and return forms.";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Use Face ID to approve Fleet Checkout passkey sign-in.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";

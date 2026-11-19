@@ -70,28 +70,30 @@ export function Workflow(props: WorkflowProps) {
         <p>
           You have an unfinished {trip ? 'return' : 'checkout'} for {vehicle.name} on this device.
         </p>
-        <button className="button primary" onClick={() => setOpened({ ...opened, ready: true })}>
-          Resume inspection
-        </button>
-        {!opened.draft.pending && (
-          <button
-            className="button secondary"
-            onClick={async () => {
-              if (!window.confirm('Discard this saved inspection?')) return;
-              try {
-                await opened.vault.remove();
-                setOpened({ vault: opened.vault, ready: true });
-              } catch (e) {
-                setError(errorMessage(e));
-              }
-            }}
-          >
-            Discard draft
+        <div className="action-group resume-actions">
+          <button className="button primary" onClick={() => setOpened({ ...opened, ready: true })}>
+            Resume inspection
           </button>
-        )}
-        <button className="text-button" onClick={props.onClose}>
-          Back to fleet
-        </button>
+          {!opened.draft.pending && (
+            <button
+              className="button secondary"
+              onClick={async () => {
+                if (!window.confirm('Discard this saved inspection?')) return;
+                try {
+                  await opened.vault.remove();
+                  setOpened({ vault: opened.vault, ready: true });
+                } catch (e) {
+                  setError(errorMessage(e));
+                }
+              }}
+            >
+              Discard draft
+            </button>
+          )}
+          <button className="text-button" onClick={props.onClose}>
+            Back to fleet
+          </button>
+        </div>
         {error && <p role="alert">{error}</p>}
       </section>
     );
@@ -100,8 +102,14 @@ export function Workflow(props: WorkflowProps) {
       {error ? (
         <>
           <p role="alert">{error}</p>
-          <button onClick={() => setAttempt((a) => a + 1)}>Retry opening inspection</button>
-          <button onClick={props.onClose}>Back to fleet</button>
+          <div className="action-group resume-actions">
+            <button className="button primary" onClick={() => setAttempt((a) => a + 1)}>
+              Retry opening inspection
+            </button>
+            <button className="text-button" onClick={props.onClose}>
+              Back to fleet
+            </button>
+          </div>
         </>
       ) : (
         <p>Opening your private draft…</p>
@@ -380,8 +388,10 @@ function InspectionForm({
             <span className="dot">·</span> VIN •••• {vehicle.vinLast4}
           </p>
         </div>
-        <span className="draft-label">Draft — not submitted</span>
-        <small role="status">{saveStatus}</small>
+        <div className="draft-status">
+          <span className="draft-label">Draft — not submitted</span>
+          <small role="status">{saveStatus}</small>
+        </div>
       </div>
       <ol className="stepper" aria-label="Inspection progress">
         {steps.map((label, index) => (

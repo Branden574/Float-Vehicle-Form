@@ -1,3 +1,4 @@
+import { supportsPasskeys, signInWithPasskey } from './passkeys';
 import { Profile } from './components/Profile';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -206,6 +207,27 @@ function Login({
               {codeNotice}
             </p>
           )}
+          {!token && !challenge && supportsPasskeys() && (
+            <button
+              className="button secondary wide"
+              disabled={busy || signingOut}
+              onClick={async () => {
+                setBusy(true);
+                setError('');
+                try {
+                  const result = await signInWithPasskey();
+                  localStorage.removeItem('fleet-signout-pending');
+                  onSession(result);
+                } catch (e) {
+                  setError(errorMessage(e));
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              Sign in with a passkey
+            </button>
+          )}
           <form onSubmit={submit}>
             {!token && (
               <label>
@@ -273,56 +295,59 @@ function Login({
               <ArrowRight size={18} />
             </button>
           </form>
-          {!token && (
-            <button
-              type="button"
-              className="button secondary wide"
-              disabled={busy || signingOut}
-              onClick={() => {
-                setLegacy(!legacy);
-                setChallenge('');
-                setCode('');
-                setPassword('');
-                setError('');
-                setCodeNotice('');
-              }}
-            >
-              {legacy ? 'Use email sign-in code' : 'Use existing password'}
-            </button>
-          )}
-          {!!challenge && (
-            <>
-              <button
-                type="button"
-                className="button secondary wide"
-                disabled={busy || signingOut || resendSeconds > 0}
-                onClick={() => void requestCode(true)}
-              >
-                {resendSeconds > 0 ? `Resend code in ${resendSeconds}s` : 'Resend code'}
-              </button>
+          <div className="login-actions">
+            {!token && (
               <button
                 type="button"
                 className="button secondary wide"
                 disabled={busy || signingOut}
                 onClick={() => {
+                  setLegacy(!legacy);
                   setChallenge('');
                   setCode('');
+                  setPassword('');
                   setError('');
                   setCodeNotice('');
                 }}
               >
-                Change email
+                {legacy ? 'Use email sign-in code' : 'Use existing password'}
               </button>
-            </>
-          )}
+            )}
+            {!!challenge && (
+              <>
+                <button
+                  type="button"
+                  className="button secondary wide"
+                  disabled={busy || signingOut || resendSeconds > 0}
+                  onClick={() => void requestCode(true)}
+                >
+                  {resendSeconds > 0 ? `Resend code in ${resendSeconds}s` : 'Resend code'}
+                </button>
+                <button
+                  type="button"
+                  className="button secondary wide"
+                  disabled={busy || signingOut}
+                  onClick={() => {
+                    setChallenge('');
+                    setCode('');
+                    setError('');
+                    setCodeNotice('');
+                  }}
+                >
+                  Change email
+                </button>
+              </>
+            )}
+          </div>
           <p className="fine">
             {token
               ? 'Use at least 12 characters.'
               : 'Use the work email your fleet administrator approved. Ask them to add your email if you need access.'}
           </p>
-          <p className="fine">
-            <a href="/privacy">Privacy policy</a> · <a href="/support">Support</a>
-          </p>
+          <nav className="policy-links" aria-label="Privacy and support">
+            <a href="/privacy">Privacy policy</a>
+            <a href="/support">Support</a>
+          </nav>
           <div className="shared-note">
             <ShieldCheck size={19} />
             <p>
@@ -738,15 +763,17 @@ export default function App() {
                     Check the signed inspection, mileage, damage and receipts before releasing a
                     vehicle.
                   </p>
-                  {pendingReturns.map((trip) => (
-                    <button
-                      key={trip.id}
-                      className="button secondary"
-                      onClick={() => setDetail(trip.id)}
-                    >
-                      Review {trip.vehicleSnapshot.name} · {trip.employeeSnapshot.name}
-                    </button>
-                  ))}
+                  <div className="action-group">
+                    {pendingReturns.map((trip) => (
+                      <button
+                        key={trip.id}
+                        className="button secondary"
+                        onClick={() => setDetail(trip.id)}
+                      >
+                        Review {trip.vehicleSnapshot.name} · {trip.employeeSnapshot.name}
+                      </button>
+                    ))}
+                  </div>
                 </section>
               )}
               <section className="my-checkouts">

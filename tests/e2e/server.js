@@ -14,7 +14,7 @@ const app = await createApp({
     writeFile('artifacts/e2e-mailbox.json', JSON.stringify(mail), { mode: 0o600 }),
   dataDir: directory,
   secureCookies: false,
-  publicOrigin: `http://127.0.0.1:${port}`,
+  publicOrigin: `http://localhost:${port}`,
   reportService: createReport,
 });
 const objects = new Set();

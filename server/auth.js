@@ -1,3 +1,4 @@
+import { passkeyRoutes } from './passkeys.js';
 import { mayReviewReturns } from './reviewers.js';
 import { rateLimitStore } from './rate-limits.js';
 import { createEmailSender } from './notifications.js';
@@ -112,6 +113,20 @@ export async function installAuth(
     standardHeaders: 'draft-8',
     legacyHeaders: false,
     message: { error: 'Too many code requests. Try again in 15 minutes.' },
+  });
+  const passkeyLimit = rateLimit({
+    store: rateLimitStore(db, 'passkeyLimit'),
+    windowMs: 15 * 60000,
+    limit: 160,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+  });
+  const mountPasskeys = passkeyRoutes({
+    app,
+    store,
+    publicOrigin,
+    beginSession,
+    limit: passkeyLimit,
   });
   app.post('/api/auth/request-code', codeLimit, async (req, res) => {
     const { email } = validate(z.object({ email: z.email().max(254) }).strict(), req.body);
@@ -342,6 +357,7 @@ export async function installAuth(
     req.session = session;
     next();
   });
+  mountPasskeys();
   app.get('/api/auth/me', async (req, res) =>
     res.json(await response(req.user, req.session.csrf_token)),
   );

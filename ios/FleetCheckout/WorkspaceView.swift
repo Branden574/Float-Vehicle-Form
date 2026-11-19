@@ -365,6 +365,8 @@ struct ProfileView: View {
   @State private var message = ""
   @State private var busy = false
   @State private var signOut = false
+  @State private var removePasskeys = false
+  @State private var passkeyCount = 0
   var body: some View {
     Form {
       Section {
@@ -400,6 +402,52 @@ struct ProfileView: View {
         busy || name.trimmingCharacters(in: .whitespaces).isEmpty
           || charter.trimmingCharacters(in: .whitespaces).isEmpty
           || manager.trimmingCharacters(in: .whitespaces).isEmpty)
+      if !store.api.isReview && store.session?.user.canAccessFleet != false {
+        Section {
+          Button("Create a passkey") {
+            Task {
+              busy = true
+              defer { busy = false }
+              do {
+                try await store.api.createPasskey()
+                passkeyCount += 1
+                message = "Passkey saved. Use it the next time you sign in."
+              } catch { message = error.localizedDescription }
+            }
+          }.disabled(busy)
+          if passkeyCount > 0 {
+            Button("Remove all passkeys", role: .destructive) { removePasskeys = true }
+              .disabled(busy)
+              .confirmationDialog(
+                "Remove every passkey for your Fleet Checkout account?",
+                isPresented: $removePasskeys
+              ) {
+                Button("Remove all passkeys", role: .destructive) {
+                  Task {
+                    busy = true
+                    defer { busy = false }
+                    do {
+                      let _: EmptyResponse = try await store.api.request(
+                        "/api/auth/passkeys/remove", method: "POST", body: [:])
+                      passkeyCount = 0
+                      message = "Passkeys removed. You can still sign in by email."
+                    } catch { message = error.localizedDescription }
+                  }
+                }
+              }
+          }
+        } header: {
+          Text("Passkey sign-in")
+        } footer: {
+          Text(
+            "Save a passkey in your personal password manager. On a shared device, use your own phone or email code."
+          )
+        }.task {
+          if let result: PasskeyCount = try? await store.api.request("/api/auth/passkeys") {
+            passkeyCount = result.count
+          }
+        }
+      }
       Button("Sign out", role: .destructive) { signOut = true }.disabled(busy)
       Link("Open web workspace", destination: store.api.baseURL)
       Link("Privacy policy", destination: FleetAPI.origin.appendingPathComponent("privacy"))

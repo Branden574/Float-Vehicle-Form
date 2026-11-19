@@ -187,6 +187,23 @@ struct SignInView: View {
           Text("Sign in to inspect a vehicle, record your trip, and keep every form together.")
             .foregroundStyle(.secondary)
           VStack(alignment: .leading, spacing: 16) {
+            if challenge.isEmpty {
+              Button {
+                Task {
+                  busy = true
+                  error = ""
+                  defer { busy = false }
+                  do {
+                    let session = try await store.api.passkeySession()
+                    store.accept(session)
+                    await store.refresh()
+                  } catch { self.error = error.localizedDescription }
+                }
+              } label: {
+                Label("Sign in with a passkey", systemImage: "person.badge.key").frame(
+                  maxWidth: .infinity)
+              }.buttonStyle(.bordered).controlSize(.large).disabled(busy)
+            }
             TextField("Work email", text: $email).keyboardType(.emailAddress).textContentType(
               .emailAddress
             ).textInputAutocapitalization(.never).autocorrectionDisabled().disabled(

@@ -26,7 +26,15 @@
         padding: 56px 24px 80px;
       }
       nav {
-        margin-bottom: 56px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 20px;
+        margin-bottom: 40px;
+      }
+      nav a {
+        display: inline-flex;
+        align-items: center;
+        min-height: 44px;
       }
       a {
         color: #126b61;
@@ -61,6 +69,20 @@
       .contact p:last-child {
         margin-bottom: 0;
       }
+      #status-form {
+        display: grid;
+        gap: 12px;
+      }
+      #status-form input,
+      #status-form button {
+        box-sizing: border-box;
+        min-height: 46px;
+        padding: 10px 14px;
+        font: inherit;
+      }
+      #status-form button {
+        justify-self: start;
+      }
       footer {
         border-top: 1px solid #ccd8cf;
         margin-top: 48px;
@@ -84,7 +106,7 @@
   </head>
   <body>
     <main>
-      <nav><a href="/">Fleet Checkout</a> · <a href="/privacy">Privacy</a></nav>
+      <nav><a href="/">Fleet Checkout</a> <a href="/privacy">Privacy</a></nav>
       <h1>Account deletion status</h1>
       <p>
         Your account closes immediately. Data and recoverable backups are removed within 7 days.
@@ -98,8 +120,7 @@
           pattern="[a-f0-9]{64}"
           maxlength="64"
           autocomplete="off"
-          style="display: block; width: 100%; box-sizing: border-box; padding: 14px; margin: 12px 0"
-        /><button type="submit" style="padding: 14px">Check status</button>
+        /><button type="submit">Check status</button>
       </form>
       <p id="result" role="status" style="margin-top: 24px"></p>
       <p>

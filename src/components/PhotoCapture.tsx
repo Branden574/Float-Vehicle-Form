@@ -271,25 +271,27 @@ export function PhotoCapture({
             )}
             {slot.error && (
               <div className="inline-error" role="alert">
-                {slot.error}
-                <button
-                  type="button"
-                  className="text-button"
-                  onClick={() =>
-                    update(slot.key, { file: undefined, preview: undefined, error: undefined })
-                  }
-                >
-                  Remove unsaved photo
-                </button>
-                <button
-                  type="button"
-                  className="text-button"
-                  onClick={() =>
-                    slot.file && send(slot.key, slot.file, slot.source!, slot.capturedAt!)
-                  }
-                >
-                  <RotateCcw size={15} /> Retry upload
-                </button>
+                <span>{slot.error}</span>
+                <div className="action-group">
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={() =>
+                      update(slot.key, { file: undefined, preview: undefined, error: undefined })
+                    }
+                  >
+                    Remove unsaved photo
+                  </button>
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={() =>
+                      slot.file && send(slot.key, slot.file, slot.source!, slot.capturedAt!)
+                    }
+                  >
+                    <RotateCcw size={15} /> Retry upload
+                  </button>
+                </div>
               </div>
             )}
             <div className="photo-actions">

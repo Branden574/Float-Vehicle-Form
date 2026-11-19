@@ -55,6 +55,7 @@ export async function openStore(dataDir = process.env.DATA_DIR || './data') {
     );
     await db.pragma('secure_delete = ON');
     await db.exec(deletionSchema);
+    await db.exec(readFileSync(new URL('./migrations/passkeys.sql', import.meta.url), 'utf8'));
     await db.exec(
       readFileSync(new URL('./migrations/notification-deliveries.sql', import.meta.url), 'utf8'),
     );
@@ -391,6 +392,9 @@ export async function openStore(dataDir = process.env.DATA_DIR || './data') {
   };
   const updateUser = async (id, data) => {
     const { email, name, department = '', manager = '', charter = '' } = data;
+    const previous = await db.prepare('SELECT email FROM users WHERE id=?').get(id);
+    if (previous && (previous.email !== privacy.lookup(email) || !data.active))
+      await db.prepare('DELETE FROM passkeys WHERE user_id=?').run(id);
     await db
       .prepare(
         'UPDATE users SET email=?,profile_json=?,role=?,authorized_driver=?,active=? WHERE id=?',

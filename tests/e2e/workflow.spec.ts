@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import sharp from 'sharp';
+import { checkControls } from './layout';
 import { readFile } from 'node:fs/promises';
 import { signature } from '../helpers.js';
 
@@ -130,6 +131,7 @@ test('administrator setup, staff checkout/return, photos, signatures, PDF and sh
   await expect(page.getByRole('heading', { name: 'Ready for the road' })).toBeVisible();
   await expect(page.getByLabel('Starting odometer reading', { exact: true })).toHaveValue('42500');
   await page.getByLabel('Projected return date and time', { exact: true }).fill('2030-01-01T12:00');
+  await checkControls(page, 'Odometer');
   // Use the browser local clock rather than assuming the machine's timezone.
   const due = await page.evaluate(() => {
     const d = new Date(Date.now() + 3600000);
@@ -143,6 +145,7 @@ test('administrator setup, staff checkout/return, photos, signatures, PDF and sh
   });
   await expect(kits.getByRole('button', { name: 'Yes' })).toHaveAttribute('aria-pressed', 'false');
   await expect(kits.getByRole('button', { name: 'No' })).toHaveAttribute('aria-pressed', 'false');
+  await checkControls(page, 'Inspection');
   const kitNames = page.getByLabel('Which emergency kit or kits are missing?');
   await kits.getByRole('button', { name: 'No' }).click();
   await kitNames.fill('First aid kit');
@@ -169,6 +172,7 @@ test('administrator setup, staff checkout/return, photos, signatures, PDF and sh
     .first()
     .setInputFiles({ name: 'interrupted.jpg', mimeType: 'image/jpeg', buffer: first });
   await expect(page.getByRole('alert').filter({ hasText: /interrupted/i })).toBeVisible();
+  await checkControls(page, 'Photo retry');
   await page.getByRole('button', { name: 'Save & exit' }).click();
   await signOut(page);
   await login(page);
@@ -179,6 +183,11 @@ test('administrator setup, staff checkout/return, photos, signatures, PDF and sh
   await login(page, 'driver@example.test');
   await page.getByLabel('Search vehicles', { exact: true }).fill(name);
   await page.getByRole('button', { name: 'Resume checkout' }).click();
+  await checkControls(page, 'Resume draft');
+  await page.locator('.workflow').screenshot({
+    path: `artifacts/resume-inspection-${testInfo.project.name}.png`,
+    animations: 'disabled',
+  });
   await page.getByRole('button', { name: 'Resume inspection' }).click();
   await expect(page.getByRole('heading', { name: 'Photographs', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Retry upload', exact: false }).click();
@@ -190,6 +199,7 @@ test('administrator setup, staff checkout/return, photos, signatures, PDF and sh
     fullPage: true,
     animations: 'disabled',
   });
+  await checkControls(page, 'Review and sign');
   let firstRequest = '';
   let firstKey = '';
   await page.route('**/api/trips/checkout', async (route) => {
@@ -240,6 +250,7 @@ test('administrator setup, staff checkout/return, photos, signatures, PDF and sh
     ),
   ).toBeVisible();
   await expect(page.locator('.review-summary')).toContainText('125 mi');
+  await checkControls(page, 'Completed trip');
   const [download] = await Promise.all([
     page.waitForEvent('download'),
     page.getByRole('link', { name: 'Both forms & photos' }).click(),
@@ -255,6 +266,7 @@ test('administrator setup, staff checkout/return, photos, signatures, PDF and sh
   await expect(page.locator('.vehicle-row .status')).toHaveText('Pending Review');
   await page.getByRole('button', { name: `Review ${name} ·`, exact: false }).click();
   await page.getByRole('button', { name: 'Review return as', exact: false }).click();
+  await checkControls(page, 'Return review');
   await page.getByLabel('Your representative initials').fill('QA');
   await page.getByLabel('Review reason').fill('Inspected return mileage, condition and receipts');
   await draw(page);
@@ -668,6 +680,7 @@ test('sign-in offers resend after 60 seconds and clears the old code', async ({ 
   await page.getByLabel('Work email').fill('resend@example.test');
   await page.getByRole('button', { name: 'Email me a sign-in code', exact: true }).click();
   await expect(page.getByRole('button', { name: /Resend code in/ })).toBeDisabled();
+  await checkControls(page, 'Email verification');
   await page.getByLabel('One-time code').fill('123456');
   await page.clock.fastForward(59000);
   await expect(page.getByRole('button', { name: /Resend code in/ })).toBeDisabled();
@@ -732,4 +745,80 @@ test('system appearance changes live and preserves input with readable dark cont
     path: `artifacts/dark-profile-${testInfo.project.name}.png`,
     fullPage: true,
   });
+});
+
+test('page controls have usable spacing across the staff workspace and public pages', async ({
+  page,
+}) => {
+  for (const scheme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    for (const path of ['/privacy', '/support', '/deletion-status', '/report-copy.html']) {
+      await page.goto(path);
+      await expect(page.locator('main h1')).toBeVisible();
+      await checkControls(page, path);
+    }
+    await page.goto('/');
+    await expect(page.getByLabel('Work email')).toBeVisible();
+    await checkControls(page, 'Sign-in');
+    await login(page);
+    await checkControls(page, 'Fleet');
+    await page.getByRole('button', { name: 'Trip history' }).click();
+    await checkControls(page, 'History');
+    await page.getByRole('button', { name: 'Administration' }).click();
+    for (const tab of ['Vehicles', 'Staff', 'Reviewers', 'Settings', 'Form emails', 'Audit']) {
+      await page.getByRole('tab', { name: tab, exact: true }).click();
+      await expect(page.locator('.storage-panel')).toBeVisible();
+      await checkControls(page, tab);
+      if (tab === 'Staff' || tab === 'Vehicles') {
+        await page
+          .getByRole('button', {
+            name: tab === 'Staff' ? 'Invite staff' : 'Add vehicle',
+            exact: true,
+          })
+          .click();
+        await checkControls(page, tab + ' editor');
+      }
+    }
+    await page.getByRole('button', { name: 'My profile' }).click();
+    await checkControls(page, 'Profile');
+    await page.getByRole('button', { name: 'Delete my account…' }).click();
+    await checkControls(page, 'Account deletion confirmation');
+    await page.getByRole('button', { name: 'Keep my account' }).click();
+    await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+  }
+});
+
+test('a personal passkey signs its owner in without an email and can be removed', async ({
+  page,
+  browserName,
+}) => {
+  test.skip(browserName !== 'chromium', 'The virtual authenticator uses Chromium DevTools.');
+  const client = await page.context().newCDPSession(page);
+  await client.send('WebAuthn.enable');
+  await client.send('WebAuthn.addVirtualAuthenticator', {
+    options: {
+      protocol: 'ctap2',
+      transport: 'internal',
+      hasResidentKey: true,
+      hasUserVerification: true,
+      isUserVerified: true,
+      automaticPresenceSimulation: true,
+    },
+  });
+  await login(page, 'driver@example.test');
+  await page.getByRole('button', { name: 'My profile' }).click();
+  await page.getByRole('button', { name: 'Create a passkey' }).click();
+  await expect(page.getByRole('status')).toContainText('Passkey saved');
+  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+  await expect(page.getByLabel('Work email')).toHaveValue('');
+  await page.getByRole('button', { name: 'Sign in with a passkey' }).click();
+  await expect(page.getByRole('heading', { name: 'Find your next vehicle.' })).toBeVisible();
+  await page.getByRole('button', { name: 'My profile' }).click();
+  await expect(page.getByLabel('Work email')).toHaveValue('driver@example.test');
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: 'Remove all passkeys' }).click();
+  await expect(page.getByRole('status')).toContainText('Passkeys removed');
+  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+  await page.getByRole('button', { name: 'Sign in with a passkey' }).click();
+  await expect(page.getByRole('alert')).toContainText('Passkey verification did not complete');
 });
