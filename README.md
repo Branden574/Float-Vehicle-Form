@@ -12,7 +12,9 @@ The repository also includes a SwiftUI app in [`ios/`](ios/README.md), using the
 
 ## Reservations and release notices
 
-In **Fleet → Vehicle calendar & availability**, choose a pickup and expected return to check the full period before starting an inspection. Times use the workspace time zone. Calendar filters include vehicle and site. Month, week and agenda views show the same bookings. Staff can see vehicle availability across this fleet. Booking owners and assigned managers can see reservation details and cancellation notes.
+Open **Fleet → Vehicle calendar & availability** to browse the schedule by site or vehicle. Month, Week and Agenda share the selected date. A dot marks a date with bookings. For a specific trip, open **Check availability**, enter the pickup and expected return in the workspace time zone, and select a vehicle from the results. **View results** reopens the checked interval while you browse other dates. Editing the interval or changing the filters clears those results. Booking owners and assigned managers can see reservation details and cancellation notes.
+
+[View the iPhone calendar and availability screens](docs/images/vehicle-calendar.png)
 
 A future booking holds its time. Physical pickup requires the usual signed checkout during the reserved period. Open the booking, then choose **Start checkout inspection**. Approval, return inspection and form delivery follow the existing trip rules. Adjacent bookings can meet at the same instant. Out-of-service vehicles, pending inspections, overlapping trips and overdue returns can restrict availability.
 

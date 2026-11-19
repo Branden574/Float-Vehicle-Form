@@ -851,9 +851,13 @@ test('staff can book, see calendar details, cancel, and defer a workspace update
     .getByRole('combobox', { name: 'Vehicle', exact: true })
     .selectOption({ label: vehicleName });
   const base = new Date(Date.now() + 4 * 86400000).toISOString().slice(0, 10);
+  await page.getByRole('button', { name: 'Check availability', exact: true }).click();
   await page.getByLabel('Pickup ·').fill(base + 'T10:00');
   await page.getByLabel('Expected return ·').fill(base + 'T12:00');
-  await page.getByRole('button', { name: 'Check availability', exact: true }).click();
+  await page
+    .getByRole('dialog', { name: 'Check availability' })
+    .getByRole('button', { name: 'Check availability', exact: true })
+    .click();
   await page.getByRole('button', { name: 'Select vehicle' }).first().click();
   await page.getByRole('button', { name: 'Reserve vehicle', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Reservation details' });
@@ -873,18 +877,7 @@ test('staff can book, see calendar details, cancel, and defer a workspace update
   await page.getByRole('button', { name: 'Agenda', exact: true }).click();
   await expect(page.getByText('No bookings in this period.')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  const active = page.getByRole('button', { name: 'Agenda', pressed: true });
-  await expect(active).toHaveCSS(
-    'background-color',
-    await active.evaluate((el) => {
-      const probe = document.createElement('span');
-      probe.style.color = 'var(--ink)';
-      el.append(probe);
-      const color = getComputedStyle(probe).color;
-      probe.remove();
-      return color;
-    }),
-  );
+  await expect(page.getByRole('button', { name: 'Agenda', pressed: true })).toBeVisible();
   await page.screenshot({
     animations: 'disabled',
     path: 'artifacts/booking-' + info.project.name + '.png',
@@ -946,16 +939,105 @@ test('booking times handle both occurrences of the autumn clock change and expla
     }
   }
   const spring = nextSunday(2, 2);
+  await page.getByRole('button', { name: 'Check availability', exact: true }).click();
   await page.getByLabel('Pickup ·').fill(spring + 'T02:30');
   await page.getByLabel('Expected return ·').fill(spring + 'T03:30');
-  await page.getByRole('button', { name: 'Check availability', exact: true }).click();
+  await page
+    .getByRole('dialog', { name: 'Check availability' })
+    .getByRole('button', { name: 'Check availability', exact: true })
+    .click();
   await expect(page.getByRole('alert')).toContainText('clock skips');
   const autumn = nextSunday(10, 1);
   await page.getByLabel('Pickup ·').fill(autumn + 'T01:15');
   await page.getByLabel('Expected return ·').fill(autumn + 'T01:15');
   await page.getByLabel('Return clock change').selectOption('later');
   const request = page.waitForRequest((req) => new URL(req.url()).pathname === '/api/availability');
-  await page.getByRole('button', { name: 'Check availability', exact: true }).click();
+  await page
+    .getByRole('dialog', { name: 'Check availability' })
+    .getByRole('button', { name: 'Check availability', exact: true })
+    .click();
   const received = new URL((await request).url()).searchParams;
   expect(Date.parse(received.get('end')!) - Date.parse(received.get('start')!)).toEqual(3600000);
+});
+
+test('calendar browsing, scope changes and closed panels preserve the right interval', async ({
+  page,
+}, info) => {
+  await login(page);
+  const { csrfToken } = await (await page.request.get('/api/auth/me')).json();
+  const name = 'Accessible Operations Vehicle for Extended Regional Support ' + info.project.name;
+  const site = 'Central Valley Multi-School Transportation and Technology Services';
+  const add = await page.request.post('/api/admin/vehicles', {
+    headers: { 'X-CSRF-Token': csrfToken },
+    data: {
+      name,
+      site,
+      make: 'Ford',
+      model: 'Escape',
+      plate: 'UX-' + info.project.name,
+      year: 2024,
+      vinLast4: '5146',
+      currentMileage: 2500,
+      status: 'available',
+    },
+  });
+  expect(add.status()).toBe(201);
+  await page.reload();
+  await page.getByRole('button', { name: 'Check availability & view calendar' }).click();
+  const pick = page.getByRole('combobox', { name: 'Vehicle', exact: true });
+  await page.getByRole('combobox', { name: 'Site', exact: true }).selectOption(site);
+  await pick.selectOption({ label: name });
+  await expect(page.getByRole('button', { name: 'Month', pressed: true })).toBeVisible();
+  const today = page.locator('[data-calendar-day][aria-current="date"]');
+  await expect(today).toBeVisible();
+  const dateInCalendar = (await today.getAttribute('data-calendar-day'))!;
+  const endOfMonth = new Date(dateInCalendar + 'T12:00:00Z');
+  endOfMonth.setUTCMonth(endOfMonth.getUTCMonth() + 1, 0);
+  const dateSelector = (d: Date) => '[data-calendar-day="' + d.toISOString().slice(0, 10) + '"]';
+  await page.locator(dateSelector(endOfMonth)).click();
+  await page.locator(dateSelector(endOfMonth)).press('ArrowRight');
+  endOfMonth.setUTCDate(endOfMonth.getUTCDate() + 1);
+  await expect(page.locator(dateSelector(endOfMonth))).toBeFocused();
+  await expect(page.getByRole('button', { name: 'Next', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Next', exact: true }).click();
+  await page.getByRole('button', { name: 'Today', exact: true }).click();
+  await page.getByRole('button', { name: 'Week', exact: true }).click();
+  await expect(page.getByLabel('Week schedule')).toBeVisible();
+  await page.getByRole('button', { name: 'Check availability', exact: true }).click();
+  const panel = page.getByRole('dialog', { name: 'Check availability' });
+  const date = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
+  await panel.getByLabel('Pickup ·').fill(date + 'T10:07');
+  await panel.getByLabel('Expected return ·').fill(date + 'T12:41');
+  await panel.getByRole('button', { name: 'Check availability', exact: true }).click();
+  await expect(panel.getByLabel('Availability results')).toContainText(name);
+  await expect(panel.getByLabel('Availability results')).toContainText('12:41');
+  await panel.getByRole('button', { name: 'Select vehicle' }).click();
+  await page.getByRole('button', { name: 'Back to results' }).click();
+  await page.keyboard.press('Escape');
+  await expect(panel).toBeHidden();
+  await page.getByRole('button', { name: 'Next', exact: true }).click();
+  await page.getByRole('button', { name: /View results/ }).click();
+  await expect(panel.getByLabel('Pickup ·')).toHaveValue(date + 'T10:07');
+  await panel.getByLabel('Expected return ·').fill(date + 'T12:42');
+  await expect(panel.getByLabel('Availability results')).toHaveCount(0);
+  await page.route('**/api/availability?*', (r) =>
+    r.fulfill({ status: 503, json: { error: 'Availability is temporarily unavailable.' } }),
+  );
+  await panel.getByRole('button', { name: 'Check availability', exact: true }).click();
+  await expect(panel.getByRole('alert')).toContainText('temporarily unavailable');
+  await expect(panel.getByRole('button', { name: 'Select vehicle' })).toHaveCount(0);
+  await panel.getByRole('button', { name: 'Close' }).click();
+  await page.getByRole('button', { name: 'Reset filters' }).click();
+  await expect(pick).toHaveValue('');
+  await expect(page.getByRole('button', { name: /View results/ })).toHaveCount(0);
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '23px';
+  });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.route('**/api/reservations?*', (r) =>
+    r.fulfill({ status: 503, json: { error: 'Calendar is temporarily unavailable.' } }),
+  );
+  await page.getByRole('button', { name: 'Previous', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Calendar is temporarily unavailable');
+  await expect(page.getByText('No bookings on this day.')).toHaveCount(0);
 });

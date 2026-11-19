@@ -1,5 +1,13 @@
 # Fleet Checkout release readiness
 
+## November 18, 2026 vehicle calendar redesign
+
+Version 1.0.2 (build 18) opens the native calendar in Month or the staff member's saved view. Test **Fleet → Vehicle calendar & availability** on iPhone or iPad. Browse to another day, open **Check availability**, select an interval, and check the results. Close the sheet and choose **View results** to reopen the same interval. Change a filter or time to clear the previous results.
+
+The iPhone simulator completed a reservation and confirmed its cancellation in the isolated review workspace. It also displayed all seven dates in Week and all 30 dates in November, switched to Agenda, filtered by vehicle, and scrolled the last control above the system tab bar. The iPad simulator displayed the schedule alongside the selected day's details. Browser tests exercised calendar keyboard navigation across month boundaries, precise times, DST transitions and failed availability requests.
+
+Apple's associated-domain service returned the production app identifier for `fleetcheckout.app`. Both iPhone and iPad simulators reached Apple's system passkey prompt on the staff domain. Real Face ID approval with a staff passkey still needs a physical device.
+
 ## November 18, 2026 calendar and update testing
 
 Version 1.0.2 (build 16) is in internal TestFlight for **Owner iPad Testing**. The signed archive supports iPhone and iPad. Its Face ID purpose string, associated domains and bundled privacy manifest were checked. App Review’s demo instructions include passkeys and the reservation workflow.

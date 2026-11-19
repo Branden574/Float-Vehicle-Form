@@ -1,4 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  CalendarSearch,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Clock3,
+  Search,
+  X,
+} from 'lucide-react';
 import { Temporal } from '@js-temporal/polyfill';
 import { api, errorMessage, post } from '../api';
 import type { Vehicle, Session } from '../types';
@@ -28,7 +37,7 @@ type Availability = {
 };
 type Notice = { id: string; status: string; event: Booking };
 export const bookingStatus: Record<string, string> = {
-  available: 'Available for this period',
+  available: 'Available for your selected time',
   reserved: 'Reserved',
   checked_out: 'Currently checked out',
   pending_review: 'Awaiting review',
@@ -104,6 +113,15 @@ function ClockOccurrence({
     </label>
   );
 }
+function savedMode(): Mode {
+  try {
+    const m = localStorage.getItem('fleet-calendar-view');
+    if (m === 'Week' || m === 'Agenda') return m;
+  } catch {
+    /* System storage may be unavailable. */
+  }
+  return 'Month';
+}
 const dayStart = (day: Temporal.PlainDate, z: string) =>
   day.toZonedDateTime(z).toInstant().toString({ smallestUnit: 'millisecond' });
 export function VehicleCalendar({
@@ -120,11 +138,13 @@ export function VehicleCalendar({
   const zone = session.settings.timezone;
   const today = Temporal.Now.plainDateISO(zone);
   const [day, setDay] = useState(viewState.current?.day ?? today.toString());
-  const [mode, setMode] = useState<Mode>(
-    () =>
-      viewState.current?.mode ??
-      (window.matchMedia('(max-width: 740px)').matches ? 'Agenda' : 'Month'),
-  );
+  const [mode, setMode] = useState<Mode>(() => viewState.current?.mode ?? savedMode());
+  const [panel, setPanel] = useState(false);
+  useEffect(() => {
+    try {
+      localStorage.setItem('fleet-calendar-view', mode);
+    } catch {}
+  }, [mode]);
   const [site, setSite] = useState(viewState.current?.site ?? ''),
     [vehicle, setVehicle] = useState(viewState.current?.vehicle ?? ''),
     [canceled, setCanceled] = useState(false);
@@ -169,6 +189,8 @@ export function VehicleCalendar({
   const key = useRef(crypto.randomUUID()),
     attempt = useRef(0),
     lock = useRef(false);
+  const loadedScope = useRef('');
+  const keyboardDay = useRef<string | null>(null);
   const focus = Temporal.PlainDate.from(day),
     month = focus.with({ day: 1 });
   const first =
@@ -185,6 +207,13 @@ export function VehicleCalendar({
         : 30;
   const from = dayStart(first, zone),
     until = dayStart(first.add({ days }), zone);
+  const scopeQuery = new URLSearchParams({
+    start: from,
+    end: until,
+    site,
+    vehicleId: vehicle,
+    canceled: String(canceled),
+  }).toString();
   const refresh = useCallback(() => bump((n) => n + 1), []);
   useEffect(() => {
     const tick = () => {
@@ -199,34 +228,38 @@ export function VehicleCalendar({
   }, [refresh]);
   useEffect(() => {
     let active = true;
-    setEvents(null);
+    if (loadedScope.current !== scopeQuery) setEvents(null);
     setReadError('');
-    const q = new URLSearchParams({
-      start: from,
-      end: until,
-      site,
-      vehicleId: vehicle,
-      canceled: String(canceled),
-    });
     Promise.all([
-      api<{ events: Booking[] }>('/reservations?' + q),
+      api<{ events: Booking[] }>('/reservations?' + scopeQuery),
       api<{ events: Booking[] }>('/my-reservations'),
       api<{ notices: Notice[] }>('/reservation-inbox'),
     ])
       .then(([r, m, i]) => {
         if (active) {
+          loadedScope.current = scopeQuery;
           setEvents(r.events);
           setMine(m.events);
           setInbox(i.notices);
         }
       })
       .catch((e) => {
-        if (active) setReadError(errorMessage(e));
+        if (active) {
+          setEvents(null);
+          loadedScope.current = '';
+          keyboardDay.current = null;
+          setReadError(errorMessage(e));
+        }
       });
     return () => {
       active = false;
     };
-  }, [from, until, site, vehicle, canceled, revision]);
+  }, [scopeQuery, revision]);
+  useEffect(() => {
+    if (!events || keyboardDay.current !== day || loadedScope.current !== scopeQuery) return;
+    document.querySelector<HTMLButtonElement>('[data-calendar-day="' + day + '"]')?.focus();
+    keyboardDay.current = null;
+  }, [day, events, scopeQuery]);
   useEffect(() => {
     const id = new URLSearchParams(location.search).get('reservation');
     if (!id) return;
@@ -330,6 +363,7 @@ export function VehicleCalendar({
           end: result.end,
         });
         invalidate();
+        setPanel(false);
         open(r);
         setDay(Temporal.Instant.from(r.start).toZonedDateTimeISO(zone).toPlainDate().toString());
         setSuccess('Reservation confirmed.');
@@ -353,50 +387,104 @@ export function VehicleCalendar({
       (mode === 'Month' ? focus.add({ months: by }) : focus.add({ days: by * days })).toString(),
     );
   }
+  const friendlyZone =
+    new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'longGeneric' })
+      .formatToParts(new Date())
+      .find((p) => p.type === 'timeZoneName')?.value || zone.replaceAll('_', ' ');
+  const localDay = (instant: string) =>
+    Temporal.Instant.from(instant).toZonedDateTimeISO(zone).toPlainDate();
+  const interval = (a: string, b: string) =>
+    localDay(a).equals(localDay(b))
+      ? date(a, zone) +
+        ' – ' +
+        new Intl.DateTimeFormat('en-US', { timeZone: zone, timeStyle: 'short' }).format(new Date(b))
+      : date(a, zone) + ' – ' + date(b, zone);
+  const vehicleName = vehicles.find((v) => v.id === vehicle)?.name || 'All vehicles';
+  const chosenEvents = (events || []).filter(
+    (r) =>
+      r.start < dayStart(focus.add({ days: 1 }), zone) &&
+      (r.ongoing || r.end > dayStart(focus, zone)),
+  );
+  const badge = (status: string) => (
+    <span className={'calendar-status cs-' + status}>{bookingStatus[status] || status}</span>
+  );
   const eventButton = (r: Booking) => (
-    <button type="button" className="booking-event" key={r.id} onClick={() => open(r)}>
-      <strong>{r.vehicle}</strong>
-      <small>
-        {new Intl.DateTimeFormat('en-US', {
-          hour: 'numeric',
-          minute: '2-digit',
-          timeZone: zone,
-        }).format(new Date(r.start))}
-      </small>
+    <button type="button" className="schedule-event" key={r.id} onClick={() => open(r)}>
       <span>
-        {bookingStatus[r.status]}
-        {r.ongoing ? ' · Overdue' : ''}
+        <strong>{r.vehicle}</strong>
+        <span>{interval(r.start, r.end)}</span>
+        <small>
+          {r.site}
+          {r.owner ? ' · ' + r.owner : ''}
+        </small>
+      </span>
+      <span>
+        {badge(r.status)}
+        {r.ongoing && <small>Overdue</small>}
       </span>
     </button>
   );
+  const dateText = (d: Temporal.PlainDate, options: Intl.DateTimeFormatOptions) =>
+    d.toLocaleString('en-US', options);
+  const endDay = first.add({ days: days - 1 });
+  const periodText =
+    mode === 'Month'
+      ? dateText(focus, { month: 'long', year: 'numeric' })
+      : new Intl.DateTimeFormat('en-US', {
+          timeZone: zone,
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        }).formatRange(new Date(from), new Date(dayStart(endDay, zone)));
+  const byDate = new Map<string, Booking[]>();
+  for (const event of events || []) {
+    const key = event.start < from ? first.toString() : localDay(event.start).toString();
+    const rows = byDate.get(key) || [];
+    rows.push(event);
+    byDate.set(key, rows);
+  }
+  function closePanel() {
+    if (!busy) {
+      setPanel(false);
+      select(null);
+      setFormError('');
+    }
+  }
   return (
     <section className="calendar-page">
       <h1>Vehicle calendar</h1>
       {success && (
-        <p role="status" className="notice">
+        <p role="status" className="notice success">
           {success}
         </p>
       )}
-      <div className="calendar-filters">
+      <div className="calendar-scope">
         <label>
-          Site
+          <span>Site</span>
+          <strong>{site || 'All sites'}</strong>
+          <ChevronDown aria-hidden="true" />
           <select
+            aria-label="Site"
             value={site}
             onChange={(e) => {
               invalidate();
-              setSite(e.target.value);
-              setVehicle('');
+              const next = e.target.value;
+              setSite(next);
+              if (next && vehicles.find((v) => v.id === vehicle)?.site !== next) setVehicle('');
             }}
           >
             <option value="">All sites</option>
-            {[...new Set(vehicles.map((v) => v.site))].sort().map((v) => (
-              <option key={v}>{v}</option>
+            {[...new Set(vehicles.map((v) => v.site))].sort().map((s) => (
+              <option key={s}>{s}</option>
             ))}
           </select>
         </label>
         <label>
-          Vehicle
+          <span>Vehicle</span>
+          <strong>{vehicleName}</strong>
+          <ChevronDown aria-hidden="true" />
           <select
+            aria-label="Vehicle"
             value={vehicle}
             onChange={(e) => {
               invalidate();
@@ -407,238 +495,348 @@ export function VehicleCalendar({
             {vehicles
               .filter((v) => !site || v.site === site)
               .map((v) => (
-                <option key={v.id} value={v.id}>
+                <option value={v.id} key={v.id}>
                   {v.name}
                 </option>
               ))}
           </select>
         </label>
-      </div>
-      <h2>Check availability</h2>
-      <form onSubmit={check}>
-        <div className="calendar-filters">
-          <label>
-            Pickup · {zone}
-            <input
-              type="datetime-local"
-              required
-              value={start}
-              onChange={(e) => {
-                invalidate();
-                setStart(e.target.value);
-              }}
-            />
-          </label>
-          <label>
-            Expected return · {zone}
-            <input
-              type="datetime-local"
-              required
-              value={end}
-              onChange={(e) => {
-                invalidate();
-                setEnd(e.target.value);
-              }}
-            />
-          </label>
-          <ClockOccurrence
-            value={start}
-            zone={zone}
-            label="Pickup"
-            occurrence={pickupOccurrence}
-            change={(v) => {
+        {(site || vehicle) && (
+          <button
+            className="text-button"
+            onClick={() => {
               invalidate();
-              setPickupOccurrence(v);
+              setSite('');
+              setVehicle('');
             }}
-          />
-          <ClockOccurrence
-            value={end}
-            zone={zone}
-            label="Return"
-            occurrence={returnOccurrence}
-            change={(v) => {
-              invalidate();
-              setReturnOccurrence(v);
-            }}
-          />
-          <button className="button secondary" disabled={checking}>
-            {checking ? 'Checking…' : 'Check availability'}
+          >
+            Reset filters
           </button>
-        </div>
-      </form>
-      {result && (
-        <div>
-          <p>
-            {date(result.start, zone)} – {date(result.end, zone)}
-          </p>
-          {!result.vehicles.some((v) => v.status === 'available') && (
-            <p>No vehicles available for the selected dates.</p>
-          )}
-          {result.vehicles.map((v) => (
-            <div className="booking-row" key={v.id}>
-              <div>
-                <strong>{v.name}</strong>
-                <small>
-                  {v.site} · {bookingStatus[v.status]}
-                </small>
-              </div>
-              {v.status === 'available' && session.user.authorizedDriver && (
-                <button
-                  className="button secondary"
-                  onClick={() => {
-                    select(v);
-                    key.current = crypto.randomUUID();
-                    setFormError('');
-                  }}
-                >
-                  Select vehicle
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
+        )}
+        <button
+          className="button primary calendar-open"
+          onClick={() => {
+            setFormError('');
+            setPanel(true);
+          }}
+        >
+          <CalendarSearch size={18} /> Check availability
+        </button>
+      </div>
+      {result && !panel && (
+        <button className="checked-summary" onClick={() => setPanel(true)}>
+          <Clock3 size={16} /> View results · {interval(result.start, result.end)}{' '}
+          <ChevronRight size={16} />
+        </button>
       )}
-      {selection && result && (
-        <section data-protect-update className="booking-detail">
-          <h3>Reserve {selection.name}</h3>
-          <p>
-            {date(result.start, zone)} – {date(result.end, zone)} · {zone}
-          </p>
-          <p>
-            {session.user.name} · {session.user.charter}
-          </p>
-          <div className="action-group">
-            <button disabled={busy} className="button primary" onClick={() => void save('reserve')}>
-              Reserve vehicle
-            </button>
-            <button className="text-button" disabled={busy} onClick={() => select(null)}>
-              Back
-            </button>
-          </div>
-        </section>
-      )}
-      {formError && (
-        <p role="alert" className="notice warning">
+      {!panel && !detail && formError && (
+        <p className="notice warning" role="alert">
           {formError}
         </p>
       )}
-      <h2>Fleet schedule</h2>
-      <div className="calendar-controls">
-        <div className="action-group">
-          {(['Month', 'Week', 'Agenda'] as const).map((v) => (
-            <button
-              className="button secondary"
-              key={v}
-              aria-pressed={mode === v}
-              onClick={() => setMode(v)}
-            >
-              {v}
-            </button>
-          ))}
-        </div>
-        <div className="action-group">
-          <button className="text-button" onClick={() => move(-1)}>
-            Previous
-          </button>
-          <button className="text-button" onClick={() => setDay(today.toString())}>
-            Today
-          </button>
-          <button className="text-button" onClick={() => move(1)}>
-            Next
-          </button>
-        </div>
-      </div>
-      <h3>
-        {mode === 'Month'
-          ? focus.toLocaleString('en-US', { month: 'long', year: 'numeric' })
-          : first.toLocaleString() + ' – ' + first.add({ days: days - 1 }).toLocaleString()}
-      </h3>
-      <label className="booking-check">
-        <input type="checkbox" checked={canceled} onChange={(e) => setCanceled(e.target.checked)} />{' '}
-        Show canceled reservations I can manage
-      </label>
-      <small>
-        Reserved holds a time. Checked out means the vehicle is on a trip. Canceled bookings release
-        the time.
-      </small>
-      {readError ? (
-        <div role="alert">
-          <p>{readError}</p>
-          <button className="button secondary" onClick={refresh}>
-            Retry calendar
-          </button>
-        </div>
-      ) : !events ? (
-        <p role="status">Loading calendar…</p>
-      ) : (
-        <>
-          {events.length === 0 && <p>No bookings in this period.</p>}
-          {mode === 'Agenda' ? (
-            events.map((r) => (
-              <div className="booking-row" key={r.id}>
-                {eventButton(r)}
-                <small>
-                  {date(r.start, zone)} – {date(r.end, zone)} · {zone}
-                </small>
-              </div>
-            ))
-          ) : (
-            <div className="calendar-grid" aria-label={mode + ' schedule'}>
-              {Array.from({ length: days }, (_, i) => {
-                const d = first.add({ days: i }),
-                  a = dayStart(d, zone),
-                  b = dayStart(d.add({ days: 1 }), zone);
-                return (
-                  <div className="calendar-day" key={a}>
-                    <time dateTime={d.toString()}>
-                      {d.toLocaleString('en-US', { weekday: 'short', day: 'numeric' })}
-                    </time>
-                    {events.filter((r) => r.start < b && (r.ongoing || r.end > a)).map(eventButton)}
-                  </div>
-                );
-              })}
+      <div className="schedule-columns">
+        <div className="schedule-surface">
+          <div className="schedule-period">
+            <h2>{periodText}</h2>
+            <div className="schedule-nav">
+              <button aria-label="Previous" onClick={() => move(-1)}>
+                <ChevronLeft />
+              </button>
+              <button onClick={() => setDay(today.toString())}>Today</button>
+              <button aria-label="Next" onClick={() => move(1)}>
+                <ChevronRight />
+              </button>
             </div>
-          )}
-          <h2>My upcoming reservations</h2>
-          {!mine.length ? (
-            <p>You have no upcoming reservations.</p>
-          ) : (
-            mine.map((r) => (
-              <div key={r.id} className="booking-row">
-                {eventButton(r)}
-                <small>
-                  {date(r.start, zone)} – {date(r.end, zone)}
-                </small>
-              </div>
-            ))
-          )}
-          {inbox.length > 0 && (
-            <>
-              <h2>Cancellation notices</h2>
-              {inbox.map((n) => (
-                <div className="booking-row" key={n.id}>
-                  {eventButton(n.event)}
-                  <small>Email · {n.status}</small>
-                  {n.status === 'failed' && (
-                    <button
-                      className="text-button"
-                      onClick={async () => {
-                        try {
-                          await post('/reservation-notices/' + n.id + '/retry', {});
-                          refresh();
-                        } catch (e) {
-                          setFormError(errorMessage(e));
-                        }
-                      }}
-                    >
-                      Retry email
-                    </button>
-                  )}
-                </div>
+          </div>
+          <div className="calendar-modes" role="group" aria-label="Calendar view">
+            {(['Month', 'Week', 'Agenda'] as const).map((v) => (
+              <button key={v} aria-pressed={mode === v} onClick={() => setMode(v)}>
+                {v}
+              </button>
+            ))}
+          </div>
+          {readError ? (
+            <div role="alert">
+              <p>{readError}</p>
+              <button className="button secondary" onClick={refresh}>
+                Retry calendar
+              </button>
+            </div>
+          ) : !events ? (
+            <p role="status">Loading calendar…</p>
+          ) : mode === 'Agenda' ? (
+            <div className="schedule-agenda">
+              {!events.length && <p>No bookings in this period.</p>}
+              {[...byDate].map(([d, rows]) => (
+                <section key={d}>
+                  <h3>
+                    {dateText(Temporal.PlainDate.from(d), {
+                      weekday: 'long',
+                      month: 'short',
+                      day: 'numeric',
+                    })}
+                  </h3>
+                  {rows.map(eventButton)}
+                </section>
               ))}
+            </div>
+          ) : (
+            <>
+              <div
+                className="schedule-dates"
+                aria-label={mode + ' schedule'}
+                onKeyDown={(e) => {
+                  if (!(e.target instanceof HTMLButtonElement)) return;
+                  const delta: Record<string, number> = {
+                    ArrowRight: 1,
+                    ArrowLeft: -1,
+                    ArrowUp: -7,
+                    ArrowDown: 7,
+                    Home: -(focus.dayOfWeek % 7),
+                    End: 6 - (focus.dayOfWeek % 7),
+                  };
+                  if (!(e.key in delta)) return;
+                  e.preventDefault();
+                  const next = focus.add({ days: delta[e.key] }).toString();
+                  keyboardDay.current = next;
+                  setDay(next);
+                }}
+              >
+                {Array.from({ length: 7 }, (_, i) => (
+                  <span key={i} aria-hidden="true" className="weekday">
+                    {dateText(first.add({ days: i }), { weekday: 'short' })}
+                  </span>
+                ))}
+                {Array.from({ length: days }, (_, i) => {
+                  const d = first.add({ days: i });
+                  const iso = d.toString();
+                  const a = dayStart(d, zone),
+                    b = dayStart(d.add({ days: 1 }), zone);
+                  const count = events.filter(
+                    (r) => r.start < b && (r.ongoing || r.end > a),
+                  ).length;
+                  return (
+                    <button
+                      key={iso}
+                      data-calendar-day={iso}
+                      tabIndex={iso === day ? 0 : -1}
+                      className={
+                        'calendar-date' +
+                        (d.month !== focus.month && mode === 'Month' ? ' outside' : '') +
+                        (iso === today.toString() ? ' calendar-today' : '')
+                      }
+                      aria-current={iso === today.toString() ? 'date' : undefined}
+                      aria-pressed={day === iso}
+                      aria-label={
+                        dateText(d, { dateStyle: 'full' }) +
+                        ', ' +
+                        count +
+                        (count === 1 ? ' booking' : ' bookings')
+                      }
+                      onClick={() => setDay(iso)}
+                    >
+                      <span>{d.day}</span>
+                      <i aria-hidden="true" className={count ? 'has-booking' : ''} />
+                    </button>
+                  );
+                })}
+              </div>
+              <small className="calendar-legend">
+                <i /> Dates with bookings
+              </small>
             </>
           )}
-        </>
+        </div>
+        <div className="schedule-sidebar">
+          {!readError && events && (
+            <>
+              {mode !== 'Agenda' && (
+                <section className="day-details">
+                  <h2>{dateText(focus, { weekday: 'long', month: 'long', day: 'numeric' })}</h2>
+                  {chosenEvents.length ? (
+                    chosenEvents.map(eventButton)
+                  ) : (
+                    <p>No bookings on this day.</p>
+                  )}
+                </section>
+              )}
+              <details className="calendar-upcoming">
+                <summary>My upcoming reservations</summary>
+                {mine.length ? mine.map(eventButton) : <p>You have no upcoming reservations.</p>}
+              </details>
+              {inbox.length > 0 && (
+                <section>
+                  <h2>Cancellation notices</h2>
+                  {inbox.map((n) => (
+                    <div key={n.id}>
+                      {eventButton(n.event)}
+                      <small>Email · {n.status}</small>
+                      {n.status === 'failed' && (
+                        <button
+                          className="text-button"
+                          onClick={() =>
+                            void post('/reservation-notices/' + n.id + '/retry', {})
+                              .then(refresh)
+                              .catch((e) => setFormError(errorMessage(e)))
+                          }
+                        >
+                          Retry email
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </section>
+              )}
+            </>
+          )}
+          <label className="booking-check">
+            <input
+              type="checkbox"
+              checked={canceled}
+              onChange={(e) => setCanceled(e.target.checked)}
+            />{' '}
+            Include canceled reservations
+          </label>
+        </div>
+      </div>
+      {panel && (
+        <BookingDialog
+          name={selection ? 'Reserve vehicle' : 'Check availability'}
+          close={closePanel}
+        >
+          <div className="panel-heading">
+            <h2>{selection ? 'Reserve vehicle' : 'Check availability'}</h2>
+            <button aria-label="Close" disabled={busy} onClick={closePanel}>
+              <X size={21} />
+            </button>
+          </div>
+          {selection && result ? (
+            <>
+              <h3>{selection.name}</h3>
+              <p>{selection.site}</p>
+              <p>
+                {interval(result.start, result.end)} · {friendlyZone}
+              </p>
+              <p>
+                {session.user.name} · {session.user.charter}
+              </p>
+              <div className="action-group">
+                <button
+                  disabled={busy}
+                  className="button primary"
+                  onClick={() => void save('reserve')}
+                >
+                  Reserve vehicle
+                </button>
+                <button className="button secondary" disabled={busy} onClick={() => select(null)}>
+                  Back to results
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="panel-scope">
+                {site || 'All sites'} · {vehicleName}
+              </p>
+              <form onSubmit={check} className="availability-form">
+                <label>
+                  Pickup{' '}
+                  <input
+                    aria-label={'Pickup · ' + friendlyZone}
+                    type="datetime-local"
+                    required
+                    value={start}
+                    onChange={(e) => {
+                      invalidate();
+                      setStart(e.target.value);
+                    }}
+                  />
+                </label>
+                <label>
+                  Expected return{' '}
+                  <input
+                    aria-label={'Expected return · ' + friendlyZone}
+                    type="datetime-local"
+                    required
+                    value={end}
+                    onChange={(e) => {
+                      invalidate();
+                      setEnd(e.target.value);
+                    }}
+                  />
+                </label>
+                <ClockOccurrence
+                  value={start}
+                  zone={zone}
+                  label="Pickup"
+                  occurrence={pickupOccurrence}
+                  change={(v) => {
+                    invalidate();
+                    setPickupOccurrence(v);
+                  }}
+                />
+                <ClockOccurrence
+                  value={end}
+                  zone={zone}
+                  label="Return"
+                  occurrence={returnOccurrence}
+                  change={(v) => {
+                    invalidate();
+                    setReturnOccurrence(v);
+                  }}
+                />
+                <small>
+                  <Clock3 size={15} /> Times shown in {friendlyZone}
+                </small>
+                <button className="button primary" disabled={checking}>
+                  <Search size={18} />
+                  {checking ? 'Checking…' : 'Check availability'}
+                </button>
+              </form>
+              {result && (
+                <section className="calendar-results" aria-label="Availability results">
+                  <h3>Results</h3>
+                  <p>
+                    {interval(result.start, result.end)} · {friendlyZone}
+                  </p>
+                  {!result.vehicles.some((v) => v.status === 'available') && (
+                    <p>
+                      {result.vehicles.length
+                        ? 'No vehicles available for the selected dates.'
+                        : 'No vehicles match these filters.'}
+                    </p>
+                  )}
+                  {result.vehicles.map((v) => (
+                    <div className="vehicle-slot" key={v.id}>
+                      <div>
+                        <strong>{v.name}</strong>
+                        <small>{v.site}</small>
+                        {badge(v.status)}
+                      </div>
+                      {v.status === 'available' && session.user.authorizedDriver && (
+                        <button
+                          className="button secondary"
+                          onClick={() => {
+                            select(v);
+                            key.current = crypto.randomUUID();
+                            setFormError('');
+                          }}
+                        >
+                          Select vehicle
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </section>
+              )}
+            </>
+          )}
+          {formError && (
+            <p role="alert" className="notice warning">
+              {formError}
+            </p>
+          )}
+        </BookingDialog>
       )}
       {detail && (
         <BookingDialog
@@ -656,7 +854,7 @@ export function VehicleCalendar({
             {bookingStatus[detail.status]} · {detail.site}
           </p>
           <p>
-            {date(detail.start, zone)} – {date(detail.end, zone)} · {zone}
+            {interval(detail.start, detail.end)} · {friendlyZone}
           </p>
           {detail.owner && <p>Reserved by {detail.owner}</p>}
           {detail.canceledAt && (
@@ -726,18 +924,33 @@ export function VehicleCalendar({
     </section>
   );
 }
-function BookingDialog({ children, close }: { children: React.ReactNode; close: () => void }) {
+function BookingDialog({
+  children,
+  close,
+  name = 'Reservation details',
+}: {
+  children: React.ReactNode;
+  close: () => void;
+  name?: string;
+}) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const d = ref.current;
     d?.showModal();
     return () => d?.close();
   }, []);
+  useEffect(() => {
+    const title = ref.current?.querySelector('h2');
+    if (title) {
+      title.tabIndex = -1;
+      title.focus({ preventScroll: true });
+    }
+  }, [name]);
   return (
     <dialog
       ref={ref}
       className="booking-dialog"
-      aria-label="Reservation details"
+      aria-label={name}
       onCancel={(e) => {
         e.preventDefault();
         close();

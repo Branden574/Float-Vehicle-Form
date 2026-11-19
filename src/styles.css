@@ -2780,154 +2780,398 @@ figcaption {
   margin: 0.2rem 0 0;
 }
 .calendar-page {
-  max-width: 76rem;
-  margin: 0 auto;
+  max-width: 72rem;
+  margin: auto;
 }
-.calendar-page h2 {
-  margin: 2rem 0 0.85rem;
+.calendar-page > h1 {
+  font-size: clamp(1.55rem, 3vw, 2.2rem);
+  margin: 0 0 1.15rem;
 }
-.calendar-filters,
-.calendar-controls,
-.booking-row {
+.calendar-scope,
+.schedule-period,
+.schedule-nav,
+.calendar-modes,
+.panel-heading,
+.checked-summary,
+.availability-form small,
+.calendar-legend {
   display: flex;
-  align-items: end;
-  gap: 1rem;
+  align-items: center;
+  gap: 0.55rem;
+}
+.calendar-scope {
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+}
+.calendar-scope label {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-width: 8rem;
+  max-width: 100%;
+  gap: 0.1rem 0.9rem;
+  padding: 0.45rem 0.8rem;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+  margin: 0;
+}
+.calendar-scope label > span {
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+.calendar-scope strong {
+  grid-column: 1;
+  font-size: 0.94rem;
+  overflow-wrap: anywhere;
+}
+.calendar-scope label svg {
+  width: 1rem;
+  grid-column: 2;
+  grid-row: 1/3;
+  color: var(--muted);
+}
+.calendar-scope select {
+  opacity: 0;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  cursor: pointer;
+}
+.calendar-scope label:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.calendar-open {
+  margin-inline-start: auto;
+}
+.checked-summary {
+  padding: 0.6rem 0.8rem;
+  min-height: 44px;
+  color: var(--accent);
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  margin-bottom: 1rem;
+  text-align: start;
+}
+.schedule-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(14rem, 1fr);
+  gap: clamp(1rem, 2vw, 2rem);
+  align-items: start;
+}
+.schedule-surface,
+.day-details,
+.calendar-upcoming,
+.vehicle-slot {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--white);
+}
+.schedule-surface,
+.day-details,
+.calendar-upcoming {
+  padding: clamp(0.8rem, 2vw, 1.4rem);
+}
+.schedule-period,
+.panel-heading {
+  justify-content: space-between;
   flex-wrap: wrap;
 }
-.calendar-filters label,
-.booking-dialog label {
+.calendar-page h2,
+.booking-dialog h2 {
+  font-size: 1.23rem;
+  margin: 0;
+  line-height: 1.35;
+  letter-spacing: -0.024em;
+}
+.schedule-nav {
+  gap: 0.1rem;
+}
+.schedule-nav button,
+.panel-heading button {
+  border: 0;
+  background: transparent;
+  color: var(--accent);
   display: grid;
-  gap: 0.4rem;
-  flex: 1;
-  min-width: min(12rem, 100%);
-}
-.calendar-filters label {
-  margin-bottom: 0;
-}
-.calendar-filters select,
-.calendar-filters input,
-.booking-dialog textarea {
-  width: 100%;
-  padding: 0.7rem;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--white);
-  color: var(--ink);
+  place-items: center;
   min-height: 44px;
+  min-width: 44px;
+  border-radius: 0.55rem;
+  font-weight: 650;
 }
-.calendar-controls,
-.booking-row {
-  align-items: center;
-  justify-content: space-between;
+.schedule-nav button:hover,
+.panel-heading button:hover {
+  background: var(--soft);
 }
-.booking-row,
-.booking-detail {
-  padding: 1rem 0;
-  border-bottom: 1px solid var(--line);
+.schedule-nav svg {
+  width: 18px;
 }
-.calendar-page small,
-.booking-row small {
-  display: block;
+.calendar-modes {
+  gap: 0.25rem;
+  padding: 0.24rem;
+  margin: 0.5rem 0 1.1rem;
+  background: var(--soft);
+  border-radius: 0.65rem;
+}
+.calendar-modes button {
+  flex: 1;
+  min-height: 44px;
+  padding: 0.4rem;
+  border: 1px solid transparent;
+  background: transparent;
+  font-weight: 600;
   color: var(--muted);
+  border-radius: 0.45rem;
 }
-.calendar-grid {
-  margin-top: 1rem;
+.calendar-modes button[aria-pressed='true'] {
+  color: var(--ink);
+  background: var(--white);
+  border-color: var(--line);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.07);
+}
+.schedule-dates {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  border-left: 1px solid var(--line);
-  border-top: 1px solid var(--line);
+  text-align: center;
+  gap: 0.16rem;
 }
-.calendar-day {
-  padding: 0.5rem;
-  min-height: 6.25rem;
-  border-right: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-  min-width: 0;
+.weekday {
+  font-size: 0.8rem;
+  color: var(--muted);
+  padding-bottom: 0.5rem;
 }
-.calendar-day time {
-  display: block;
+.calendar-date {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 0.23rem;
+  min-height: clamp(44px, 4.5vw, 60px);
+  border: 2px solid transparent;
+  border-radius: 0.6rem;
+  background: transparent;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.calendar-date:hover {
+  background: var(--soft);
+}
+.calendar-date.outside {
+  color: var(--muted);
+}
+.calendar-date.calendar-today {
+  border-color: var(--accent);
+  font-weight: 750;
+}
+.calendar-date[aria-pressed='true'] {
+  color: var(--white);
+  background: var(--accent);
+  font-weight: 700;
+}
+.calendar-date i,
+.calendar-legend i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+.calendar-date .has-booking,
+.calendar-legend i {
+  background: var(--accent);
+}
+.calendar-date.calendar-today[aria-pressed='true'] {
+  outline: 1px solid var(--white);
+  outline-offset: -4px;
+}
+.calendar-date[aria-pressed='true'] .has-booking {
+  background: currentColor;
+}
+.calendar-legend {
+  margin-top: 1rem;
   color: var(--muted);
   font-size: 0.8rem;
-  margin-bottom: 0.4rem;
 }
-.booking-event {
+.schedule-sidebar {
+  display: grid;
+  gap: 0.9rem;
+  min-width: 0;
+}
+.schedule-sidebar p,
+.schedule-agenda p,
+.calendar-results > p,
+.panel-scope {
+  color: var(--muted);
+  line-height: 1.5;
+}
+.day-details p {
+  margin-bottom: 0;
+}
+.schedule-agenda h3 {
+  font-size: 1rem;
+  margin: 1rem 0 0.6rem;
+}
+.schedule-event,
+.vehicle-slot {
+  width: 100%;
+  padding: 0.85rem 0.95rem;
   display: flex;
-  flex-direction: column;
-  align-items: start;
-  gap: 0.15rem;
-  max-width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  text-align: start;
   overflow-wrap: anywhere;
+}
+.schedule-event {
   border: 0;
-  border-left: 3px solid var(--accent);
-  text-align: left;
-  background: var(--soft);
+  border-top: 1px solid var(--line);
+  background: transparent;
   color: var(--ink);
-  padding: 0.5rem 0.65rem;
-  border-radius: 0.2rem;
-  margin: 0.25rem 0;
+  margin-top: 0.55rem;
   min-height: 44px;
 }
-.booking-event span {
+.schedule-event:hover {
+  background: var(--soft);
+}
+.schedule-event > span:first-child,
+.vehicle-slot > div {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+}
+.schedule-event > span:first-child > span,
+.schedule-event small,
+.vehicle-slot small {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+.calendar-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  background: var(--soft);
+  border-radius: 0.45em;
+  padding: 0.25em 0.55em;
   font-size: 0.8rem;
+  font-weight: 600;
+  width: fit-content;
+  color: var(--ink);
+}
+.calendar-status::before {
+  content: '';
+  height: 0.5em;
+  width: 0.5em;
+  flex: none;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.cs-reserved::before,
+.cs-checked_out::before,
+.cs-active::before,
+.cs-picked_up::before {
+  background: #5388bd;
+}
+.cs-pending_review::before,
+.cs-pending_checkout::before {
+  background: #bd872c;
+}
+.cs-available::before,
+.cs-returned::before {
+  background: var(--accent);
+}
+.cs-out_of_service::before,
+.cs-rejected::before {
+  background: #ba6157;
+}
+.calendar-upcoming summary {
+  cursor: pointer;
+  display: list-item;
+  align-content: center;
+  min-height: 44px;
+  font-weight: 650;
 }
 .booking-check {
   display: flex;
   flex-direction: row;
-  min-height: 44px;
   align-items: center;
-  gap: 0.6rem;
-  margin: 0.75rem 0;
-}
-.booking-check input {
-  width: 1.1rem;
-  height: 1.1rem;
+  gap: 0.65rem;
+  margin: 0;
+  min-height: 44px;
 }
 .booking-dialog {
-  padding: 1.5rem;
-  max-width: min(90vw, 36rem);
-  background: var(--white);
-  color: var(--ink);
+  width: min(36rem, calc(100% - 1.5rem));
+  max-height: calc(100dvh - 2rem);
+  overflow: auto;
+  padding: clamp(1rem, 3vw, 1.75rem);
+  border-radius: 16px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  background: var(--paper);
+  color: var(--ink);
 }
 .booking-dialog::backdrop {
-  background: rgb(0 0 0 / 50%);
+  background: rgb(0 0 0 / 0.55);
 }
-.booking-dialog .action-group,
-.booking-detail .action-group {
+.booking-dialog .action-group {
   margin-top: 1rem;
 }
-.calendar-controls .button[aria-pressed] {
-  transition: transform 0.16s;
+.availability-form {
+  display: grid;
+  gap: 0.85rem;
 }
-.calendar-controls .button[aria-pressed='true'],
-.calendar-controls .button[aria-pressed='true']:hover {
-  border-color: var(--ink);
-  color: var(--white);
-  background: var(--ink);
+.availability-form label {
+  min-width: 0;
+  margin: 0;
 }
-@media (max-width: 700px) {
-  .calendar-day {
-    padding: 0.22rem;
-    min-height: 4rem;
+.availability-form small {
+  color: var(--muted);
+}
+.calendar-results {
+  border-top: 1px solid var(--line);
+  margin-top: 1.3rem;
+  padding-top: 1rem;
+}
+.calendar-results h3 {
+  margin: 0;
+}
+.calendar-results > p {
+  margin: 0.45rem 0 0.9rem;
+}
+.vehicle-slot {
+  margin-top: 0.55rem;
+}
+@media (max-width: 1040px) {
+  .schedule-columns {
+    grid-template-columns: minmax(0, 1fr);
   }
-  .calendar-day time {
-    font-size: 0.7rem;
+}
+@media (max-width: 600px) {
+  .calendar-scope label {
+    min-width: 0;
+    flex: 1 1 8rem;
   }
-  .calendar-day .booking-event {
-    font-size: 0.73rem;
-    padding: 0.25rem;
+  .calendar-open {
+    width: 100%;
+    margin: 0;
   }
-  .calendar-day .booking-event span {
-    font-size: 0.66rem;
+  .schedule-nav button {
+    min-width: 38px;
   }
-  .calendar-filters label {
-    flex-basis: 100%;
+  .calendar-date {
+    padding: 0.2rem 0;
   }
-  .calendar-controls {
-    align-items: start;
+  .schedule-period {
+    gap: 0.1rem;
   }
-  .calendar-page h1 {
-    overflow-wrap: anywhere;
+  .booking-dialog {
+    margin: auto 0 0;
+    width: 100%;
+    max-width: 100%;
+    max-height: 92dvh;
+    border-radius: 18px 18px 0 0;
+    padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
   }
 }
