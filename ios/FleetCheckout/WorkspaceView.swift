@@ -398,9 +398,7 @@ struct ProfileView: View {
   @State private var manager = ""
   @State private var message = ""
   @State private var busy = false
-  @State private var signOut = false
-  @AccessibilityFocusState private var signOutPromptFocused: Bool
-  @State private var removePasskeys = false
+  @State private var pendingAction: ProfileAction?
   @State private var passkeyCount = 0
   @State private var passkeyMessage = ""
   var body: some View {
@@ -457,26 +455,24 @@ struct ProfileView: View {
             }
           }.disabled(busy)
           if passkeyCount > 0 {
-            Button("Remove all passkeys", role: .destructive) { removePasskeys = true }
-              .disabled(busy)
-              .confirmationDialog(
-                "Remove every passkey for your Fleet Checkout account?",
-                isPresented: $removePasskeys
-              ) {
-                Button("Remove all passkeys", role: .destructive) {
-                  Task {
-                    busy = true
-                    passkeyMessage = ""
-                    defer { busy = false }
-                    do {
-                      let _: EmptyResponse = try await store.api.request(
-                        "/api/auth/passkeys/remove", method: "POST", body: [:])
-                      passkeyCount = 0
-                      passkeyMessage = "Passkeys removed."
-                    } catch { passkeyMessage = error.localizedDescription }
-                  }
-                }
+            ProfileActionRow(
+              action: .removePasskeys, pending: $pendingAction,
+              explanation:
+                "This removes every passkey for your Fleet Checkout account. You can still sign in with an email code.",
+              confirmTitle: "Remove passkeys"
+            ) {
+              busy = true
+              passkeyMessage = ""
+              Task {
+                defer { busy = false }
+                do {
+                  let _: EmptyResponse = try await store.api.request(
+                    "/api/auth/passkeys/remove", method: "POST", body: [:])
+                  passkeyCount = 0
+                  passkeyMessage = "Passkeys removed."
+                } catch { passkeyMessage = error.localizedDescription }
               }
+            }.disabled(busy)
           }
           if !passkeyMessage.isEmpty { Text(passkeyMessage).font(.callout) }
         } header: {
@@ -491,49 +487,95 @@ struct ProfileView: View {
           }
         }
       }
-      if signOut {
-        VStack(alignment: .leading, spacing: 8) {
-          Text("Sign out of Fleet Checkout?").font(.headline)
-            .accessibilityFocused($signOutPromptFocused)
-          Text("Your session ends and private files on this device are cleared.")
-            .font(.subheadline).foregroundStyle(.secondary)
-          ViewThatFits(in: .horizontal) {
-            HStack(spacing: 12) { signOutActions }.fixedSize(horizontal: true, vertical: false)
-            VStack(alignment: .leading, spacing: 8) { signOutActions }
-          }
+      Section {
+        ProfileActionRow(
+          action: .signOut, pending: $pendingAction,
+          explanation: "Your session ends and private files on this device are cleared.",
+          confirmTitle: "Confirm sign out"
+        ) {
+          busy = true
+          Task { await store.logout() }
+        }.disabled(busy)
+        Link("Open web workspace", destination: store.api.baseURL)
+        Link("Privacy policy", destination: FleetAPI.origin.appendingPathComponent("privacy"))
+        Link("Support", destination: FleetAPI.origin.appendingPathComponent("support"))
+        NavigationLink("Delete my account", destination: DeleteAccountView())
+      } header: {
+        if let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString")
+          as? String,
+          let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+        {
+          Text("Fleet Checkout \(version) · Build \(build)").textCase(nil)
+            .accessibilityIdentifier("profile.appVersion")
         }
-        .padding(.vertical, 4)
-        .onAppear { signOutPromptFocused = true }
-      } else {
-        Button("Sign out", role: .destructive) { signOut = true }.disabled(busy)
       }
-      Link("Open web workspace", destination: store.api.baseURL)
-      Link("Privacy policy", destination: FleetAPI.origin.appendingPathComponent("privacy"))
-      Link("Support", destination: FleetAPI.origin.appendingPathComponent("support"))
-      NavigationLink("Delete my account", destination: DeleteAccountView())
     }.navigationTitle("My profile").onAppear {
       name = store.session?.user.name ?? ""
       charter = store.session?.user.charter ?? ""
       department = store.session?.user.department ?? ""
       manager = store.session?.user.manager ?? ""
     }
-    .onDisappear { signOut = false }
+    .onDisappear { pendingAction = nil }
+  }
+}
+
+private enum ProfileAction: String {
+  case signOut = "Sign out"
+  case removePasskeys = "Remove all passkeys"
+}
+
+private struct ProfileActionRow: View {
+  let action: ProfileAction
+  @Binding var pending: ProfileAction?
+  let explanation: String
+  let confirmTitle: String
+  let onConfirm: () -> Void
+  private var expanded: Bool { pending == action }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Button {
+        pending = expanded ? nil : action
+      } label: {
+        HStack {
+          Text(action.rawValue)
+          Spacer()
+          Image(systemName: expanded ? "chevron.up" : "chevron.down")
+            .font(.caption.weight(.semibold)).accessibilityHidden(true)
+        }
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
+      .accessibilityValue(expanded ? "Expanded" : "Collapsed")
+
+      if expanded {
+        ViewThatFits(in: .horizontal) {
+          HStack(spacing: 12) { controls }.fixedSize(horizontal: true, vertical: false)
+          VStack(alignment: .leading, spacing: 8) { controls }
+        }
+        Text(explanation).font(.subheadline).foregroundStyle(.secondary)
+          .padding(.bottom, 4)
+      }
+    }
   }
 
-  @ViewBuilder private var signOutActions: some View {
+  @ViewBuilder private var controls: some View {
     Button {
-      signOut = false
+      pending = nil
     } label: {
-      Text("Cancel").frame(minHeight: 32)
+      Text("Cancel").frame(minHeight: 36)
     }
     .buttonStyle(.bordered)
     Button(role: .destructive) {
-      busy = true
-      Task { await store.logout() }
+      pending = nil
+      onConfirm()
     } label: {
-      Text("Sign out").frame(minHeight: 32)
+      Text(confirmTitle).frame(minHeight: 36)
     }
-    .buttonStyle(.bordered).disabled(busy)
+    .buttonStyle(.bordered)
+    .tint(Color("FleetError"))
+    .accessibilityHint(explanation)
   }
 }
 
