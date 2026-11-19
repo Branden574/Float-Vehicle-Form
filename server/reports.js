@@ -1,4 +1,5 @@
 import PDFDocument from 'pdfkit';
+import { drawPrintablePhoto } from './photo-layout.js';
 import { originalForms, templateHash } from './original-forms.js';
 import { createHash } from 'node:crypto';
 import { inspectionFlags } from './validation.js';
@@ -45,7 +46,7 @@ export async function createReport({ store, tripId, stage = 'return', download =
   const { trip, photos, reviews, revisions } = bundle;
   const settings = trip.checkoutSettings || bundle.settings;
   const reportData = {
-    version: 6,
+    version: 7,
     templateHash,
     stage,
     trip,
@@ -305,30 +306,37 @@ export async function createReport({ store, tripId, stage = 'return', download =
     if (receipt || photoSlots % 2 === 0) {
       page(receipt ? 'Fuel receipt' : 'Condition photo appendix');
       text(
-        `Times shown in ${zone}. Device-reported times and camera labels are not proof of the true capture time. Original image bytes are stored privately.`,
+        `Vehicle: ${trip.vehicleSnapshot.name}   ·   Employee: ${trip.employeeSnapshot.name}\nTimes shown in ${zone}. Device-reported times and camera labels do not verify capture time.`,
         { size: 9, color: MUTED },
       );
     }
     heading(
       `${photo.stage === 'checkout' ? 'Checkout' : 'Return'} · ${names[photo.view] || photo.view} · ${photo.source === 'camera' ? 'Camera capture' : 'Imported upload'}`,
     );
+    const caption = `Device reported: ${timestamp(photo.deviceCapturedAt, zone)}\nServer received: ${timestamp(photo.receivedAt, zone)}\nPhoto ${photo.id}`;
+    const captionHeight = doc
+      .font('Helvetica')
+      .fontSize(8)
+      .heightOfString(caption, { width, lineGap: 3 });
+    // Reserve space for the complete caption on the same page as the photograph.
+    const imageHeight = Math.min(receipt ? 450 : 180, 710 - y - captionHeight - 15);
     try {
-      doc.image(await store.evidence.read(photo.displayPath), 42, y, {
-        fit: [width, receipt ? 450 : 180],
-        align: 'center',
-        valign: 'center',
-      });
+      drawPrintablePhoto(
+        doc,
+        await store.evidence.read(photo.displayPath),
+        42,
+        y,
+        width,
+        imageHeight,
+      );
+      y += imageHeight + 6;
     } catch {
       text(
         'Photo viewing copy is unavailable. Contact an administrator; the record references the original photo below.',
       );
     }
-    y += receipt ? 456 : 186;
     photoSlots = receipt ? 0 : photoSlots + 1;
-    text(
-      `Device reported: ${timestamp(photo.deviceCapturedAt, zone)}\nServer received: ${timestamp(photo.receivedAt, zone)}\nPhoto ${photo.id}`,
-      { size: 8, color: MUTED },
-    );
+    text(caption, { size: 8, color: MUTED });
   }
   if (!relevantPhotos.length) {
     heading('Photo evidence');

@@ -1,5 +1,6 @@
 import multer from 'multer';
 import sharp from 'sharp';
+import { PHOTO_STAMP_HEIGHT } from './photo-layout.js';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { hash, now } from './store.js';
@@ -123,12 +124,12 @@ export function installPhotos(app, store) {
     const line3 = `Server received: ${formatTime(receivedAt, settings.timezone)} · ${settings.timezone}`;
     const line4 = `Employee: ${req.user.name} · Photo timestamps do not verify true capture time`;
     const svg = Buffer.from(
-      `<svg width="${width}" height="120"><rect width="100%" height="100%" fill="#102c33"/>${[line1, line2, line3, line4].map((l, i) => `<text x="16" y="${24 + i * 26}" fill="white" font-family="sans-serif" font-size="${width < 900 ? 12 : 16}">${xml(l.slice(0, 150))}</text>`).join('')}</svg>`,
+      `<svg width="${width}" height="${PHOTO_STAMP_HEIGHT}"><rect width="100%" height="100%" fill="#102c33"/>${[line1, line2, line3, line4].map((l, i) => `<text x="16" y="${24 + i * 26}" fill="white" font-family="sans-serif" font-size="${width < 900 ? 12 : 16}">${xml(l.slice(0, 150))}</text>`).join('')}</svg>`,
     );
     const stamped = await sharp(display)
       .extend({
         top: 0,
-        bottom: 120,
+        bottom: PHOTO_STAMP_HEIGHT,
         left: 0,
         right: Math.max(0, width - dims.width),
         background: '#fff',
