@@ -1,5 +1,13 @@
 # Fleet Checkout release readiness
 
+## November 18, 2026 staff testing release
+
+Fleet Checkout 1.0.2 (build 8) is available in the internal **Owner iPad Testing** group. App Store Connect reported `IN_BETA_TESTING` after assignment. The signed archive contains the UserDefaults declaration `CA92.1`. This upload was for TestFlight.
+
+Both fleetcheckout.app and the isolated review workspace run the updated staff approval, draft recovery, and form delivery features. Production checks for overdue reminders hourly. Resend reported a successful HTTP 204 response from the production webhook for a synthetic delivery. The migration retained both active production accounts.
+
+Ten native tests passed on the iPad simulator. The browser matrix passed 29 checks, including checkout, return, interrupted uploads and resuming after account switching. The previously documented WebKit offline-shell navigation case was skipped. Separate Supabase and private R2 tests passed using synthetic records. Physical iPad receipt capture remains a device test.
+
 ## November 18, 2026 update
 
 Version 1.0.0 is live. App Store Connect still shows Public under App Distribution Methods. Apple Developer Support acknowledged a follow-up about the November 9 unlisted request.
@@ -84,7 +92,7 @@ Use synthetic fleet records and a sample receipt with no unnecessary personal/pa
 4. Confirm the submitted checkout appears on the web after refresh.
 5. Return: confirm old damage marks remain read-only, add a new mark, enter a sensible higher mileage, and answer condition questions.
 6. On Photographs, tap Scan gas receipt. Test camera allow/deny, automatic edge detection, crop adjustment, multiple pages, Save and Cancel. Each saved page should appear as Receipt evidence.
-7. Interrupt networking during receipt upload; restore connectivity and retry the retained pages. Confirm no silent page loss and no submission while pages remain pending. Drafts are in-memory: keep the app open and do not force-quit during this check.
+7. Interrupt networking during receipt upload; restore connectivity and retry the retained pages. Confirm no silent page loss and no submission while pages remain pending. After the saved status appears, close the app, reopen it, and resume the same return with the same staff account. Verify the queued receipt pages still upload.
 8. Complete vehicle photos and signature, then submit. Confirm the vehicle waits for assigned review. A different assigned reviewer signs approval; vehicle becomes Available.
 9. Preview Both forms & photos and check full-size receipt pages, signatures, separate checkout/new-damage marks, employee/date filenames and configured assistant copies. Confirm receipt originals can be viewed in the web record.
 10. Change iPad appearance between light/dark while entering a draft; verify readability, retained fields and unchanged black-on-white PDF signatures. Test portrait/landscape, text size, VoiceOver, finger/Pencil input and shared-device sign-out.
