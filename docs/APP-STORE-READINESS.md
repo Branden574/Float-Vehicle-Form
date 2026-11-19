@@ -1,5 +1,15 @@
 # Fleet Checkout release readiness
 
+## November 18, 2026 passkey testing
+
+Version 1.0.2 (build 14) is available to Owner iPad Testing on iPhone and iPad. Beta App Review Information includes the following test steps.
+
+1. Open **App Review workspace** and sign in with the supplied demo credentials.
+2. Open **My profile**, select **Create a passkey**, and approve the system prompt.
+3. Sign out, select **Sign in with a review passkey**, and confirm that the same review account opens.
+
+An iPad Pro simulator completed these steps with simulated Face ID and successfully removed the test credential afterward. The review workspace and staff workspace use separate associated domains. Staff can always use an email code. Apple handles device verification, and Fleet Checkout stores the credential identifier and public key. A successful Face ID match on a physical staff device still needs confirmation.
+
 ## November 18, 2026 staff testing release
 
 Fleet Checkout 1.0.2 (build 8) is available in the internal **Owner iPad Testing** group. App Store Connect reported `IN_BETA_TESTING` after assignment. The signed archive contains the UserDefaults declaration `CA92.1`. This upload was for TestFlight.
