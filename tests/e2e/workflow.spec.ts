@@ -929,3 +929,33 @@ test('web release offers a safe refresh and confirms the new version on the next
   await expect(update).toBeHidden();
   await expect(page.getByRole('heading', { name: 'My current checkouts' })).toBeVisible();
 });
+
+test('booking times handle both occurrences of the autumn clock change and explain the spring gap', async ({
+  page,
+}) => {
+  await login(page);
+  await page.getByRole('button', { name: 'Check availability & view calendar' }).click();
+  function nextSunday(month: number, occurrence: number) {
+    const tomorrow = new Date(Date.now() + 86400000);
+    for (let year = tomorrow.getUTCFullYear(); ; year++) {
+      const firstDay = new Date(Date.UTC(year, month, 1));
+      const day = new Date(
+        Date.UTC(year, month, 1 + ((7 - firstDay.getUTCDay()) % 7) + 7 * (occurrence - 1)),
+      );
+      if (day > tomorrow) return day.toISOString().slice(0, 10);
+    }
+  }
+  const spring = nextSunday(2, 2);
+  await page.getByLabel('Pickup ·').fill(spring + 'T02:30');
+  await page.getByLabel('Expected return ·').fill(spring + 'T03:30');
+  await page.getByRole('button', { name: 'Check availability', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('clock skips');
+  const autumn = nextSunday(10, 1);
+  await page.getByLabel('Pickup ·').fill(autumn + 'T01:15');
+  await page.getByLabel('Expected return ·').fill(autumn + 'T01:15');
+  await page.getByLabel('Return clock change').selectOption('later');
+  const request = page.waitForRequest((req) => new URL(req.url()).pathname === '/api/availability');
+  await page.getByRole('button', { name: 'Check availability', exact: true }).click();
+  const received = new URL((await request).url()).searchParams;
+  expect(Date.parse(received.get('end')!) - Date.parse(received.get('start')!)).toEqual(3600000);
+});
