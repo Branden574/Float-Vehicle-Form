@@ -1,3 +1,4 @@
+import { WorkspaceDialog } from './WorkspaceDialog';
 import { useEffect, useRef, useState } from 'react';
 import { Camera, Check, ImagePlus, RotateCcw, Upload, X } from 'lucide-react';
 import { errorMessage, formatDate, uploadPhoto } from '../api';
@@ -364,47 +365,46 @@ export function PhotoCapture({
         If HEIC cannot be processed, use the camera above or export a JPEG.
       </p>
       {cameraKey && (
-        <div
-          className="modal-backdrop camera-backdrop"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Capture vehicle photograph"
+        <WorkspaceDialog
+          name="Capture vehicle photograph"
+          className="camera-modal"
+          close={() => setCameraKey(null)}
         >
-          <div className="camera-modal">
-            <div className="row between">
-              <h3>{viewLabels[slots.find((slot) => slot.key === cameraKey)?.view || 'other']}</h3>
-              <button
-                type="button"
-                className="icon-button"
-                aria-label="Close camera"
-                onClick={() => setCameraKey(null)}
-              >
-                <X />
-              </button>
-            </div>
-            {cameraError ? (
-              <div className="notice warning">{cameraError}</div>
-            ) : (
-              <video
-                ref={video}
-                autoPlay
-                muted
-                playsInline
-                onLoadedData={() => setCameraReady(true)}
-                onClick={() => video.current?.play()}
-              />
-            )}
-            <p>Keep the entire view in frame and hold the iPad steady.</p>
+          <div className="row between">
+            <h3>{viewLabels[slots.find((slot) => slot.key === cameraKey)?.view || 'other']}</h3>
             <button
               type="button"
-              className="button primary"
-              disabled={!cameraReady || !!cameraError}
-              onClick={capture}
+              className="icon-button"
+              aria-label="Close camera"
+              onClick={() => setCameraKey(null)}
             >
-              <Camera size={20} /> Capture photograph
+              <X />
             </button>
           </div>
-        </div>
+          {cameraError ? (
+            <div className="notice warning" role="alert">
+              {cameraError}
+            </div>
+          ) : (
+            <video
+              ref={video}
+              autoPlay
+              muted
+              playsInline
+              onLoadedData={() => setCameraReady(true)}
+              onClick={() => video.current?.play()}
+            />
+          )}
+          <p>Keep the entire view in frame and hold the iPad steady.</p>
+          <button
+            type="button"
+            className="button primary"
+            disabled={!cameraReady || !!cameraError}
+            onClick={capture}
+          >
+            <Camera size={20} /> Capture photograph
+          </button>
+        </WorkspaceDialog>
       )}
     </div>
   );

@@ -346,7 +346,13 @@ test('denied camera access and offline sign-out do not expose a previous draft',
   });
   await page.getByRole('button', { name: 'Take photo', exact: true }).first().click();
   await expect(page.getByText('Camera access was not granted.', { exact: false })).toBeVisible();
-  await page.getByRole('button', { name: 'Close camera', exact: true }).click();
+  const camera = page.getByRole('dialog', { name: 'Capture vehicle photograph' });
+  await expect(camera).toBeVisible();
+  await expect(camera.getByRole('heading')).toBeFocused();
+  await checkControls(page, 'Camera permission denied');
+  await page.keyboard.press('Escape');
+  await expect(camera).toBeHidden();
+
   await context.setOffline(true);
   await signOut(page);
   await expect(page.locator('.workflow')).toHaveCount(0);

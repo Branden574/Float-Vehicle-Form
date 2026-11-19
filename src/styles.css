@@ -460,6 +460,7 @@ fieldset {
   margin-left: auto;
   font-size: 0.667rem;
   background: #cfddc8;
+  color: var(--ink);
   border-radius: 5px;
   padding: 3px 6px;
 }
@@ -1552,23 +1553,17 @@ figcaption {
 .signature-field .fine {
   margin-top: 9px;
 }
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
+.camera-modal::backdrop {
   background: #15221bd9;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-  padding: 25px;
 }
 .camera-modal {
   background: var(--paper);
-  padding: 25px;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  padding: clamp(16px, 3vw, 25px);
   border-radius: 12px;
-  max-width: 740px;
-  width: 100%;
-  max-height: 95vh;
+  width: min(740px, calc(100% - 32px));
+  max-height: 90dvh;
   overflow: auto;
 }
 .camera-modal video {
@@ -2761,7 +2756,7 @@ figcaption {
   .upload-progress div {
     background: #326c5a;
   }
-  .modal-backdrop {
+  .camera-modal::backdrop {
     background: #07110de6;
   }
 }

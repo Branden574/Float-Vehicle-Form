@@ -1,3 +1,4 @@
+import { WorkspaceDialog } from './WorkspaceDialog';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   CalendarSearch,
@@ -700,7 +701,7 @@ export function VehicleCalendar({
         </div>
       </div>
       {panel && (
-        <BookingDialog
+        <WorkspaceDialog
           name={selection ? 'Reserve vehicle' : 'Check availability'}
           close={closePanel}
         >
@@ -836,10 +837,10 @@ export function VehicleCalendar({
               {formError}
             </p>
           )}
-        </BookingDialog>
+        </WorkspaceDialog>
       )}
       {detail && (
-        <BookingDialog
+        <WorkspaceDialog
           key={detail.id}
           close={() => {
             if (!busy) {
@@ -919,44 +920,8 @@ export function VehicleCalendar({
               </button>
             </div>
           )}
-        </BookingDialog>
+        </WorkspaceDialog>
       )}
     </section>
-  );
-}
-function BookingDialog({
-  children,
-  close,
-  name = 'Reservation details',
-}: {
-  children: React.ReactNode;
-  close: () => void;
-  name?: string;
-}) {
-  const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const d = ref.current;
-    d?.showModal();
-    return () => d?.close();
-  }, []);
-  useEffect(() => {
-    const title = ref.current?.querySelector('h2');
-    if (title) {
-      title.tabIndex = -1;
-      title.focus({ preventScroll: true });
-    }
-  }, [name]);
-  return (
-    <dialog
-      ref={ref}
-      className="booking-dialog"
-      aria-label={name}
-      onCancel={(e) => {
-        e.preventDefault();
-        close();
-      }}
-    >
-      {children}
-    </dialog>
   );
 }
