@@ -1,5 +1,15 @@
 # Fleet Checkout release readiness
 
+## November 18, 2026 update
+
+Version 1.0.0 is live. App Store Connect still shows Public under App Distribution Methods. Apple Developer Support acknowledged a follow-up about the November 9 unlisted request.
+
+Version 1.0.1 (build 7) is available in TestFlight for Owner iPad Testing. App Store Connect shows Waiting for Review with manual release selected. On the native sign-in screen, staff can enable **Notify me when my code is sent** and allow notifications. Fleet Checkout then shows a system banner after a successful send or resend. The code itself arrives by email.
+
+All nine native tests passed on an iPad Pro simulator. A separate UI test exercised the iPadOS notification permission prompt and observed two distinct system banners for an initial send and a resend using a simulated mail response. All five sign-in and profile API tests passed.
+
+## November 9 submission record
+
 Checked November 9, 2026. Version 1.0.0 build 6 contains the account-deletion and isolated-review features plus the corrected review navigation. Its signed archive passed and Apple confirmed the upload succeeded. Apple processing completed; build 6 is assigned to Owner iPad Testing and selected in the App Store version. Builds 3, 4 and 5 uploaded successfully but must not be selected for release because build 6 fixes both review navigation and the iPhone tab-bar layout. App Review submission `cbd32e0c-5dc2-4ef4-84c0-57f91e181445` was submitted November 9, 2026 at 2:50 PM Pacific and shows Waiting for Review. Privacy disclosures were published with owner approval; both screenshot uploads passed submission validation. The unlisted distribution request was submitted November 9, 2026; Apple displayed “Thank you for your submission” and will send a status update. The owner supplied an initial rollout of 5 staff at 1 organization, both managed and unmanaged devices, including 5 unmanaged devices. This document records evidence, not a guarantee of Apple approval.
 
 ## Release gates
