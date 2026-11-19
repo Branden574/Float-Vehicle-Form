@@ -34,6 +34,8 @@ Trip: `{id,vehicleId,employeeId,status:'pending_checkout'|'active'|'returned'|'c
 
 Inspection: `{fuelFull:boolean,interiorClean:boolean,gasCard:boolean,receiptReceived?:boolean,keyReturned?:boolean,windshield:'clear'|'star'|'cracked',damage:[{area:'front'|'rear'|'driver'|'passenger'|'roof'|'interior'|'windshield'|'wheels',type:'chip'|'dent'|'scratch',notes:string}],notes:string}`. Representative initials/signatures are separate authenticated reviews, shown as not applicable in self-service and pending until signed in review mode. Never self-sign for representative.
 
+New checkouts require an explicit boolean `inspection.emergencyKitsPresent`. A missing kit sends checkout to the existing review queue. Historical checkouts may have no answer.
+
 Signature is PNG data URL from finger canvas; acknowledgment shape `{accurate:true,noEating:true,removeBelongings:true,fullTank:true}` required on checkout; return requires accurate plus fullTank/removeBelongings (UI may send all four).
 
 Settings: `{appName,organizationName,site,timezone,accentColor,logoUrl,notificationRecipients:string[],employeeCopy:boolean,reviewMode:'self_service'|'representative',allowPhotoImports:boolean,largeMileageThreshold:number,storageLimitBytes:number,retentionDays:number,sessionMinutes:number}`. Default timezone America/Los_Angeles, name Learn4Life Fleet Checkout, no invented recipients. Retention is policy only, no automatic deletion. Four required exterior views are always required.

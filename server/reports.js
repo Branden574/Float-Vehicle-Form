@@ -46,7 +46,7 @@ export async function createReport({ store, tripId, stage = 'return', download =
   const { trip, photos, reviews, revisions } = bundle;
   const settings = trip.checkoutSettings || bundle.settings;
   const reportData = {
-    version: 7,
+    version: 8,
     templateHash,
     stage,
     trip,
@@ -200,6 +200,8 @@ export async function createReport({ store, tripId, stage = 'return', download =
     if (returning) pair('Fuel receipt received', yesNo(inspection.receiptReceived));
     pair('Interior clean', yesNo(inspection.interiorClean));
     pair(returning ? 'Gas card returned' : 'Gas card issued with key', yesNo(inspection.gasCard));
+    if (!returning)
+      pair('All assigned emergency service kits present', yesNo(inspection.emergencyKitsPresent));
     if (returning) pair('Key returned', yesNo(inspection.keyReturned));
     pair(
       'Windshield',

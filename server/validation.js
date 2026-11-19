@@ -175,6 +175,7 @@ export function inspectionFlags(i) {
   const flags = [];
   if (!i.fuelFull) flags.push('Fuel tank not full');
   if (!i.interiorClean) flags.push('Interior needs cleaning');
+  if (i.emergencyKitsPresent === false) flags.push('Emergency service kit missing');
   if (!i.gasCard) flags.push('Gas card missing');
   if (i.receiptReceived === false) flags.push('Fuel receipt missing');
   if (i.keyReturned === false) flags.push('Key not returned');

@@ -188,6 +188,17 @@ export async function originalForms({ trip, reviews, zone, stage, appendix }) {
       16,
     );
 
+    if (!returning && typeof inspection.emergencyKitsPresent === 'boolean') {
+      box(
+        'All assigned emergency service kits present: ' +
+          (inspection.emergencyKitsPresent ? 'Yes' : 'No'),
+        105,
+        805,
+        450,
+        28,
+        16,
+      );
+    }
     const separate = returning && inspection.damageScope === 'new';
     if (separate) box('C: checkout damage   N: new return damage', 105, 800, 440, 26, 15);
     const entries = [

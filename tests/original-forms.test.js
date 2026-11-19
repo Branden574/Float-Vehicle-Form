@@ -212,3 +212,25 @@ test('return form overlays immutable checkout marks and separately labels only n
   assert.ok(strings(operators(noNew, 1)).includes('No new body damage reported.'));
   assert.ok(!strings(operators(noNew, 1)).includes('N1'));
 });
+
+test('checkout front prints the recorded kit answer and preserves older unsigned fields', async () => {
+  const input = await sample();
+  for (const value of [undefined, false, true]) {
+    input.trip.checkoutInspection = { ...inspection, emergencyKitsPresent: value };
+    const bytes = await originalForms(input);
+    const pdf = await PDFDocument.load(bytes);
+    const kitLines = (page) =>
+      strings(operators(pdf, page)).filter((s) => s.includes('emergency service kits'));
+    assert.deepEqual(
+      kitLines(0),
+      value === undefined
+        ? []
+        : ['All assigned emergency service kits present: ' + (value ? 'Yes' : 'No')],
+    );
+    assert.deepEqual(kitLines(1), []);
+    if (value === false) {
+      await mkdir('artifacts', { recursive: true });
+      await writeFile('artifacts/checkout-emergency-kit-sample.pdf', bytes);
+    }
+  }
+});

@@ -138,6 +138,11 @@ test('administrator setup, staff checkout/return, photos, signatures, PDF and sh
   await page.getByLabel('Projected return date and time', { exact: true }).fill(due);
   await page.getByRole('checkbox', { name: /I compared the dashboard/ }).check();
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  const kits = page.getByRole('group', {
+    name: 'Are all emergency service kits assigned to this vehicle present?',
+  });
+  await expect(kits.getByRole('button', { name: 'Yes' })).toHaveAttribute('aria-pressed', 'false');
+  await expect(kits.getByRole('button', { name: 'No' })).toHaveAttribute('aria-pressed', 'false');
   await inspect(page);
   // An interrupted upload must remain incomplete and be explicitly retried.
   let interrupted = false;
@@ -183,6 +188,7 @@ test('administrator setup, staff checkout/return, photos, signatures, PDF and sh
   await page.route('**/api/trips/checkout', async (route) => {
     if (!firstRequest) {
       firstRequest = route.request().postData()!;
+      expect(JSON.parse(firstRequest).inspection.emergencyKitsPresent).toBe(true);
       firstKey = route.request().headers()['idempotency-key'];
       await route.abort('failed');
     } else {
@@ -209,6 +215,7 @@ test('administrator setup, staff checkout/return, photos, signatures, PDF and sh
   await expect(page.locator('.trip-total strong')).toContainText('125');
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await inspect(page);
+  await expect(kits).toHaveCount(0);
   await photos(page, 103);
   await signAndSubmit(page, true);
   await expect(

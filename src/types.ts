@@ -56,6 +56,7 @@ export type Inspection = {
   fuelFull: boolean;
   interiorClean: boolean;
   gasCard: boolean;
+  emergencyKitsPresent?: boolean;
   receiptReceived: boolean;
   keyReturned: boolean;
   windshield: 'clear' | 'star' | 'cracked';

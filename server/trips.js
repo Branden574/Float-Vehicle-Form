@@ -43,6 +43,16 @@ async function idempotency(store, req, operation) {
 const flagUnion = (...arrays) => [...new Set(arrays.flat())];
 export function installTrips(app, store, { reportService } = {}) {
   const { db } = store;
+  const kitAnswer = z.boolean({
+    error:
+      'Answer the emergency service kit question. If you cannot see it, refresh fleetcheckout.app or use the latest TestFlight build.',
+  });
+  // The separate demo fleet also serves the older binary currently in Apple review.
+  const reviewDemo =
+    process.env.REVIEW_WORKSPACE === 'true' && process.env.DATABASE_SCHEMA === 'fleet_review';
+  const checkoutInspection = inspectionSchema.extend({
+    emergencyKitsPresent: reviewDemo ? kitAnswer.optional() : kitAnswer,
+  });
   const materialize = async (tripId, stage) => {
     if (reportService) {
       try {
@@ -118,7 +128,7 @@ export function installTrips(app, store, { reportService } = {}) {
           projectedReturnAt: z.iso.datetime({ offset: true }),
           startingMileage: mileageSchema,
           mileageConfirmed: z.literal(true),
-          inspection: inspectionSchema,
+          inspection: checkoutInspection,
           photoIds: z.array(z.string().uuid()).min(4).max(30),
           signature: z.string(),
           acknowledgments: z.record(z.string(), z.boolean()),

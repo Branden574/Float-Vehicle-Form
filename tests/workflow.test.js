@@ -61,7 +61,7 @@ test('simultaneous requests from two app/database connections produce one checko
     projectedReturnAt: new Date(Date.now() + 3600000).toISOString(),
     startingMileage: 42500,
     mileageConfirmed: true,
-    inspection,
+    inspection: { ...inspection, emergencyKitsPresent: true },
     signature: sig,
     acknowledgments,
   });
@@ -197,7 +197,7 @@ test('required photo storage, retry, distinct views, originals and return freshn
     startingMileage: 42500,
     mileageConfirmed: true,
     projectedReturnAt: new Date(Date.now() + 3600000).toISOString(),
-    inspection,
+    inspection: { ...inspection, emergencyKitsPresent: true },
     acknowledgments,
     signature: await signature(),
   };
@@ -502,4 +502,22 @@ test('discrepancy, unusually large mileage, storage ceiling and archive policies
     .prepare('UPDATE settings SET data_json=? WHERE id=1')
     .run(JSON.stringify({ ...(await f.store.getSettings()), storageLimitBytes: 1 }));
   assert.equal((await f.upload(f.s, v2.id)).status, 507);
+});
+
+test('checkout requires an explicit emergency kit answer and a missing kit goes to review', async (t) => {
+  const f = await fixture(t);
+  const vehicle = await f.addVehicle();
+  const unanswered = await f.checkout(f.s, vehicle, { inspection });
+  assert.equal(unanswered.status, 400);
+  assert.match(unanswered.data.error, /emergency service kit/);
+  const missing = await f.checkout(f.s, vehicle, {
+    inspection: { ...inspection, emergencyKitsPresent: false },
+  });
+  assert.equal(missing.status, 201);
+  assert.equal(missing.data.trip.status, 'pending_checkout');
+  assert.equal(
+    (await f.store.getTrip(missing.data.trip.id)).checkoutInspection.emergencyKitsPresent,
+    false,
+  );
+  assert.ok(missing.data.trip.flags.includes('Emergency service kit missing'));
 });

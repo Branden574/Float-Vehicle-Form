@@ -218,7 +218,7 @@ function InspectionForm({
     if (index === 1) {
       const checks = returning
         ? ['fuelFull', 'interiorClean', 'gasCard', 'receiptReceived', 'keyReturned']
-        : ['fuelFull', 'interiorClean', 'gasCard'];
+        : ['fuelFull', 'interiorClean', 'gasCard', 'emergencyKitsPresent'];
       if (checks.some((key) => typeof inspection[key as keyof Inspection] !== 'boolean'))
         return 'Answer each inspection question with Yes or No.';
       if (!inspection.windshield) return 'Select the windshield condition.';
@@ -347,7 +347,12 @@ function InspectionForm({
           ['receiptReceived', 'Was the fuel receipt received?'],
           ['keyReturned', 'Were the keys returned?'],
         ] as [keyof Inspection, string][])
-      : []),
+      : ([
+          [
+            'emergencyKitsPresent',
+            'Are all emergency service kits assigned to this vehicle present?',
+          ],
+        ] as [keyof Inspection, string][])),
   ];
   return (
     <section className="workflow page-enter">
@@ -546,7 +551,15 @@ function InspectionForm({
               <div className="inspection-questions">
                 {checkQuestions.map(([key, label]) => (
                   <div className="question" key={key}>
-                    <span>{label}</span>
+                    <span>
+                      {key === 'emergencyKitsPresent' && (
+                        <>
+                          <strong>Emergency equipment</strong>
+                          <br />
+                        </>
+                      )}
+                      {label}
+                    </span>
                     <div className="yes-no" role="group" aria-label={label}>
                       {[true, false].map((value) => (
                         <button

@@ -39,7 +39,9 @@ test('submitted and reopened checkout/return retain separate damage positions an
     notes: 'Rear bumper',
     position: { x: 0.5, y: 0.92, diagram: 'vehicle-v1' },
   };
-  const c = await f.checkout(f.s, v, { inspection: { ...inspection, damage: [first] } });
+  const c = await f.checkout(f.s, v, {
+    inspection: { ...inspection, emergencyKitsPresent: true, damage: [first] },
+  });
   assert.equal(c.status, 201, JSON.stringify(c.data));
   const reviewed = await f.a.request(`/trips/${c.data.trip.id}/review`, {
     method: 'POST',

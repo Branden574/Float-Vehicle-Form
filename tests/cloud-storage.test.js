@@ -93,7 +93,7 @@ test(
         startingMileage: v.currentMileage,
         mileageConfirmed: true,
         projectedReturnAt: new Date(Date.now() + 3600000).toISOString(),
-        inspection,
+        inspection: { ...inspection, emergencyKitsPresent: true },
         acknowledgments,
         signature: await signature(),
       },

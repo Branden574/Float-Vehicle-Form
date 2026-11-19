@@ -201,7 +201,7 @@ export async function fixture(
       projectedReturnAt: new Date(Date.now() + 3600000).toISOString(),
       startingMileage: vehicle.currentMileage,
       mileageConfirmed: true,
-      inspection,
+      inspection: { ...inspection, emergencyKitsPresent: true },
       signature: await signature(),
       acknowledgments,
       ...extra,

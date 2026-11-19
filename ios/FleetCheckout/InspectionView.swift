@@ -53,6 +53,8 @@ struct InspectionView: View {
     }
     return views
   }
+  private static let kitQuestion =
+    "Are all emergency service kits assigned to this vehicle present?"
   var questions: [(String, String)] {
     var result = [
       ("fuelFull", "Fuel tank full?"), ("interiorClean", "Interior clean?"),
@@ -62,6 +64,8 @@ struct InspectionView: View {
       result += [
         ("receiptReceived", "Fuel receipt returned?"), ("keyReturned", "Vehicle key returned?"),
       ]
+    } else {
+      result.append(("emergencyKitsPresent", Self.kitQuestion))
     }
     return result
   }
@@ -253,21 +257,29 @@ struct InspectionView: View {
       }
     }
   }
+  private func conditionPicker(_ key: String, _ label: String) -> some View {
+    Picker(label, selection: Binding(get: { checks[key] ?? "" }, set: { checks[key] = $0 })) {
+      Text("Choose").tag("")
+      Text("Yes").tag("yes")
+      Text("No").tag("no")
+    }
+  }
   var inspection: some View {
     Group {
       Section("Condition checks") {
-        ForEach(questions, id: \.0) { key, label in
-          Picker(label, selection: Binding(get: { checks[key] ?? "" }, set: { checks[key] = $0 })) {
-            Text("Choose").tag("")
-            Text("Yes").tag("yes")
-            Text("No").tag("no")
-          }
+        ForEach(questions.filter { $0.0 != "emergencyKitsPresent" }, id: \.0) { key, label in
+          conditionPicker(key, label)
         }
         Picker("Windshield", selection: $windshield) {
           Text("Choose").tag("")
           Text("Clear").tag("clear")
           Text("Star / chip").tag("star")
           Text("Cracked").tag("cracked")
+        }
+      }
+      if !returning {
+        Section("Emergency equipment") {
+          conditionPicker("emergencyKitsPresent", Self.kitQuestion)
         }
       }
       Section(returning ? "New damage on return" : "Record all observed damage") {
@@ -450,7 +462,9 @@ struct InspectionView: View {
         return "Confirm the odometer and select a future return time."
       }
     }
-    if index == 1 && (questions.contains { checks[$0.0] == nil } || windshield.isEmpty) {
+    if index == 1
+      && (questions.contains { !["yes", "no"].contains(checks[$0.0] ?? "") } || windshield.isEmpty)
+    {
       return "Answer every condition question and select the windshield condition."
     }
     if index == 2
@@ -608,6 +622,7 @@ struct InspectionView: View {
       let inspection = Inspection(
         fuelFull: checks["fuelFull"] == "yes", interiorClean: checks["interiorClean"] == "yes",
         gasCard: checks["gasCard"] == "yes",
+        emergencyKitsPresent: returning ? nil : checks["emergencyKitsPresent"] == "yes",
         receiptReceived: returning ? checks["receiptReceived"] == "yes" : nil,
         keyReturned: returning ? checks["keyReturned"] == "yes" : nil, windshield: windshield,
         damage: marks, damageScope: returning ? "new" : "all", notes: notes)
