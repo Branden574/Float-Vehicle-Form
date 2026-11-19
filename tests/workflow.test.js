@@ -258,7 +258,7 @@ test('invalid mileage and damaged return hold; physical return remains completed
     body = {
       ...d,
       endingMileage: 42499,
-      inspection,
+      inspection: { ...inspection, emergencyKitsPresent: true },
       acknowledgments,
       signature: await signature(),
     };
@@ -287,7 +287,12 @@ test('invalid mileage and damaged return hold; physical return remains completed
     body: {
       ...body,
       endingMileage: 42625,
-      inspection: { ...inspection, windshield: 'cracked', fuelFull: false },
+      inspection: {
+        ...inspection,
+        emergencyKitsPresent: true,
+        windshield: 'cracked',
+        fuelFull: false,
+      },
     },
     headers: { 'Idempotency-Key': randomUUID() },
   });
@@ -437,7 +442,13 @@ test('live odometer replacement is documented and explicitly acknowledged with c
   });
   assert.equal(event.status, 201);
   const d = await f.draft(f.s, v, { stage: 'return', tripId: trip.id }),
-    body = { ...d, endingMileage: 75, inspection, signature: await signature(), acknowledgments };
+    body = {
+      ...d,
+      endingMileage: 75,
+      inspection: { ...inspection, emergencyKitsPresent: true },
+      signature: await signature(),
+      acknowledgments,
+    };
   assert.equal(
     (
       await f.s.request(`/trips/${trip.id}/return`, {

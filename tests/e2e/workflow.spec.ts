@@ -214,8 +214,10 @@ test('administrator setup, staff checkout/return, photos, signatures, PDF and sh
   await expect(page.getByLabel('Ending odometer reading', { exact: true })).toHaveValue('42625');
   await expect(page.locator('.trip-total strong')).toContainText('125');
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await expect(page.getByText('Checkout answer: Yes')).toBeVisible();
+  await expect(kits.getByRole('button', { name: 'Yes' })).toHaveAttribute('aria-pressed', 'false');
+  await expect(kits.getByRole('button', { name: 'No' })).toHaveAttribute('aria-pressed', 'false');
   await inspect(page);
-  await expect(kits).toHaveCount(0);
   await photos(page, 103);
   await signAndSubmit(page, true);
   await expect(

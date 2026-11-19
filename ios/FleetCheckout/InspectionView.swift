@@ -64,9 +64,8 @@ struct InspectionView: View {
       result += [
         ("receiptReceived", "Fuel receipt returned?"), ("keyReturned", "Vehicle key returned?"),
       ]
-    } else {
-      result.append(("emergencyKitsPresent", Self.kitQuestion))
     }
+    result.append(("emergencyKitsPresent", Self.kitQuestion))
     return result
   }
   var promises: [(String, String)] {
@@ -277,10 +276,14 @@ struct InspectionView: View {
           Text("Cracked").tag("cracked")
         }
       }
-      if !returning {
-        Section("Emergency equipment") {
-          conditionPicker("emergencyKitsPresent", Self.kitQuestion)
+      Section("Emergency equipment") {
+        if let trip {
+          LabeledContent(
+            "Checkout answer",
+            value: trip.checkoutInspection.emergencyKitsPresent.map { $0 ? "Yes" : "No" }
+              ?? "Not recorded")
         }
+        conditionPicker("emergencyKitsPresent", Self.kitQuestion)
       }
       Section(returning ? "New damage on return" : "Record all observed damage") {
         if returning {
@@ -622,7 +625,7 @@ struct InspectionView: View {
       let inspection = Inspection(
         fuelFull: checks["fuelFull"] == "yes", interiorClean: checks["interiorClean"] == "yes",
         gasCard: checks["gasCard"] == "yes",
-        emergencyKitsPresent: returning ? nil : checks["emergencyKitsPresent"] == "yes",
+        emergencyKitsPresent: checks["emergencyKitsPresent"] == "yes",
         receiptReceived: returning ? checks["receiptReceived"] == "yes" : nil,
         keyReturned: returning ? checks["keyReturned"] == "yes" : nil, windshield: windshield,
         damage: marks, damageScope: returning ? "new" : "all", notes: notes)

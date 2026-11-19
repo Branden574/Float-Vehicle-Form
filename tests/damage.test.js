@@ -55,7 +55,7 @@ test('submitted and reopened checkout/return retain separate damage positions an
   });
   assert.equal(reviewed.status, 200, JSON.stringify(reviewed.data));
   const returned = await f.returnTrip(f.s, c.data.trip, {
-    inspection: { ...inspection, damage: [second] },
+    inspection: { ...inspection, emergencyKitsPresent: true, damage: [second] },
   });
   assert.equal(returned.status, 201, JSON.stringify(returned.data));
   const saved = await f.store.getTrip(c.data.trip.id);

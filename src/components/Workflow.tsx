@@ -216,9 +216,8 @@ function InspectionForm({
         return 'Choose a projected return time in the future.';
     }
     if (index === 1) {
-      const checks = returning
-        ? ['fuelFull', 'interiorClean', 'gasCard', 'receiptReceived', 'keyReturned']
-        : ['fuelFull', 'interiorClean', 'gasCard', 'emergencyKitsPresent'];
+      const checks = ['fuelFull', 'interiorClean', 'gasCard', 'emergencyKitsPresent'];
+      if (returning) checks.push('receiptReceived', 'keyReturned');
       if (checks.some((key) => typeof inspection[key as keyof Inspection] !== 'boolean'))
         return 'Answer each inspection question with Yes or No.';
       if (!inspection.windshield) return 'Select the windshield condition.';
@@ -347,12 +346,8 @@ function InspectionForm({
           ['receiptReceived', 'Was the fuel receipt received?'],
           ['keyReturned', 'Were the keys returned?'],
         ] as [keyof Inspection, string][])
-      : ([
-          [
-            'emergencyKitsPresent',
-            'Are all emergency service kits assigned to this vehicle present?',
-          ],
-        ] as [keyof Inspection, string][])),
+      : []),
+    ['emergencyKitsPresent', 'Are all emergency service kits assigned to this vehicle present?'],
   ];
   return (
     <section className="workflow page-enter">
@@ -559,6 +554,16 @@ function InspectionForm({
                         </>
                       )}
                       {label}
+                      {key === 'emergencyKitsPresent' && trip && (
+                        <small style={{ display: 'block' }}>
+                          Checkout answer:{' '}
+                          {trip.checkoutInspection.emergencyKitsPresent === undefined
+                            ? 'Not recorded'
+                            : trip.checkoutInspection.emergencyKitsPresent
+                              ? 'Yes'
+                              : 'No'}
+                        </small>
+                      )}
                     </span>
                     <div className="yes-no" role="group" aria-label={label}>
                       {[true, false].map((value) => (

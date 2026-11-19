@@ -227,10 +227,37 @@ test('checkout front prints the recorded kit answer and preserves older unsigned
         ? []
         : ['All assigned emergency service kits present: ' + (value ? 'Yes' : 'No')],
     );
-    assert.deepEqual(kitLines(1), []);
+    assert.ok(
+      strings(operators(pdf, 1)).includes(
+        'Checkout: ' +
+          (value === undefined ? 'Not recorded' : value ? 'Yes' : 'No') +
+          '     Check-in: Not recorded',
+      ),
+    );
     if (value === false) {
       await mkdir('artifacts', { recursive: true });
       await writeFile('artifacts/checkout-emergency-kit-sample.pdf', bytes);
     }
+  }
+});
+
+test('completed check-in compares independently signed kit answers and flags only a newly reported loss', async () => {
+  const input = await sample();
+  for (const [before, after, left, right] of [
+    [true, false, 'Yes', 'No'],
+    [false, false, 'No', 'No'],
+    [false, true, 'No', 'Yes'],
+    [true, true, 'Yes', 'Yes'],
+    [undefined, false, 'Not recorded', 'No'],
+  ]) {
+    input.trip.checkoutInspection = { ...inspection, emergencyKitsPresent: before };
+    input.trip.returnInspection = { ...inspection, emergencyKitsPresent: after };
+    const pdf = await PDFDocument.load(await originalForms(input));
+    const lines = strings(operators(pdf, 1));
+    assert.ok(lines.includes('Checkout: ' + left + '     Check-in: ' + right));
+    assert.equal(
+      lines.includes('Kit newly reported missing at check-in.'),
+      before === true && after === false,
+    );
   }
 });

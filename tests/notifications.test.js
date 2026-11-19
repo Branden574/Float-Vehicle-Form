@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { fixture, signature } from './helpers.js';
+import { fixture, signature, inspection } from './helpers.js';
 import { processNotification, createEmailSender } from '../server/notifications.js';
 import { PDFDocument } from 'pdf-lib';
 import { reportFilename } from '../server/report-filename.js';
@@ -59,8 +59,18 @@ test('assistant recipients receive checkout and check-in PDFs; settings persist 
     assert.equal(receipt.status, 201);
     receiptDraft.photoIds.push(receipt.data.photo.id);
   }
-  const returned = await f.returnTrip(f.s, checkout.data.trip, receiptDraft);
+  const unanswered = await f.returnTrip(f.s, checkout.data.trip, { ...receiptDraft, inspection });
+  assert.equal(unanswered.status, 400);
+  const returned = await f.returnTrip(f.s, checkout.data.trip, {
+    ...receiptDraft,
+    inspection: { ...inspection, emergencyKitsPresent: false },
+  });
   assert.equal(returned.status, 201);
+  assert.equal(returned.data.trip.returnInspection.emergencyKitsPresent, false);
+  assert.ok(
+    returned.data.trip.flags.includes('Emergency service kit newly reported missing at check-in'),
+  );
+  assert.equal((await f.store.getVehicle(vehicle.id)).status, 'pending_review');
   const returnNotification = (await f.store.listNotifications(checkout.data.trip.id)).find(
     (row) => row.stage === 'return',
   );

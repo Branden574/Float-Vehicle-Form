@@ -199,6 +199,15 @@ export async function originalForms({ trip, reviews, zone, stage, appendix }) {
         16,
       );
     }
+    if (returning) {
+      const answer = (value) => (value === true ? 'Yes' : value === false ? 'No' : 'Not recorded');
+      const before = trip.checkoutInspection.emergencyKitsPresent;
+      const after = inspection.emergencyKitsPresent;
+      box('All assigned emergency service kits present?', 105, 966, 465, 26, 18);
+      box('Checkout: ' + answer(before) + '     Check-in: ' + answer(after), 105, 998, 465, 26, 18);
+      if (before === true && after === false)
+        box('Kit newly reported missing at check-in.', 105, 1030, 465, 26, 17);
+    }
     const separate = returning && inspection.damageScope === 'new';
     if (separate) box('C: checkout damage   N: new return damage', 105, 800, 440, 26, 15);
     const entries = [

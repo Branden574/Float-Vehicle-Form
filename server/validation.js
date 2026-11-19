@@ -171,11 +171,16 @@ export function checkAcknowledgments(v, stage) {
     fail(400, 'Please accept all acknowledgments before signing.');
   return Object.fromEntries(fields.map((f) => [f, true]));
 }
-export function inspectionFlags(i) {
+export function inspectionFlags(i, checkoutKitsPresent) {
   const flags = [];
   if (!i.fuelFull) flags.push('Fuel tank not full');
   if (!i.interiorClean) flags.push('Interior needs cleaning');
-  if (i.emergencyKitsPresent === false) flags.push('Emergency service kit missing');
+  if (i.emergencyKitsPresent === false)
+    flags.push(
+      checkoutKitsPresent === true
+        ? 'Emergency service kit newly reported missing at check-in'
+        : 'Emergency service kit missing',
+    );
   if (!i.gasCard) flags.push('Gas card missing');
   if (i.receiptReceived === false) flags.push('Fuel receipt missing');
   if (i.keyReturned === false) flags.push('Key not returned');

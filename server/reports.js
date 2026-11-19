@@ -46,7 +46,7 @@ export async function createReport({ store, tripId, stage = 'return', download =
   const { trip, photos, reviews, revisions } = bundle;
   const settings = trip.checkoutSettings || bundle.settings;
   const reportData = {
-    version: 8,
+    version: 9,
     templateHash,
     stage,
     trip,
@@ -200,8 +200,12 @@ export async function createReport({ store, tripId, stage = 'return', download =
     if (returning) pair('Fuel receipt received', yesNo(inspection.receiptReceived));
     pair('Interior clean', yesNo(inspection.interiorClean));
     pair(returning ? 'Gas card returned' : 'Gas card issued with key', yesNo(inspection.gasCard));
-    if (!returning)
-      pair('All assigned emergency service kits present', yesNo(inspection.emergencyKitsPresent));
+    if (returning)
+      pair(
+        'All assigned emergency service kits present at checkout',
+        yesNo(trip.checkoutInspection.emergencyKitsPresent),
+      );
+    pair('All assigned emergency service kits present', yesNo(inspection.emergencyKitsPresent));
     if (returning) pair('Key returned', yesNo(inspection.keyReturned));
     pair(
       'Windshield',
@@ -229,7 +233,10 @@ export async function createReport({ store, tripId, stage = 'return', download =
         `${inspection.damage.indexOf(damage) + 1}. ${names[damage.area] || damage.area} · ${damage.type}: ${damage.notes || 'No additional note'}${damage.position ? ' (marked on diagram)' : ' (area only; approximate placement)'}`,
       );
     text(inspection.notes || 'No additional inspection notes.');
-    const stageFlags = inspectionFlags(inspection);
+    const stageFlags = inspectionFlags(
+      inspection,
+      returning ? trip.checkoutInspection.emergencyKitsPresent : undefined,
+    );
     if (returning) {
       for (const flag of trip.flags.filter((flag) => /mileage|odometer/i.test(flag))) {
         if (!stageFlags.includes(flag)) stageFlags.push(flag);

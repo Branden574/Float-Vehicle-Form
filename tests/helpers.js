@@ -222,7 +222,7 @@ export async function fixture(
     const body = {
       ...d,
       endingMileage: trip.startingMileage + 125,
-      inspection,
+      inspection: { ...inspection, emergencyKitsPresent: true },
       signature: await signature(),
       acknowledgments,
       ...extra,
