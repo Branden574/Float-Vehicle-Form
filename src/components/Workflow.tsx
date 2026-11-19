@@ -136,12 +136,15 @@ function InspectionForm({
   const required = [...new Set([...requiredViews, ...(settings.requiredPhotoViews || [])])];
   const [step, setStep] = useState(initial?.step ?? 0);
   const [draftId] = useState(() => initial?.draftId ?? crypto.randomUUID());
-  const [due, setDue] = useState(() => {
-    if (initial?.due) return initial.due;
-    if (!reservation) return '';
-    const d = new Date(reservation.end);
-    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-  });
+  const reservedEnd = reservation ? new Date(reservation.end) : undefined;
+  const reservedLocal = reservedEnd
+    ? new Date(reservedEnd.getTime() - reservedEnd.getTimezoneOffset() * 60000)
+        .toISOString()
+        .slice(0, 16)
+    : '';
+  const [due, setDue] = useState(initial?.due ?? reservedLocal);
+  // A datetime-local field cannot distinguish the two occurrences of a fall-back hour.
+  const projectedReturn = reservedEnd && due === reservedLocal ? reservedEnd : new Date(due);
   const [mileage, setMileage] = useState(
     initial?.mileage ?? (returning ? '' : String(vehicle.currentMileage)),
   );
@@ -229,7 +232,7 @@ function InspectionForm({
         return 'Ending mileage cannot be below starting mileage. Contact an administrator for an odometer replacement.';
       if (!returning && !confirmed)
         return 'Compare the displayed mileage with the dashboard and confirm it.';
-      if (!returning && (!due || new Date(due) <= new Date()))
+      if (!returning && (!due || projectedReturn <= new Date()))
         return 'Choose a projected return time in the future.';
     }
     if (index === 1) {
@@ -297,7 +300,7 @@ function InspectionForm({
                 startingMileage: Number(mileage),
                 mileageConfirmed: confirmed,
                 ...(reservation ? { reservationId: reservation.id } : {}),
-                projectedReturnAt: new Date(due).toISOString(),
+                projectedReturnAt: projectedReturn.toISOString(),
               }),
           inspection,
           photoIds: photos.map((photo) => photo.id),
@@ -817,7 +820,7 @@ function InspectionForm({
                     {returning
                       ? 'Recorded on submission'
                       : due
-                        ? formatDate(new Date(due).toISOString(), settings.timezone)
+                        ? formatDate(projectedReturn.toISOString(), settings.timezone)
                         : '—'}
                   </strong>
                   <small>{settings.timezone}</small>
