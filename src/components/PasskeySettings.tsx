@@ -34,9 +34,7 @@ export function PasskeySettings() {
       const r = await api<{ count: number }>('/auth/passkeys');
       setCount(r.count);
       setMessage(
-        remove
-          ? 'Passkeys removed.'
-          : 'Passkey saved. You can now sign in without entering your email.',
+        remove ? 'Passkeys removed.' : 'Passkey saved. Next time, choose Sign in with a passkey.',
       );
     } catch (e) {
       setMessage(errorMessage(e));
@@ -48,8 +46,9 @@ export function PasskeySettings() {
     <section>
       <h2>Passkey sign-in</h2>
       <p>
-        Save a passkey in your personal password manager to sign in with your device’s screen lock.
-        On a shared device, use your own phone or email code.
+        Choose Create a passkey, select your personal password manager (Passwords on iPhone or
+        iPad), and confirm with your device’s screen lock. On a shared device, use your own phone or
+        email code.
       </p>
       <div className="action-group">
         <button className="button secondary" disabled={busy} onClick={() => void change(false)}>

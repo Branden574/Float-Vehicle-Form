@@ -38,9 +38,9 @@ private struct BookingBadge: View {
   private var hue: Color {
     switch status {
     case "available", "returned": return Color("FleetAccent")
-    case "reserved", "active", "checked_out", "picked_up": return .blue
-    case "pending_checkout", "pending_review": return .orange
-    case "out_of_service", "rejected": return .red
+    case "reserved", "active", "checked_out", "picked_up": return Color("FleetActive")
+    case "pending_checkout", "pending_review": return Color("FleetWarning")
+    case "out_of_service", "rejected": return Color("FleetError")
     default: return .secondary
     }
   }
@@ -133,7 +133,7 @@ struct ReservationCalendar: View {
           }
         }
         if !message.isEmpty { Text(message).font(.callout).accessibilityAddTraits(.isStaticText) }
-        if !error.isEmpty && !panel { Text(error).foregroundStyle(.red) }
+        if !error.isEmpty && !panel { Text(error).foregroundStyle(Color("FleetError")) }
         if size == .regular && !typeSize.isAccessibilitySize {
           HStack(alignment: .top, spacing: 24) {
             schedule.frame(maxWidth: .infinity)
@@ -182,7 +182,7 @@ struct ReservationCalendar: View {
               Text(interval(start, end))
               Text(zoneName).font(.subheadline).foregroundStyle(.secondary)
               Text(store.session?.user.name ?? "")
-              if !error.isEmpty { Text(error).foregroundStyle(.red) }
+              if !error.isEmpty { Text(error).foregroundStyle(Color("FleetError")) }
               primary("Reserve vehicle", icon: "calendar.badge.plus") {
                 Task { await reserve(selected) }
               }.disabled(busy)
@@ -203,7 +203,7 @@ struct ReservationCalendar: View {
               primary(checking ? "Checking…" : "Check availability", icon: "magnifyingglass") {
                 Task { await check() }
               }.disabled(checking)
-              if !error.isEmpty { Text(error).foregroundStyle(.red) }
+              if !error.isEmpty { Text(error).foregroundStyle(Color("FleetError")) }
               if let checked {
                 Divider()
                 Text("Results").font(.title3.bold()).accessibilityAddTraits(.isHeader)
@@ -385,7 +385,7 @@ struct ReservationCalendar: View {
         Picker("Calendar view", selection: $mode) { viewOptions }.pickerStyle(.segmented)
       }
       if !loadError.isEmpty {
-        Text(loadError).foregroundStyle(.red)
+        Text(loadError).foregroundStyle(Color("FleetError"))
         Button("Retry calendar") { refreshID = UUID() }
       } else if let events {
         if mode == "Agenda" {
@@ -560,7 +560,9 @@ struct ReservationCalendar: View {
           Text(r.site + (r.owner.map { " · " + $0 } ?? "")).font(.footnote).foregroundStyle(
             .secondary)
           BookingBadge(status: r.status)
-          if r.ongoing == true { Text("Overdue").font(.caption.bold()).foregroundStyle(.orange) }
+          if r.ongoing == true {
+            Text("Overdue").font(.caption.bold()).foregroundStyle(Color("FleetWarning"))
+          }
         }
         Spacer()
         Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
@@ -677,7 +679,7 @@ private struct BookingDetail: View {
           }
           if let r = booking.reason, !r.isEmpty { Text(r) }
         }
-        if !error.isEmpty { Text(error).foregroundStyle(.red) }
+        if !error.isEmpty { Text(error).foregroundStyle(Color("FleetError")) }
         if cancel {
           Section("Cancel reservation?") {
             Text("Canceling releases this vehicle for the dates and times shown.")

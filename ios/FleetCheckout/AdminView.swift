@@ -322,7 +322,7 @@ struct StaffEditor: View {
         Text("Administrator").tag("admin")
       }.onChange(of: role) { _, role in if role == "admin" { approved = true } }
       TextField("Reason for this change", text: $reason, axis: .vertical)
-      if !error.isEmpty { Text(error).foregroundStyle(.red) }
+      if !error.isEmpty { Text(error).foregroundStyle(Color("FleetError")) }
       Button(busy ? "Saving…" : "Save access") {
         Task {
           busy = true
@@ -367,14 +367,14 @@ struct VehicleEditor: View {
   @State private var busy = false
   var body: some View {
     Form {
-      TextField("Vehicle name", text: $name)
-      TextField("Make", text: $make)
-      TextField("Model", text: $model)
-      TextField("Year", text: $year).keyboardType(.numberPad)
-      TextField("Plate", text: $plate)
-      TextField("VIN last 4", text: $vin)
-      TextField("Site", text: $site)
-      TextField("Odometer", text: $mileage).keyboardType(.numberPad).disabled(vehicle != nil)
+      FleetTextField("Vehicle name", text: $name)
+      FleetTextField("Make", text: $make)
+      FleetTextField("Model", text: $model)
+      FleetTextField("Year", text: $year).keyboardType(.numberPad)
+      FleetTextField("Plate", text: $plate)
+      FleetTextField("VIN last 4", text: $vin)
+      FleetTextField("Site", text: $site)
+      FleetTextField("Odometer", text: $mileage).keyboardType(.numberPad).disabled(vehicle != nil)
       if vehicle != nil {
         Text("Mileage corrections require documented review in the web administration dashboard.")
           .font(.footnote)
@@ -385,9 +385,9 @@ struct VehicleEditor: View {
             + (vehicle?.status == "checked_out" ? ["checked_out"] : []), id: \.self
         ) { Text(humanize($0)).tag($0) }
       }.disabled(vehicle?.status == "checked_out")
-      TextField("Notes", text: $notes, axis: .vertical)
-      if vehicle != nil { TextField("Reason for this change", text: $reason, axis: .vertical) }
-      if !error.isEmpty { Text(error).foregroundStyle(.red) }
+      FleetTextField("Notes", text: $notes, axis: .vertical)
+      if vehicle != nil { FleetTextField("Reason for this change", text: $reason, axis: .vertical) }
+      if !error.isEmpty { Text(error).foregroundStyle(Color("FleetError")) }
       Button(busy ? "Saving…" : "Save vehicle") { Task { await save() } }.disabled(
         busy || name.isEmpty || make.isEmpty || model.isEmpty || plate.isEmpty || vin.count != 4
           || site.isEmpty || (vehicle != nil && reason.count < 5))
@@ -446,14 +446,14 @@ struct ReviewView: View {
         Text("Approve / release").tag("approve")
         Text("Take out of service").tag("out_of_service")
       }
-      TextField("Initials", text: $initials)
-      TextField("Reason", text: $reason, axis: .vertical)
+      FleetTextField("Initials", text: $initials)
+      FleetTextField("Reason", text: $reason, axis: .vertical)
       SignaturePad(signature: $signature, clearID: clearID).frame(height: 180)
       Button("Clear signature") {
         signature = ""
         clearID = UUID()
       }
-      if !error.isEmpty { Text(error).foregroundStyle(.red) }
+      if !error.isEmpty { Text(error).foregroundStyle(Color("FleetError")) }
       Button(busy ? "Saving…" : "Save signed review") {
         Task {
           busy = true

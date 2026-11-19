@@ -203,6 +203,8 @@ struct SignInView: View {
                 Label("Sign in with a passkey", systemImage: "person.badge.key").frame(
                   maxWidth: .infinity)
               }.buttonStyle(.bordered).controlSize(.large).disabled(busy)
+              Text("First time? Sign in by email below, then open My profile → Create a passkey.")
+                .font(.footnote).foregroundStyle(.secondary)
             }
             TextField("Work email", text: $email).keyboardType(.emailAddress).textContentType(
               .emailAddress
@@ -219,7 +221,10 @@ struct SignInView: View {
               ).textFieldStyle(.roundedBorder).accessibilityIdentifier("code")
                 .focused($codeFocused)
                 .onAppear { codeFocused = true }
-                .onChange(of: code) { _, value in code = String(value.filter(\.isNumber).prefix(6))
+                .onChange(of: code) { _, value in
+                  let digits = String(value.filter(\.isNumber).prefix(6))
+                  if code != digits { code = digits }
+                  if digits.count == 6 { codeFocused = false }
                 }
               Text("Check your inbox or spam folder. Your code expires in 10 minutes.").font(
                 .footnote
@@ -234,8 +239,8 @@ struct SignInView: View {
               Text(message).font(.callout).foregroundStyle(.tint).accessibilityAddTraits(
                 .updatesFrequently)
             }
-            if !error.isEmpty { Text(error).foregroundStyle(.red) }
-            if !store.error.isEmpty { Text(store.error).foregroundStyle(.red) }
+            if !error.isEmpty { Text(error).foregroundStyle(Color("FleetError")) }
+            if !store.error.isEmpty { Text(store.error).foregroundStyle(Color("FleetError")) }
             TimelineView(.periodic(from: .now, by: 1)) { timeline in
               let remaining = max(0, Int(ceil(cooldown.timeIntervalSince(timeline.date))))
               let unavailable =
@@ -271,11 +276,15 @@ struct SignInView: View {
               }
             }
           }.padding(24).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24))
-          Button("App Review workspace") { showingReview = true }.font(.footnote)
+          Button {
+            showingReview = true
+          } label: {
+            Text("App Review workspace").frame(minHeight: 44)
+          }.font(.footnote)
             .fullScreenCover(isPresented: $showingReview) { ReviewWorkspaceView() }
-          HStack {
-            Link("Privacy policy", destination: FleetAPI.origin.appendingPathComponent("privacy"))
-            Link("Support", destination: FleetAPI.origin.appendingPathComponent("support"))
+          ViewThatFits(in: .horizontal) {
+            HStack(spacing: 16) { supportLinks }.fixedSize(horizontal: true, vertical: false)
+            VStack(alignment: .leading, spacing: 8) { supportLinks }
           }.font(.footnote)
           Label("Your account. Your signature.", systemImage: "lock.shield").font(.footnote)
             .foregroundStyle(.secondary)
@@ -284,6 +293,15 @@ struct SignInView: View {
           ).font(.footnote).foregroundStyle(.secondary)
         }.padding(32).frame(maxWidth: 560).frame(maxWidth: .infinity)
       }.navigationTitle("Fleet Checkout").navigationBarTitleDisplayMode(.inline)
+        .scrollDismissesKeyboard(.interactively)
+        .toolbar {
+          if codeFocused {
+            ToolbarItemGroup(placement: .keyboard) {
+              Spacer()
+              Button("Done") { codeFocused = false }
+            }
+          }
+        }
         .onDisappear { clearNotice() }
     }
   }
@@ -292,6 +310,14 @@ struct SignInView: View {
     noticeTask = nil
     alertsDenied = false
     SignInNotice.clear()
+  }
+  @ViewBuilder private var supportLinks: some View {
+    Link(destination: FleetAPI.origin.appendingPathComponent("privacy")) {
+      Text("Privacy policy").frame(minHeight: 44)
+    }
+    Link(destination: FleetAPI.origin.appendingPathComponent("support")) {
+      Text("Support").frame(minHeight: 44)
+    }
   }
   func sendCode(resend: Bool = false) async {
     guard !busy, Date() >= cooldown else { return }

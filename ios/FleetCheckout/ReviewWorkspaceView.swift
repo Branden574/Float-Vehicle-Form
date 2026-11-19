@@ -58,7 +58,7 @@ struct ReviewSignInView: View {
           .username
         ).textInputAutocapitalization(.never).autocorrectionDisabled()
         SecureField("Review password", text: $password).textContentType(.password)
-        if !error.isEmpty { Text(error).foregroundStyle(.red) }
+        if !error.isEmpty { Text(error).foregroundStyle(Color("FleetError")) }
         Button(busy ? "Signing in…" : "Sign in to review workspace") {
           Task {
             busy = true

@@ -214,25 +214,30 @@ function Login({
             </p>
           )}
           {!token && !challenge && supportsPasskeys() && (
-            <button
-              className="button secondary wide"
-              disabled={busy || signingOut}
-              onClick={async () => {
-                setBusy(true);
-                setError('');
-                try {
-                  const result = await signInWithPasskey();
-                  localStorage.removeItem('fleet-signout-pending');
-                  onSession(result);
-                } catch (e) {
-                  setError(errorMessage(e));
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            >
-              Sign in with a passkey
-            </button>
+            <>
+              <button
+                className="button secondary wide"
+                disabled={busy || signingOut}
+                onClick={async () => {
+                  setBusy(true);
+                  setError('');
+                  try {
+                    const result = await signInWithPasskey();
+                    localStorage.removeItem('fleet-signout-pending');
+                    onSession(result);
+                  } catch (e) {
+                    setError(errorMessage(e));
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                Sign in with a passkey
+              </button>
+              <p className="passkey-hint">
+                First time? Sign in by email below, then open My profile → Create a passkey.
+              </p>
+            </>
           )}
           <form onSubmit={submit}>
             {!token && (

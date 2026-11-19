@@ -6,8 +6,9 @@ export async function checkControls(page: Page, screen: string) {
     const width = document.documentElement.clientWidth;
     if (document.documentElement.scrollWidth > width + 1)
       issues.push('Page overflows horizontally');
+    const scope = document.querySelector('dialog[open]') || document;
     const controls = [
-      ...document.querySelectorAll<HTMLElement>('button, a.button, label.file-button, nav a'),
+      ...scope.querySelectorAll<HTMLElement>('button, a.button, label.file-button, nav a'),
     ].filter((el) => el.getBoundingClientRect().height > 0);
     const label = (el: HTMLElement) =>
       (el.getAttribute('aria-label') || el.innerText).trim().slice(0, 55);
@@ -24,7 +25,9 @@ export async function checkControls(page: Page, screen: string) {
         const b = next.getBoundingClientRect();
         const dx = Math.max(a.left - b.right, b.left - a.right);
         const dy = Math.max(a.top - b.bottom, b.top - a.bottom);
-        if (Math.max(dx, dy) < 6.5) issues.push(label(el) + ' crowds ' + label(next));
+        // Adjacent dates form a single aligned seven-column calendar.
+        const minGap = el.matches('.calendar-date') && next.matches('.calendar-date') ? -0.5 : 6.5;
+        if (Math.max(dx, dy) < minGap) issues.push(label(el) + ' crowds ' + label(next));
       }
     }
     return issues;

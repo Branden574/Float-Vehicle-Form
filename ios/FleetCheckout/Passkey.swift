@@ -103,7 +103,16 @@ extension FleetAPI {
       authorization = try await prompt.present(request)
     } catch let error as ASAuthorizationError {
       if error.code == .canceled {
-        throw FleetError(message: "Passkey request canceled.")
+        if registering {
+          throw FleetError(message: "Setup canceled. Tap Create a passkey to try again.")
+        }
+        if isReview {
+          throw FleetError(message: "Sign-in canceled. You can use your review password.")
+        }
+        throw FleetError(
+          message:
+            "Sign-in canceled. To set up your first passkey, sign in by email and open My profile → Create a passkey."
+        )
       }
       let fallback = isReview ? "your review password" : "an email code"
       throw FleetError(

@@ -5,6 +5,7 @@ import SwiftUI
 import VisionKit
 
 struct InspectionView: View {
+  @Environment(\.dynamicTypeSize) private var textSize
   @EnvironmentObject var store: FleetStore
   @Environment(\.dismiss) private var dismiss
   let vehicle: Vehicle
@@ -89,11 +90,24 @@ struct InspectionView: View {
       ))
     return result
   }
+  private func inspectionMessage<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+    ScrollView {
+      VStack(spacing: 16, content: content)
+        .multilineTextAlignment(.center)
+        .controlSize(.large)
+        .frame(maxWidth: 520)
+        .frame(maxWidth: .infinity)
+        .padding(24)
+    }
+    .defaultScrollAnchor(.center, for: .alignment)
+  }
+
   var body: some View {
     Group {
       if let completed {
-        VStack(spacing: 20) {
-          Image(systemName: "checkmark.seal.fill").font(.system(size: 64)).foregroundStyle(.green)
+        inspectionMessage {
+          Image(systemName: "checkmark.seal.fill").font(.system(size: 64)).foregroundStyle(
+            Color("FleetAccent"))
           Text(returning ? "Return recorded" : "Checkout recorded").font(.largeTitle.bold())
           Text(
             completed.status == "pending_checkout"
@@ -104,27 +118,41 @@ struct InspectionView: View {
             .font(.footnote).foregroundStyle(.secondary)
           Button("Done") { dismiss() }.buttonStyle(.borderedProminent).foregroundStyle(
             Color("FleetOnAccent"))
-        }.padding(32)
+        }
       } else if unlocking {
         ProgressView("Opening your private draft…")
       } else if let saved {
-        VStack(spacing: 16) {
+        inspectionMessage {
           Text("Resume inspection").font(.title.bold())
           Text("You have an unfinished \(stage) for \(vehicle.name) on this device.")
+          if !error.isEmpty { Text(error).foregroundStyle(Color("FleetError")) }
           Button("Resume inspection") {
             restore(saved)
             self.saved = nil
-          }
+          }.buttonStyle(.borderedProminent).foregroundStyle(Color("FleetOnAccent"))
           if saved.pendingBody == nil {
-            Button("Discard draft", role: .destructive) { cancel = true }
+            Button("Discard draft", role: .destructive) { cancel = true }.buttonStyle(.bordered)
+              .confirmationDialog(
+                "Discard this unfinished inspection?", isPresented: $cancel,
+                titleVisibility: .visible
+              ) {
+                Button("Discard draft", role: .destructive) {
+                  do {
+                    try vault?.remove()
+                    finished = true
+                    dismiss()
+                  } catch { self.error = error.localizedDescription }
+                }
+              }
           }
-          Button("Back to fleet") { dismiss() }
-        }.padding()
+          Button("Back to fleet") { dismiss() }.buttonStyle(.bordered)
+        }
       } else if vault == nil {
-        VStack(spacing: 16) {
+        inspectionMessage {
           Text(error)
           Button("Retry opening inspection") { Task { await unlock() } }
-          Button("Back to fleet") { dismiss() }
+            .buttonStyle(.borderedProminent).foregroundStyle(Color("FleetOnAccent"))
+          Button("Back to fleet") { dismiss() }.buttonStyle(.bordered)
         }
       } else {
         Form {
@@ -141,7 +169,8 @@ struct InspectionView: View {
           }
           Text(draftStatus).font(.footnote).foregroundStyle(.secondary)
           if !error.isEmpty {
-            Text(error).foregroundStyle(.red).accessibilityIdentifier("workflowError")
+            Text(error).foregroundStyle(Color("FleetError")).accessibilityIdentifier(
+              "workflowError")
           }
           Group {
             if step == 0 { tripDetails }
@@ -152,7 +181,7 @@ struct InspectionView: View {
           if pendingBody != nil {
             Text(
               "Submission status is uncertain. Retry the same submission to check its status."
-            ).foregroundStyle(.orange)
+            ).foregroundStyle(Color("FleetWarning"))
           }
           Section {
             if step < 3 {
@@ -164,13 +193,16 @@ struct InspectionView: View {
                 } else {
                   error = issue
                 }
-              }.disabled(busy || loadingPhoto)
+              }.buttonStyle(.borderedProminent).foregroundStyle(Color("FleetOnAccent"))
+                .controlSize(.large).disabled(busy || loadingPhoto)
             } else {
               Button(
                 busy
                   ? "Saving…"
                   : pendingBody != nil ? "Retry same submission" : "Sign & submit \(stage)"
-              ) { Task { await submit() } }.disabled(busy || loadingPhoto)
+              ) { Task { await submit() } }.buttonStyle(.borderedProminent)
+                .foregroundStyle(Color("FleetOnAccent")).controlSize(.large).disabled(
+                  busy || loadingPhoto)
             }
             if step > 0 {
               Button("Back") {
@@ -190,17 +222,6 @@ struct InspectionView: View {
         }
       }
       .interactiveDismissDisabled(completed == nil)
-      .confirmationDialog(
-        "Discard this unfinished inspection?", isPresented: $cancel
-      ) {
-        Button("Discard draft", role: .destructive) {
-          do {
-            try vault?.remove()
-            finished = true
-            dismiss()
-          } catch { self.error = error.localizedDescription }
-        }
-      }
       .task { if vault == nil { await unlock() } }
       .onChange(of: snapshot) { _, _ in if !unlocking && saved == nil && !finished { _ = persist() }
       }
@@ -237,7 +258,7 @@ struct InspectionView: View {
     Section("Odometer & return time") {
       if let trip {
         LabeledContent("Starting mileage", value: trip.startingMileage.formatted())
-        TextField("Ending odometer reading", text: $mileage).keyboardType(.numberPad)
+        FleetTextField("Ending odometer reading", text: $mileage).keyboardType(.numberPad)
         if let value = Int(mileage) {
           LabeledContent("Calculated trip miles", value: trip.distance(ending: value).formatted())
         }
@@ -312,9 +333,14 @@ struct InspectionView: View {
             id: \.self
           ) { Text(humanize($0)).tag($0) }
         }
-        Picker("Damage type", selection: $damageType) {
+        let types = Picker("Damage type", selection: $damageType) {
           ForEach(["chip", "dent", "scratch"], id: \.self) { Text(humanize($0)).tag($0) }
-        }.pickerStyle(.segmented)
+        }
+        if textSize.isAccessibilitySize {
+          types.pickerStyle(.menu)
+        } else {
+          types.pickerStyle(.segmented)
+        }
         Text("Tap the vehicle exactly where the damage is.").font(.footnote)
         DamageDiagram(
           marks: $marks, previous: trip?.checkoutInspection.damage ?? [], selectedArea: area,
@@ -328,8 +354,8 @@ struct InspectionView: View {
               Button(role: .destructive) {
                 marks.remove(at: index)
               } label: {
-                Image(systemName: "trash")
-              }.accessibilityLabel("Remove damage \(index + 1)")
+                Image(systemName: "trash").frame(minWidth: 44, minHeight: 44)
+              }.buttonStyle(.borderless).accessibilityLabel("Remove damage \(index + 1)")
             }
             TextField("Damage notes", text: $marks[index].notes, axis: .vertical)
           }
@@ -395,7 +421,7 @@ struct InspectionView: View {
         Button("Take photo", systemImage: "camera") { camera = true }.disabled(
           busy || photos.count >= 30)
       } else {
-        Text("The simulator has no camera. Camera capture must also be tested on a real iPad.")
+        Text("Camera capture is unavailable on this device.")
           .font(.footnote).foregroundStyle(.secondary)
       }
       if store.session?.settings.allowPhotoImports == true {
@@ -405,19 +431,13 @@ struct InspectionView: View {
       }
       if busy || loadingPhoto { ProgressView("Storing photos and receipt pages…") }
       ForEach(photos) { photo in
-        HStack {
-          Label(humanize(photo.view), systemImage: "checkmark.circle.fill").foregroundStyle(.green)
-          Spacer()
-          Button("Preview") {
-            Task {
-              busy = true
-              defer { busy = false }
-              do { preview = try await store.api.file(photo.url, name: "\(photo.id).jpg") } catch {
-                self.error = error.localizedDescription
-              }
-            }
+        VStack(alignment: .leading, spacing: 8) {
+          Label(humanize(photo.view), systemImage: "checkmark.circle.fill")
+            .foregroundStyle(Color("FleetAccent"))
+          ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) { photoActions(photo) }.fixedSize(horizontal: true, vertical: false)
+            VStack(alignment: .leading, spacing: 8) { photoActions(photo) }
           }
-          Button("Remove", role: .destructive) { photos.removeAll { $0.id == photo.id } }
         }
       }
     } header: {
@@ -502,6 +522,29 @@ struct InspectionView: View {
     }
     return ""
   }
+  @ViewBuilder private func photoActions(_ photo: FleetPhoto) -> some View {
+    Button {
+      Task {
+        busy = true
+        defer { busy = false }
+        do { preview = try await store.api.file(photo.url, name: "\(photo.id).jpg") } catch {
+          self.error = error.localizedDescription
+        }
+      }
+    } label: {
+      Text("Preview").frame(minHeight: 32)
+    }
+    .buttonStyle(.bordered)
+    .accessibilityLabel("Preview \(humanize(photo.view)) photo")
+    Button(role: .destructive) {
+      photos.removeAll { $0.id == photo.id }
+    } label: {
+      Text("Remove").frame(minHeight: 32)
+    }
+    .buttonStyle(.bordered)
+    .accessibilityLabel("Remove \(humanize(photo.view)) photo")
+  }
+
   var snapshot: InspectionDraft {
     InspectionDraft(
       draftID: draftID, step: step, mileage: mileage, due: due, confirmed: confirmed,

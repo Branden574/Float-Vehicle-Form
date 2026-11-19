@@ -223,7 +223,9 @@ test('administrator setup, staff checkout/return, photos, signatures, PDF and sh
   await page.getByRole('button', { name: 'Resume inspection' }).click();
   await page.getByRole('button', { name: 'Retry submission' }).click();
   await expect(page.getByText('Checkout confirmed. Your vehicle is ready to use.')).toBeVisible();
+  await checkControls(page, 'Active trip');
   await page.getByRole('button', { name: 'Return vehicle', exact: true }).click();
+  await checkControls(page, 'Return odometer');
   await page.getByLabel('Ending odometer reading', { exact: true }).fill('42625');
   await page.getByRole('button', { name: 'Save & exit' }).click();
   await page.getByRole('button', { name: 'Resume return' }).click();
@@ -240,9 +242,12 @@ test('administrator setup, staff checkout/return, photos, signatures, PDF and sh
   await page.getByLabel('Windshield condition').selectOption('clear');
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await expect(page.getByText('Name the missing emergency kit or kits.')).toBeVisible();
+  await checkControls(page, 'Return missing equipment');
   await kitNames.fill('Roadside kit');
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await checkControls(page, 'Return photographs');
   await photos(page, 103);
+  await checkControls(page, 'Return signature');
   await signAndSubmit(page, true);
   await expect(
     page.getByText(
@@ -265,6 +270,10 @@ test('administrator setup, staff checkout/return, photos, signatures, PDF and sh
   await expect(page.locator('.vehicle-mileage strong')).toHaveText('42,625');
   await expect(page.locator('.vehicle-row .status')).toHaveText('Pending Review');
   await page.getByRole('button', { name: `Review ${name} ·`, exact: false }).click();
+  const correction = page.getByRole('button', { name: 'Document a mileage correction' });
+  await correction.click();
+  await checkControls(page, 'Mileage correction');
+  await correction.click();
   await page.getByRole('button', { name: 'Review return as', exact: false }).click();
   await checkControls(page, 'Return review');
   await page.getByLabel('Your representative initials').fill('QA');
@@ -606,6 +615,7 @@ test('email codes create and remember an encrypted profile on a shared device', 
   await signOut(page);
   await codeLogin();
   await expect(page.getByRole('heading', { name: 'Welcome. Tell us about you.' })).toBeVisible();
+  await checkControls(page, 'First-time profile');
   await page.getByLabel('Full name').fill('Profile Test Driver');
   await page.getByLabel('Charter / school').fill('QA Saved Charter');
   await page.getByLabel('Manager', { exact: true }).fill('QA Manager');
@@ -688,7 +698,7 @@ test('sign-in offers resend after 60 seconds and clears the old code', async ({ 
   await page.clock.fastForward(1000);
   await page.getByRole('button', { name: 'Resend code', exact: true }).click();
   await expect(page.getByLabel('One-time code')).toHaveValue('');
-  await expect(page.getByRole('status')).toContainText('Use the newest email');
+  await expect(page.getByRole('status').filter({ hasText: 'Use the newest email' })).toBeVisible();
   await expect(page.getByRole('button', { name: /Resend code in/ })).toBeDisabled();
   expect(requests).toBe(2);
 });
@@ -769,6 +779,14 @@ test('page controls have usable spacing across the staff workspace and public pa
       await page.getByRole('tab', { name: tab, exact: true }).click();
       await expect(page.locator('.storage-panel')).toBeVisible();
       await checkControls(page, tab);
+      if (
+        tab === 'Vehicles' &&
+        (await page.getByRole('button', { name: 'Edit vehicle' }).count())
+      ) {
+        await page.getByRole('button', { name: 'Edit vehicle' }).first().click();
+        await page.getByLabel('This correction documents an odometer replacement').check();
+        await checkControls(page, 'Edit vehicle and odometer replacement');
+      }
       if (tab === 'Staff' || tab === 'Vehicles') {
         await page
           .getByRole('button', {
@@ -807,6 +825,7 @@ test('a personal passkey signs its owner in without an email and can be removed'
   });
   await login(page, 'driver@example.test');
   await page.getByRole('button', { name: 'My profile' }).click();
+  await expect(page.getByText(/select your personal password manager/)).toBeVisible();
   await page.getByRole('button', { name: 'Create a passkey' }).click();
   await expect(page.getByRole('status')).toContainText('Passkey saved');
   await page.getByRole('button', { name: 'Sign out', exact: true }).click();
@@ -858,11 +877,15 @@ test('staff can book, see calendar details, cancel, and defer a workspace update
     .getByRole('dialog', { name: 'Check availability' })
     .getByRole('button', { name: 'Check availability', exact: true })
     .click();
+  await checkControls(page, 'Availability results');
   await page.getByRole('button', { name: 'Select vehicle' }).first().click();
+  await checkControls(page, 'Reservation form');
   await page.getByRole('button', { name: 'Reserve vehicle', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Reservation details' });
   await expect(dialog).toBeVisible();
+  await checkControls(page, 'Reservation details');
   await dialog.getByRole('button', { name: 'Cancel reservation' }).click();
+  await checkControls(page, 'Cancel reservation');
   await dialog.getByRole('button', { name: 'Keep reservation' }).click();
   await dialog.getByRole('button', { name: 'Cancel reservation' }).click();
   await dialog.getByLabel('Reason (optional)').fill('Test itinerary changed');
@@ -875,6 +898,7 @@ test('staff can book, see calendar details, cancel, and defer a workspace update
   await page.getByRole('button', { name: 'Week', exact: true }).click();
   await page.getByRole('button', { name: 'Month', exact: true }).click();
   await page.getByRole('button', { name: 'Agenda', exact: true }).click();
+  await checkControls(page, 'Agenda schedule');
   await expect(page.getByText('No bookings in this period.')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await expect(page.getByRole('button', { name: 'Agenda', pressed: true })).toBeVisible();
@@ -891,6 +915,7 @@ test('staff can book, see calendar details, cancel, and defer a workspace update
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   const banner = page.getByRole('complementary', { name: 'App update' });
   await expect(banner).toBeVisible();
+  await checkControls(page, 'App update notice');
   await banner.getByRole('button', { name: 'Refresh now' }).click();
   await expect(banner).toContainText('Finish or leave the open form first');
   await banner.getByRole('button', { name: 'Later' }).click();
@@ -987,6 +1012,7 @@ test('calendar browsing, scope changes and closed panels preserve the right inte
   const pick = page.getByRole('combobox', { name: 'Vehicle', exact: true });
   await page.getByRole('combobox', { name: 'Site', exact: true }).selectOption(site);
   await pick.selectOption({ label: name });
+  await checkControls(page, 'Month schedule');
   await expect(page.getByRole('button', { name: 'Month', pressed: true })).toBeVisible();
   const today = page.locator('[data-calendar-day][aria-current="date"]');
   await expect(today).toBeVisible();
@@ -1002,6 +1028,7 @@ test('calendar browsing, scope changes and closed panels preserve the right inte
   await page.getByRole('button', { name: 'Next', exact: true }).click();
   await page.getByRole('button', { name: 'Today', exact: true }).click();
   await page.getByRole('button', { name: 'Week', exact: true }).click();
+  await checkControls(page, 'Week schedule');
   await expect(page.getByLabel('Week schedule')).toBeVisible();
   await page.getByRole('button', { name: 'Check availability', exact: true }).click();
   const panel = page.getByRole('dialog', { name: 'Check availability' });
@@ -1024,6 +1051,7 @@ test('calendar browsing, scope changes and closed panels preserve the right inte
     r.fulfill({ status: 503, json: { error: 'Availability is temporarily unavailable.' } }),
   );
   await panel.getByRole('button', { name: 'Check availability', exact: true }).click();
+  await checkControls(page, 'Availability service error');
   await expect(panel.getByRole('alert')).toContainText('temporarily unavailable');
   await expect(panel.getByRole('button', { name: 'Select vehicle' })).toHaveCount(0);
   await panel.getByRole('button', { name: 'Close' }).click();
@@ -1038,6 +1066,7 @@ test('calendar browsing, scope changes and closed panels preserve the right inte
     r.fulfill({ status: 503, json: { error: 'Calendar is temporarily unavailable.' } }),
   );
   await page.getByRole('button', { name: 'Previous', exact: true }).click();
+  await checkControls(page, 'Calendar service error');
   await expect(page.getByRole('alert')).toContainText('Calendar is temporarily unavailable');
   await expect(page.getByText('No bookings on this day.')).toHaveCount(0);
 });

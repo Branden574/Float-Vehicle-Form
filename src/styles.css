@@ -11,7 +11,7 @@
   font-synthesis: none;
   --accent: var(--brand-accent, #126b61);
   --ink: #243b33;
-  --muted: #69766e;
+  --muted: #526458;
   --line: #dce2d9;
   --paper: #f6f7f3;
   --white: #fff;
@@ -21,7 +21,7 @@
   --damage-old: #975712;
   --damage-new: #143d81;
   --selection-wash: #126b611a;
-  font-size: 15px;
+  font-size: 93.75%;
 }
 .form-email-settings {
   max-width: 760px;
@@ -54,7 +54,7 @@
   color: var(--muted);
   line-height: 1.6;
   margin: 8px 0 0;
-  font-size: 14px;
+  font-size: 0.933rem;
 }
 .form-recipient-row {
   display: flex;
@@ -122,19 +122,19 @@ p {
   margin-top: 0;
 }
 h1 {
-  font-size: 38px;
+  font-size: 2.533rem;
   font-weight: 560;
   letter-spacing: -1.4px;
   line-height: 1.17;
   margin-bottom: 11px;
 }
 h2 {
-  font-size: 22px;
+  font-size: 1.467rem;
   font-weight: 580;
   letter-spacing: -0.6px;
 }
 h3 {
-  font-size: 17px;
+  font-size: 1.133rem;
   line-height: 1.4;
   font-weight: 600;
 }
@@ -145,7 +145,7 @@ p {
 }
 small,
 .fine {
-  font-size: 12px;
+  font-size: 0.8rem;
   line-height: 1.7;
   color: var(--muted);
 }
@@ -182,7 +182,7 @@ label {
   display: flex;
   flex-direction: column;
   gap: 9px;
-  font-size: 13px;
+  font-size: 0.867rem;
   font-weight: 550;
   margin-bottom: 20px;
 }
@@ -215,7 +215,7 @@ fieldset {
   min-height: 46px;
   padding: 12px 18px;
   text-decoration: none;
-  font-size: 13px;
+  font-size: 0.867rem;
   font-weight: 600;
   max-width: 100%;
   overflow-wrap: anywhere;
@@ -261,7 +261,7 @@ fieldset {
   min-height: 44px;
   padding: 7px 0;
   font-weight: 550;
-  font-size: 13px;
+  font-size: 0.867rem;
   text-align: left;
 }
 .icon-button {
@@ -289,7 +289,7 @@ fieldset {
   justify-content: space-between;
 }
 .eyebrow {
-  font-size: 10px;
+  font-size: 0.667rem;
   letter-spacing: 1.7px;
   font-weight: 650;
   color: var(--accent);
@@ -299,7 +299,7 @@ fieldset {
   padding: 16px 18px;
   margin: 18px 0;
   border-radius: 6px;
-  font-size: 13px;
+  font-size: 0.867rem;
   line-height: 1.65;
   display: flex;
   gap: 12px;
@@ -336,13 +336,13 @@ fieldset {
 }
 .inline-error {
   color: #9a382b;
-  font-size: 12px;
+  font-size: 0.8rem;
   line-height: 1.6;
 }
 .check-label {
   flex-direction: row;
   align-items: flex-start;
-  font-size: 14px;
+  font-size: 0.933rem;
   font-weight: 400;
   line-height: 1.6;
   gap: 12px;
@@ -357,7 +357,7 @@ fieldset {
   align-items: center;
   text-decoration: none;
   color: var(--ink);
-  font-size: 18px;
+  font-size: 1.2rem;
   letter-spacing: -0.5px;
   font-weight: 650;
 }
@@ -367,11 +367,11 @@ fieldset {
 }
 .brand small {
   display: block;
-  font-size: 9px;
+  font-size: 0.6rem;
   letter-spacing: 1.6px;
   line-height: 1.8;
   font-weight: 550;
-  color: #7b867b;
+  color: var(--muted);
   margin-top: 3px;
 }
 .brand-mark {
@@ -384,7 +384,7 @@ fieldset {
   background: var(--ink);
   border-radius: 12px;
   color: #e8efdf;
-  font-size: 17px;
+  font-size: 1.133rem;
   letter-spacing: -1px;
   flex-shrink: 0;
 }
@@ -392,7 +392,7 @@ fieldset {
   position: absolute;
   top: 3px;
   right: 6px;
-  font-size: 12px;
+  font-size: 0.8rem;
   font-weight: 400;
 }
 .small-dot,
@@ -429,7 +429,7 @@ fieldset {
   align-items: center;
   gap: 8px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 0.733rem;
   padding: 27px 7px 26px;
   overflow-wrap: anywhere;
 }
@@ -449,7 +449,7 @@ fieldset {
   border-radius: 6px;
   text-align: left;
   color: #5c6c60;
-  font-size: 13px;
+  font-size: 0.867rem;
 }
 .nav-link.selected {
   background: #dce7d6;
@@ -458,7 +458,7 @@ fieldset {
 }
 .nav-link b {
   margin-left: auto;
-  font-size: 10px;
+  font-size: 0.667rem;
   background: #cfddc8;
   border-radius: 5px;
   padding: 3px 6px;
@@ -472,15 +472,15 @@ fieldset {
   margin-bottom: 11px;
 }
 .sidebar-help strong {
-  font-size: 12px;
+  font-size: 0.8rem;
   display: block;
 }
 .sidebar-help p {
-  font-size: 11px;
+  font-size: 0.733rem;
   margin-top: 8px;
 }
 .sidebar-help .text-button {
-  font-size: 11px;
+  font-size: 0.733rem;
 }
 .user-profile {
   border-top: 1px solid #d6dfd0;
@@ -496,7 +496,7 @@ fieldset {
   border-radius: 50%;
   display: grid;
   place-items: center;
-  font-size: 11px;
+  font-size: 0.733rem;
   flex-shrink: 0;
 }
 .user-profile div {
@@ -507,11 +507,11 @@ fieldset {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 11px;
+  font-size: 0.733rem;
   white-space: nowrap;
 }
 .user-profile small {
-  font-size: 10px;
+  font-size: 0.667rem;
 }
 .main-shell {
   margin-left: 252px;
@@ -528,7 +528,7 @@ fieldset {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 11px;
+  font-size: 0.733rem;
   color: var(--muted);
 }
 .topbar > div {
@@ -540,7 +540,7 @@ fieldset {
   display: flex;
   gap: 7px;
   align-items: center;
-  font-size: 10px;
+  font-size: 0.667rem;
 }
 .connection.offline i {
   background: #bb7d32;
@@ -563,15 +563,15 @@ fieldset {
   margin-bottom: 32px;
 }
 .page-heading p {
-  font-size: 13px;
+  font-size: 0.867rem;
   margin-bottom: 0;
 }
 .page-heading .eyebrow {
-  font-size: 10px;
+  font-size: 0.667rem;
   margin-bottom: 15px;
 }
 .today {
-  font-size: 11px;
+  font-size: 0.733rem;
   color: var(--muted);
   padding-top: 35px;
   white-space: nowrap;
@@ -597,15 +597,15 @@ fieldset {
 .fleet-metrics span {
   display: block;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 0.733rem;
   margin-bottom: 10px;
 }
 .fleet-metrics strong {
-  font-size: 29px;
+  font-size: 1.933rem;
   font-weight: 500;
 }
 .fleet-metrics small {
-  font-size: 11px;
+  font-size: 0.733rem;
   font-weight: 400;
   margin-left: 10px;
 }
@@ -622,10 +622,10 @@ fieldset {
   flex: 1;
 }
 .active-banner strong {
-  font-size: 13px;
+  font-size: 0.867rem;
 }
 .active-banner p {
-  font-size: 12px;
+  font-size: 0.8rem;
   margin: 3px 0 0;
 }
 .list-toolbar {
@@ -647,7 +647,7 @@ fieldset {
   color: var(--muted);
   min-height: 44px;
   padding: 11px 13px;
-  font-size: 12px;
+  font-size: 0.8rem;
   white-space: nowrap;
 }
 .segmented .selected {
@@ -674,7 +674,7 @@ fieldset {
   border: 0;
   background: transparent;
   padding: 10px 3px;
-  font-size: 11px;
+  font-size: 0.733rem;
   min-width: 0;
 }
 .search-input svg {
@@ -692,9 +692,9 @@ fieldset {
   gap: 15px;
 }
 .list-heading {
-  font-size: 9px;
+  font-size: 0.6rem;
   letter-spacing: 1.2px;
-  color: #7a867b;
+  color: var(--muted);
   padding: 0 0 15px;
   border-bottom: 1px solid var(--line);
 }
@@ -727,25 +727,25 @@ fieldset {
   object-fit: cover;
 }
 .vehicle-site {
-  font-size: 9px;
+  font-size: 0.6rem;
   letter-spacing: 1px;
   text-transform: uppercase;
-  color: #788575;
+  color: var(--muted);
   display: block;
   margin-bottom: 7px;
 }
 .vehicle-identity h2 {
-  font-size: 17px;
+  font-size: 1.133rem;
   letter-spacing: -0.4px;
   margin: 0 0 4px;
 }
 .vehicle-identity p {
-  font-size: 11px;
+  font-size: 0.733rem;
   margin-bottom: 4px;
   line-height: 1.4;
 }
 .vehicle-identity small {
-  font-size: 10px;
+  font-size: 0.667rem;
   color: #5d705f;
   white-space: nowrap;
 }
@@ -754,14 +754,14 @@ fieldset {
 }
 .vehicle-mileage strong {
   display: block;
-  font-size: 18px;
+  font-size: 1.2rem;
   font-weight: 550;
   font-variant-numeric: tabular-nums;
 }
 .vehicle-mileage span {
   display: block;
-  font-size: 10px;
-  color: #82907f;
+  font-size: 0.667rem;
+  color: var(--muted);
   margin-top: 5px;
 }
 .status {
@@ -769,7 +769,7 @@ fieldset {
   align-items: center;
   gap: 6px;
   white-space: nowrap;
-  font-size: 10px;
+  font-size: 0.667rem;
   border-radius: 4px;
   padding: 6px 9px;
   line-height: 1.3;
@@ -800,22 +800,22 @@ fieldset {
 .status.processing,
 .status.pending {
   background: #f2ecd9;
-  color: #876727;
+  color: #745614;
 }
 .status.out_of_service,
 .status.overdue,
 .status.failed,
 .status.unknown {
   background: #f6e7e2;
-  color: #9b5846;
+  color: #8c4738;
 }
 .list-footer {
   display: flex;
   justify-content: space-between;
   gap: 12px;
   padding-top: 22px;
-  font-size: 10px;
-  color: #81907d;
+  font-size: 0.667rem;
+  color: var(--muted);
 }
 .empty-state {
   min-height: 310px;
@@ -831,23 +831,23 @@ fieldset {
   margin-bottom: 20px;
 }
 .empty-state h2 {
-  font-size: 23px;
+  font-size: 1.533rem;
   margin-bottom: 10px;
 }
 .empty-state p {
-  font-size: 13px;
+  font-size: 0.867rem;
   max-width: 430px;
 }
 .empty-inline {
   padding: 20px 0;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 0.867rem;
 }
 .workspace-footer {
   padding: 25px 45px;
   border-top: 1px solid var(--line);
-  font-size: 9px;
-  color: #8a9486;
+  font-size: 0.6rem;
+  color: var(--muted);
   display: flex;
   justify-content: space-between;
   gap: 15px;
@@ -887,14 +887,14 @@ fieldset {
   flex: 1;
 }
 .trip-row strong {
-  font-size: 15px;
+  font-size: 1rem;
 }
 .trip-row p {
-  font-size: 12px;
+  font-size: 0.8rem;
   margin: 7px 0 3px;
 }
 .trip-row > span {
-  font-size: 11px;
+  font-size: 0.733rem;
 }
 .trip-icon {
   display: grid;
@@ -923,12 +923,12 @@ fieldset {
 .identity-strip span {
   display: block;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 0.733rem;
   margin-bottom: 8px;
 }
 .review-summary strong {
   display: block;
-  font-size: 17px;
+  font-size: 1.133rem;
   line-height: 1.4;
 }
 .review-summary small {
@@ -940,7 +940,7 @@ fieldset {
   border-bottom: 1px solid var(--line);
 }
 .detail-section > p {
-  font-size: 13px;
+  font-size: 0.867rem;
 }
 .comparison-heading,
 .comparison-row {
@@ -949,7 +949,7 @@ fieldset {
   gap: 22px;
 }
 .comparison-heading {
-  font-size: 10px;
+  font-size: 0.667rem;
   letter-spacing: 1.2px;
   padding: 20px 0;
 }
@@ -966,7 +966,7 @@ figure img {
   display: block;
 }
 figcaption {
-  font-size: 10px;
+  font-size: 0.667rem;
   color: var(--muted);
   line-height: 1.8;
   padding: 10px 0;
@@ -977,7 +977,7 @@ figcaption {
   place-items: center;
   background: #edf0e8;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 0.8rem;
   border-radius: 5px;
 }
 .signature-records {
@@ -996,7 +996,7 @@ figcaption {
 }
 .signature-records p,
 .review-record p {
-  font-size: 12px;
+  font-size: 0.8rem;
 }
 .review-record,
 .revision {
@@ -1005,10 +1005,10 @@ figcaption {
 }
 .review-record strong,
 .revision strong {
-  font-size: 14px;
+  font-size: 0.933rem;
 }
 .revision p {
-  font-size: 12px;
+  font-size: 0.8rem;
 }
 .notification-row {
   display: flex;
@@ -1017,7 +1017,7 @@ figcaption {
   flex-wrap: wrap;
   padding: 17px 0;
   border-top: 1px solid var(--line);
-  font-size: 13px;
+  font-size: 0.867rem;
 }
 .notification-row small {
   width: 100%;
@@ -1047,7 +1047,7 @@ figcaption {
 }
 .section-heading p {
   margin: 0;
-  font-size: 12px;
+  font-size: 0.8rem;
 }
 .admin-tabs {
   display: flex;
@@ -1059,7 +1059,7 @@ figcaption {
 .admin-tabs button {
   padding: 14px 4px;
   border-bottom: 2px solid transparent;
-  font-size: 13px;
+  font-size: 0.867rem;
 }
 .admin-tabs .selected {
   color: var(--accent);
@@ -1078,15 +1078,15 @@ figcaption {
   min-width: 0;
 }
 .admin-row strong {
-  font-size: 14px;
+  font-size: 0.933rem;
 }
 .admin-row p {
   margin: 5px 0 0;
-  font-size: 11px;
+  font-size: 0.733rem;
   overflow-wrap: anywhere;
 }
 .admin-row > span {
-  font-size: 11px;
+  font-size: 0.733rem;
 }
 .check-grid {
   display: grid;
@@ -1096,7 +1096,7 @@ figcaption {
   border-top: 1px solid var(--line);
   padding-top: 30px;
   margin-top: 45px;
-  font-size: 12px;
+  font-size: 0.8rem;
 }
 .storage-panel progress {
   width: 100%;
@@ -1106,21 +1106,21 @@ figcaption {
   accent-color: var(--accent);
 }
 .storage-panel p {
-  font-size: 11px;
+  font-size: 0.733rem;
 }
 .notification-admin {
   padding: 22px 0;
   border-bottom: 1px solid var(--line);
-  font-size: 13px;
+  font-size: 0.867rem;
 }
 .notification-admin p {
-  font-size: 12px;
+  font-size: 0.8rem;
   margin-top: 12px;
 }
 .audit-row {
   padding: 18px 0;
   border-bottom: 1px solid var(--line);
-  font-size: 13px;
+  font-size: 0.867rem;
 }
 .audit-row summary {
   cursor: pointer;
@@ -1129,7 +1129,7 @@ figcaption {
 .audit-row summary span {
   display: block;
   margin-top: 10px;
-  font-size: 11px;
+  font-size: 0.733rem;
   color: var(--muted);
 }
 .audit-values {
@@ -1142,14 +1142,14 @@ figcaption {
   overflow: auto;
   background: white;
   padding: 12px;
-  font-size: 11px;
+  font-size: 0.733rem;
 }
 .invitation > div {
   width: 100%;
 }
 .invitation input {
   font-family: monospace;
-  font-size: 11px;
+  font-size: 0.733rem;
 }
 .back-link {
   margin-bottom: 20px;
@@ -1157,8 +1157,8 @@ figcaption {
 .draft-label {
   padding: 8px 10px;
   background: #eee8d6;
-  color: #786a34;
-  font-size: 10px;
+  color: #695b2a;
+  font-size: 0.667rem;
   border-radius: 4px;
   white-space: nowrap;
 }
@@ -1175,8 +1175,8 @@ figcaption {
   gap: 9px;
   align-items: center;
   padding: 0 8px 20px 0;
-  font-size: 11px;
-  color: #899384;
+  font-size: 0.733rem;
+  color: var(--muted);
   border-bottom: 2px solid transparent;
   flex: 1;
 }
@@ -1188,7 +1188,7 @@ figcaption {
   height: 27px;
   min-width: 27px;
   border-radius: 50%;
-  font-size: 10px;
+  font-size: 0.667rem;
 }
 .stepper .current {
   color: var(--accent);
@@ -1217,21 +1217,21 @@ figcaption {
   top: 30px;
 }
 .aside-title {
-  font-size: 9px;
+  font-size: 0.6rem;
   letter-spacing: 1.4px;
-  color: #7b8c70;
+  color: var(--muted);
   margin-bottom: 22px;
 }
 .workflow-aside h3 {
-  font-size: 22px;
+  font-size: 1.467rem;
   font-weight: 500;
   letter-spacing: -0.6px;
   line-height: 1.45;
 }
 .workflow-aside ol {
   padding-left: 15px;
-  font-size: 11px;
-  color: #617457;
+  font-size: 0.733rem;
+  color: var(--muted);
   line-height: 1.7;
 }
 .workflow-aside li {
@@ -1241,13 +1241,13 @@ figcaption {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 9px;
+  font-size: 0.6rem;
   border-top: 1px solid #d4decc;
   padding-top: 20px;
   margin: 22px 0 10px;
 }
 .workflow-aside .fine {
-  font-size: 10px;
+  font-size: 0.667rem;
 }
 .identity-strip {
   display: flex;
@@ -1260,7 +1260,7 @@ figcaption {
   flex: 1;
 }
 .identity-strip strong {
-  font-size: 13px;
+  font-size: 0.867rem;
   font-weight: 550;
 }
 .eligibility {
@@ -1268,7 +1268,7 @@ figcaption {
   align-items: center;
   gap: 8px;
   color: var(--accent);
-  font-size: 12px;
+  font-size: 0.8rem;
   margin: 20px 0;
 }
 .input-unit {
@@ -1278,7 +1278,7 @@ figcaption {
   position: absolute;
   right: 13px;
   top: 16px;
-  font-size: 11px;
+  font-size: 0.733rem;
   color: var(--muted);
 }
 .input-unit input {
@@ -1291,7 +1291,7 @@ figcaption {
   border-radius: 5px;
 }
 .discrepancy-panel p {
-  font-size: 12px;
+  font-size: 0.8rem;
 }
 .trip-total {
   display: flex;
@@ -1300,14 +1300,14 @@ figcaption {
   padding: 23px;
   background: #e9f0e2;
   margin: 15px 0;
-  font-size: 12px;
+  font-size: 0.8rem;
 }
 .trip-total strong {
-  font-size: 30px;
+  font-size: 2rem;
   font-weight: 500;
 }
 .section-intro {
-  font-size: 13px;
+  font-size: 0.867rem;
 }
 .question {
   display: flex;
@@ -1316,7 +1316,7 @@ figcaption {
   gap: 15px;
   min-height: 78px;
   border-bottom: 1px solid var(--line);
-  font-size: 13px;
+  font-size: 0.867rem;
 }
 .yes-no {
   display: flex;
@@ -1328,7 +1328,7 @@ figcaption {
   border-radius: 5px;
   min-height: 44px;
   min-width: 57px;
-  font-size: 12px;
+  font-size: 0.8rem;
 }
 .yes-no .selected {
   background: var(--accent);
@@ -1363,7 +1363,7 @@ figcaption {
   gap: 15px;
   padding: 13px 0;
   border-bottom: 1px solid var(--line);
-  font-size: 12px;
+  font-size: 0.8rem;
 }
 .review-inspection strong {
   font-weight: 550;
@@ -1395,13 +1395,13 @@ figcaption {
   justify-content: space-between;
   gap: 8px;
   padding: 14px 12px;
-  font-size: 11px;
+  font-size: 0.733rem;
 }
 .photo-label span {
   display: flex;
   align-items: center;
   gap: 3px;
-  font-size: 9px;
+  font-size: 0.6rem;
   color: var(--muted);
 }
 .photo-preview {
@@ -1414,10 +1414,10 @@ figcaption {
   gap: 12px;
   position: relative;
   overflow: hidden;
-  color: #859478;
+  color: var(--muted);
 }
 .photo-preview > span {
-  font-size: 9px;
+  font-size: 0.6rem;
   text-align: center;
   padding: 0 10px;
   line-height: 1.6;
@@ -1434,7 +1434,7 @@ figcaption {
   padding: 10px 8px;
 }
 .photo-actions .button {
-  font-size: 10px;
+  font-size: 0.667rem;
   padding: 9px 10px;
   min-height: 44px;
 }
@@ -1463,7 +1463,7 @@ figcaption {
   outline-offset: 3px;
 }
 .photo-meta {
-  font-size: 9px;
+  font-size: 0.6rem;
   line-height: 1.8;
   margin: 0;
   padding: 10px 12px;
@@ -1475,7 +1475,7 @@ figcaption {
   padding: 10px;
 }
 .progress-count {
-  font-size: 11px;
+  font-size: 0.733rem;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1501,7 +1501,7 @@ figcaption {
   inset: 0;
   display: grid;
   place-items: center;
-  font-size: 10px;
+  font-size: 0.667rem;
   text-shadow: 0 1px 3px #000;
 }
 .add-photo {
@@ -1515,7 +1515,7 @@ figcaption {
   flex: 1;
 }
 .add-photo .button {
-  font-size: 11px;
+  font-size: 0.733rem;
 }
 .signature-field {
   margin-top: 25px;
@@ -1543,7 +1543,7 @@ figcaption {
   bottom: 20px;
   left: 25px;
   right: 25px;
-  font-size: 10px;
+  font-size: 0.667rem;
   color: #93a08b;
   border-top: 1px dashed #cbd6c3;
   padding-top: 8px;
@@ -1578,7 +1578,7 @@ figcaption {
   border-radius: 6px;
 }
 .camera-modal p {
-  font-size: 12px;
+  font-size: 0.8rem;
   margin: 15px 0;
 }
 .camera-modal .primary {
@@ -1603,7 +1603,7 @@ figcaption {
   padding: 75px 0 35px;
 }
 .login-title h1 {
-  font-size: 60px;
+  font-size: 4rem;
   line-height: 1.06;
   letter-spacing: -3px;
   font-weight: 500;
@@ -1611,11 +1611,11 @@ figcaption {
   margin-bottom: 24px;
 }
 .login-title p {
-  font-size: 14px;
+  font-size: 0.933rem;
   max-width: 330px;
 }
 .login-story .eyebrow {
-  font-size: 9px;
+  font-size: 0.6rem;
 }
 .login-panel {
   display: flex;
@@ -1639,23 +1639,23 @@ figcaption {
   color: var(--accent);
 }
 .login-form h2 {
-  font-size: 33px;
+  font-size: 2.2rem;
   letter-spacing: -1px;
   font-weight: 500;
   margin-bottom: 12px;
 }
 .login-form > p {
-  font-size: 12px;
+  font-size: 0.8rem;
   margin-bottom: 28px;
 }
 .login-form label {
-  font-size: 12px;
+  font-size: 0.8rem;
 }
 .login-form form {
   margin: 32px 0 19px;
 }
 .login-form .fine {
-  font-size: 10px;
+  font-size: 0.667rem;
 }
 .shared-note {
   display: flex;
@@ -1666,8 +1666,8 @@ figcaption {
   color: #84957a;
 }
 .shared-note p {
-  font-size: 11px;
-  color: #7c8c73;
+  font-size: 0.733rem;
+  color: var(--muted);
   margin: 0;
 }
 .shared-note strong {
@@ -1679,14 +1679,14 @@ figcaption {
   margin-top: 4px;
 }
 .login-foot {
-  font-size: 10px;
-  color: #7f9073;
+  font-size: 0.667rem;
+  color: var(--muted);
 }
 .road-art {
   height: 180px;
   position: relative;
   margin: 25px 0;
-  color: #6b835c;
+  color: var(--muted);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1710,7 +1710,7 @@ figcaption {
 .road-caption {
   position: absolute;
   bottom: 0;
-  font-size: 8px;
+  font-size: 0.533rem;
   letter-spacing: 1px;
   display: flex;
   gap: 20px;
@@ -1782,14 +1782,14 @@ figcaption {
     gap: 12px;
   }
   .vehicle-row > .button {
-    font-size: 11px;
+    font-size: 0.733rem;
     padding: 10px;
   }
   .vehicle-identity {
     gap: 12px;
   }
   .vehicle-identity h2 {
-    font-size: 15px;
+    font-size: 1rem;
   }
   .list-toolbar {
     flex-wrap: wrap;
@@ -1829,20 +1829,20 @@ figcaption {
     margin-left: auto;
   }
   .login-title h1 {
-    font-size: 51px;
+    font-size: 3.4rem;
   }
   .login-story {
     padding: 40px;
   }
   .sidebar .brand {
-    font-size: 16px;
+    font-size: 1.067rem;
   }
   .sidebar .brand-mark {
     width: 44px;
     height: 44px;
   }
   .sidebar .brand small {
-    font-size: 8px;
+    font-size: 0.533rem;
   }
 }
 @media (max-width: 900px) {
@@ -1858,7 +1858,7 @@ figcaption {
     padding: 27px 12px 0;
   }
   .sidebar .brand > span:last-child {
-    font-size: 13px;
+    font-size: 0.867rem;
   }
   .sidebar .brand {
     gap: 8px;
@@ -1866,14 +1866,14 @@ figcaption {
   .sidebar .brand-mark {
     width: 36px;
     height: 38px;
-    font-size: 14px;
+    font-size: 0.933rem;
     border-radius: 9px;
   }
   .sidebar .brand small {
-    font-size: 6px;
+    font-size: 0.4rem;
   }
   .nav-link {
-    font-size: 11px;
+    font-size: 0.733rem;
     gap: 9px;
     padding: 11px 9px;
   }
@@ -1882,7 +1882,7 @@ figcaption {
     margin-right: 5px;
   }
   .sidebar-help .text-button {
-    font-size: 10px;
+    font-size: 0.667rem;
   }
   .workspace {
     padding: 30px 24px;
@@ -1891,10 +1891,10 @@ figcaption {
     padding: 0 24px;
   }
   .topbar > span {
-    font-size: 10px;
+    font-size: 0.667rem;
   }
   .page-heading h1 {
-    font-size: 31px;
+    font-size: 2.067rem;
   }
   .today {
     display: none;
@@ -1931,7 +1931,7 @@ figcaption {
     padding: 0 15px;
   }
   .fleet-metrics small {
-    font-size: 9px;
+    font-size: 0.6rem;
   }
   .active-banner {
     flex-wrap: wrap;
@@ -1953,7 +1953,7 @@ figcaption {
     display: none;
   }
   .stepper b {
-    font-size: 9px;
+    font-size: 0.6rem;
   }
   .stepper li {
     gap: 5px;
@@ -1985,7 +1985,7 @@ figcaption {
     padding: 35px;
   }
   .login-title h1 {
-    font-size: 43px;
+    font-size: 2.867rem;
   }
   .login-panel {
     padding: 40px 30px;
@@ -1993,7 +1993,7 @@ figcaption {
 }
 @media (max-width: 650px) {
   :root {
-    font-size: 16px;
+    font-size: 1.067rem;
   }
   .app-shell {
     display: block;
@@ -2009,19 +2009,19 @@ figcaption {
     display: block;
   }
   .sidebar .brand {
-    font-size: 16px;
+    font-size: 1.067rem;
   }
   .sidebar .brand > span:last-child {
-    font-size: 16px;
+    font-size: 1.067rem;
     max-width: none;
   }
   .sidebar .brand small {
-    font-size: 8px;
+    font-size: 0.533rem;
   }
   .sidebar .brand-mark {
     width: 43px;
     height: 41px;
-    font-size: 16px;
+    font-size: 1.067rem;
   }
   .sidebar .site-label,
   .sidebar-help,
@@ -2036,7 +2036,7 @@ figcaption {
   }
   .nav-link {
     flex: 1;
-    font-size: 11px;
+    font-size: 0.733rem;
     justify-content: center;
     min-height: 47px;
     white-space: nowrap;
@@ -2062,13 +2062,13 @@ figcaption {
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
-    font-size: 9px;
+    font-size: 0.6rem;
   }
   .topbar > div {
     gap: 8px;
   }
   .connection {
-    font-size: 8px;
+    font-size: 0.533rem;
     margin-right: 7px;
   }
   .mobile-signout {
@@ -2078,21 +2078,21 @@ figcaption {
     padding: 28px 20px;
   }
   .page-heading h1 {
-    font-size: 29px;
+    font-size: 1.933rem;
     letter-spacing: -1px;
   }
   .page-heading p {
-    font-size: 12px;
+    font-size: 0.8rem;
   }
   .fleet-metrics strong {
-    font-size: 26px;
+    font-size: 1.733rem;
   }
   .fleet-metrics span {
-    font-size: 10px;
+    font-size: 0.667rem;
     line-height: 1.5;
   }
   .fleet-metrics small {
-    font-size: 9px;
+    font-size: 0.6rem;
     line-height: 1.5;
   }
   .fleet-metrics > div {
@@ -2108,7 +2108,7 @@ figcaption {
   }
   .segmented button {
     flex: 1;
-    font-size: 11px;
+    font-size: 0.733rem;
     padding: 10px 7px;
   }
   .vehicle-row {
@@ -2124,36 +2124,36 @@ figcaption {
     gap: 11px;
   }
   .vehicle-identity h2 {
-    font-size: 15px;
+    font-size: 1rem;
     overflow-wrap: anywhere;
   }
   .vehicle-identity small {
-    font-size: 9px;
+    font-size: 0.6rem;
     white-space: normal;
   }
   .vehicle-identity p {
-    font-size: 10px;
+    font-size: 0.667rem;
   }
   .vehicle-row > .status {
     margin-left: 94px;
   }
   .vehicle-mileage strong {
-    font-size: 17px;
+    font-size: 1.133rem;
   }
   .vehicle-site {
-    font-size: 8px;
+    font-size: 0.533rem;
   }
   .vehicle-row > .button {
-    font-size: 10px;
+    font-size: 0.667rem;
   }
   .list-footer {
-    font-size: 9px;
+    font-size: 0.6rem;
     flex-direction: column;
     line-height: 1.5;
   }
   .workspace-footer {
     padding: 20px;
-    font-size: 8px;
+    font-size: 0.533rem;
   }
   .workspace-footer > span:last-child {
     display: none;
@@ -2167,10 +2167,10 @@ figcaption {
     width: 100%;
   }
   .active-banner strong {
-    font-size: 12px;
+    font-size: 0.8rem;
   }
   .active-banner p {
-    font-size: 10px;
+    font-size: 0.667rem;
   }
   .form-grid {
     grid-template-columns: 1fr;
@@ -2184,10 +2184,10 @@ figcaption {
   }
   .photo-actions .button {
     width: 100%;
-    font-size: 11px;
+    font-size: 0.733rem;
   }
   .photo-label {
-    font-size: 10px;
+    font-size: 0.667rem;
     padding: 11px 8px;
     flex-wrap: wrap;
   }
@@ -2195,7 +2195,7 @@ figcaption {
     height: 130px;
   }
   .photo-meta {
-    font-size: 8px;
+    font-size: 0.533rem;
     padding: 9px;
   }
   .add-photo {
@@ -2217,7 +2217,7 @@ figcaption {
     width: 30px;
     height: 30px;
     min-width: 30px;
-    font-size: 12px;
+    font-size: 0.8rem;
   }
   .workflow-layout {
     gap: 10px;
@@ -2229,7 +2229,7 @@ figcaption {
     min-width: 100px;
   }
   .question {
-    font-size: 13px;
+    font-size: 0.867rem;
     gap: 10px;
   }
   .yes-no button {
@@ -2239,13 +2239,13 @@ figcaption {
     gap: 20px 14px;
   }
   .review-summary strong {
-    font-size: 14px;
+    font-size: 0.933rem;
   }
   .review-summary span {
-    font-size: 10px;
+    font-size: 0.667rem;
   }
   .review-summary small {
-    font-size: 10px;
+    font-size: 0.667rem;
   }
   .signature-box canvas {
     height: 150px;
@@ -2254,17 +2254,17 @@ figcaption {
     flex-wrap: wrap;
   }
   .section-heading h3 {
-    font-size: 16px;
+    font-size: 1.067rem;
   }
   .section-heading .progress-count {
-    font-size: 10px;
+    font-size: 0.667rem;
   }
   .workflow-actions .button {
-    font-size: 12px;
+    font-size: 0.8rem;
     padding: 11px 14px;
   }
   .notice {
-    font-size: 12px;
+    font-size: 0.8rem;
     padding: 14px;
     flex-wrap: wrap;
   }
@@ -2275,16 +2275,16 @@ figcaption {
     margin-left: auto;
   }
   .trip-detail-actions .button {
-    font-size: 11px;
+    font-size: 0.733rem;
   }
   .comparison-row h3 {
-    font-size: 14px;
+    font-size: 0.933rem;
   }
   figcaption {
-    font-size: 9px;
+    font-size: 0.6rem;
   }
   .comparison-heading {
-    font-size: 9px;
+    font-size: 0.6rem;
   }
   .signature-records {
     grid-template-columns: 1fr;
@@ -2293,7 +2293,7 @@ figcaption {
     gap: 14px;
   }
   .admin-tabs button {
-    font-size: 12px;
+    font-size: 0.8rem;
   }
   .admin-row > div {
     min-width: 100%;
@@ -2325,17 +2325,17 @@ figcaption {
     padding: 35px 0 0;
   }
   .login-title h1 {
-    font-size: 40px;
+    font-size: 2.667rem;
     letter-spacing: -1.5px;
     margin: 15px 0;
   }
   .login-title p {
-    font-size: 12px;
+    font-size: 0.8rem;
     margin-bottom: 0;
     max-width: 300px;
   }
   .login-title .eyebrow {
-    font-size: 8px;
+    font-size: 0.533rem;
   }
   .road-art,
   .login-foot {
@@ -2352,10 +2352,10 @@ figcaption {
     display: none;
   }
   .login-form h2 {
-    font-size: 28px;
+    font-size: 1.867rem;
   }
   .login-form > p {
-    font-size: 12px;
+    font-size: 0.8rem;
     margin-bottom: 15px;
   }
   .shared-note {
@@ -2365,7 +2365,7 @@ figcaption {
     padding: 45px 10px;
   }
   .empty-state h2 {
-    font-size: 22px;
+    font-size: 1.467rem;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -2410,7 +2410,7 @@ figcaption {
   color: white;
 }
 .damage-tools span {
-  font-size: 24px;
+  font-size: 1.6rem;
 }
 .vehicle-damage-canvas {
   display: block;
@@ -2482,7 +2482,7 @@ figcaption {
   display: flex;
   flex-wrap: wrap;
   gap: 8px 20px;
-  font-size: 12px;
+  font-size: 0.8rem;
 }
 .policy-links a {
   display: inline-flex;
@@ -2890,7 +2890,7 @@ figcaption {
   letter-spacing: -0.024em;
 }
 .schedule-nav {
-  gap: 0.1rem;
+  gap: 8px;
 }
 .schedule-nav button,
 .panel-heading button {
@@ -2912,7 +2912,8 @@ figcaption {
   width: 18px;
 }
 .calendar-modes {
-  gap: 0.25rem;
+  gap: 8px;
+  flex-wrap: wrap;
   padding: 0.24rem;
   margin: 0.5rem 0 1.1rem;
   background: var(--soft);
@@ -3158,7 +3159,7 @@ figcaption {
     margin: 0;
   }
   .schedule-nav button {
-    min-width: 38px;
+    min-width: 44px;
   }
   .calendar-date {
     padding: 0.2rem 0;
@@ -3173,5 +3174,21 @@ figcaption {
     max-height: 92dvh;
     border-radius: 18px 18px 0 0;
     padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+  }
+}
+
+.passkey-hint {
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  margin: 0.5rem 0 1rem;
+}
+
+@media (max-width: 360px) {
+  .schedule-surface {
+    padding-inline: 6px;
+  }
+  .schedule-dates {
+    column-gap: 1px;
   }
 }

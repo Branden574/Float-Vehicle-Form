@@ -19,12 +19,13 @@ struct WorkspaceView: View {
   }
 }
 struct FleetView: View {
+  @Environment(\.dynamicTypeSize) private var textSize
   @EnvironmentObject var store: FleetStore
   @State private var search = ""
   var body: some View {
     List {
       Section { NavigationLink("Vehicle calendar & availability") { ReservationCalendar() } }
-      if !store.error.isEmpty { Text(store.error).foregroundStyle(.red) }
+      if !store.error.isEmpty { Text(store.error).foregroundStyle(Color("FleetError")) }
       if !store.pendingReturns.isEmpty {
         Section("Returns awaiting your review") {
           ForEach(store.pendingReturns) { trip in
@@ -60,8 +61,15 @@ struct FleetView: View {
           NavigationLink {
             VehicleView(vehicle: vehicle)
           } label: {
-            HStack(spacing: 16) {
-              Image(systemName: "car.side").font(.title).foregroundStyle(.tint).frame(width: 52)
+            let row =
+              textSize.isAccessibilitySize
+              ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+              : AnyLayout(HStackLayout(spacing: 16))
+            row {
+              if !textSize.isAccessibilitySize {
+                Image(systemName: "car.side").font(.title).foregroundStyle(.tint).frame(width: 52)
+                  .accessibilityHidden(true)
+              }
               VStack(alignment: .leading, spacing: 5) {
                 Text(vehicle.name).font(.headline)
                 Text(
@@ -71,10 +79,10 @@ struct FleetView: View {
                   .caption
                 ).foregroundStyle(.secondary)
                 Text(humanize(vehicle.status)).font(.caption.bold()).foregroundStyle(
-                  vehicle.status == "available" ? .green : .orange)
+                  vehicle.status == "available" ? Color("FleetAccent") : Color("FleetWarning"))
               }
-              Spacer()
-              Text("\(vehicle.currentMileage.formatted())\nmi").font(.subheadline.monospacedDigit())
+              if !textSize.isAccessibilitySize { Spacer() }
+              Text("\(vehicle.currentMileage.formatted()) mi").font(.subheadline.monospacedDigit())
                 .multilineTextAlignment(.trailing)
             }.padding(.vertical, 8)
           }
@@ -141,9 +149,9 @@ struct VehicleView: View {
         NavigationStack {
           Form {
             Text("Report the actual reading so an administrator can review it before checkout.")
-            TextField("Observed odometer", text: $observed).keyboardType(.numberPad)
-            TextField("Reason", text: $reason, axis: .vertical)
-            if !error.isEmpty { Text(error).foregroundStyle(.red) }
+            FleetTextField("Observed odometer", text: $observed).keyboardType(.numberPad)
+            FleetTextField("Reason", text: $reason, axis: .vertical)
+            if !error.isEmpty { Text(error).foregroundStyle(Color("FleetError")) }
             Button(busy ? "Sending…" : "Send for review") {
               Task {
                 busy = true
@@ -172,7 +180,7 @@ struct HistoryView: View {
   @EnvironmentObject var store: FleetStore
   var body: some View {
     List {
-      if !store.error.isEmpty { Text(store.error).foregroundStyle(.red) }
+      if !store.error.isEmpty { Text(store.error).foregroundStyle(Color("FleetError")) }
       if store.trips.isEmpty {
         ContentUnavailableView(
           "No trips yet", systemImage: "list.clipboard",
@@ -197,7 +205,7 @@ struct TripRow: View {
       Text(displayDate(trip.checkoutAt)).font(.caption).foregroundStyle(.secondary)
       Text(trip.overdue ? "Overdue · \(humanize(trip.status))" : humanize(trip.status)).font(
         .caption.bold()
-      ).foregroundStyle(trip.overdue ? .red : .secondary)
+      ).foregroundStyle(trip.overdue ? Color("FleetError") : .secondary)
     }.padding(.vertical, 6)
   }
 }
@@ -214,7 +222,7 @@ struct TripView: View {
   @State private var busy = false
   var body: some View {
     List {
-      if !error.isEmpty { Text(error).foregroundStyle(.red) }
+      if !error.isEmpty { Text(error).foregroundStyle(Color("FleetError")) }
       if let detail {
         let trip = detail.trip
         Section(trip.vehicleSnapshot.name) {
@@ -358,6 +366,26 @@ struct TripView: View {
     }
   }
 }
+/// Keeps editable values identifiable after autofill and at larger text sizes.
+struct FleetTextField: View {
+  let title: String
+  @Binding var text: String
+  var axis: Axis = .horizontal
+
+  init(_ title: String, text: Binding<String>, axis: Axis = .horizontal) {
+    self.title = title
+    self._text = text
+    self.axis = axis
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 4) {
+      Text(title).font(.caption).foregroundStyle(.secondary).accessibilityHidden(true)
+      TextField(title, text: $text, prompt: Text(""), axis: axis).accessibilityLabel(title)
+    }
+  }
+}
+
 struct ProfileView: View {
   @EnvironmentObject var store: FleetStore
   @State private var name = ""
@@ -367,17 +395,18 @@ struct ProfileView: View {
   @State private var message = ""
   @State private var busy = false
   @State private var signOut = false
+  @AccessibilityFocusState private var signOutPromptFocused: Bool
   @State private var removePasskeys = false
   @State private var passkeyCount = 0
   @State private var passkeyMessage = ""
   var body: some View {
     Form {
       Section {
-        TextField("Full name", text: $name).textContentType(.name)
+        FleetTextField("Full name", text: $name).textContentType(.name)
         LabeledContent("Email", value: store.session?.user.email ?? "")
-        TextField("Charter / school", text: $charter)
-        TextField("Department (optional)", text: $department)
-        TextField("Manager", text: $manager)
+        FleetTextField("Charter / school", text: $charter)
+        FleetTextField("Department (optional)", text: $department)
+        FleetTextField("Manager", text: $manager)
       } header: {
         Text("Your saved details")
       } footer: {
@@ -407,6 +436,10 @@ struct ProfileView: View {
           || manager.trimmingCharacters(in: .whitespaces).isEmpty)
       if store.session?.user.canAccessFleet != false {
         Section {
+          Text(
+            "Tap Create a passkey, choose Passwords if asked, then confirm with Face ID, Touch ID, or your device passcode."
+          )
+          .font(.subheadline)
           Button("Create a passkey") {
             Task {
               busy = true
@@ -415,7 +448,7 @@ struct ProfileView: View {
               do {
                 try await store.api.createPasskey()
                 passkeyCount += 1
-                passkeyMessage = "Passkey saved. Use it the next time you sign in."
+                passkeyMessage = "Passkey saved. Next time, tap Sign in with a passkey."
               } catch { passkeyMessage = error.localizedDescription }
             }
           }.disabled(busy)
@@ -446,7 +479,7 @@ struct ProfileView: View {
           Text("Passkey sign-in")
         } footer: {
           Text(
-            "Save a passkey in your personal password manager. On a shared device, use your own phone or email code."
+            "Use your personal password manager. On a shared iPad, use your own phone or sign in by email."
           )
         }.task {
           if let result: PasskeyCount = try? await store.api.request("/api/auth/passkeys") {
@@ -454,7 +487,22 @@ struct ProfileView: View {
           }
         }
       }
-      Button("Sign out", role: .destructive) { signOut = true }.disabled(busy)
+      if signOut {
+        VStack(alignment: .leading, spacing: 8) {
+          Text("Sign out of Fleet Checkout?").font(.headline)
+            .accessibilityFocused($signOutPromptFocused)
+          Text("Your session ends and private files on this device are cleared.")
+            .font(.subheadline).foregroundStyle(.secondary)
+          ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) { signOutActions }.fixedSize(horizontal: true, vertical: false)
+            VStack(alignment: .leading, spacing: 8) { signOutActions }
+          }
+        }
+        .padding(.vertical, 4)
+        .onAppear { signOutPromptFocused = true }
+      } else {
+        Button("Sign out", role: .destructive) { signOut = true }.disabled(busy)
+      }
       Link("Open web workspace", destination: store.api.baseURL)
       Link("Privacy policy", destination: FleetAPI.origin.appendingPathComponent("privacy"))
       Link("Support", destination: FleetAPI.origin.appendingPathComponent("support"))
@@ -464,9 +512,24 @@ struct ProfileView: View {
       charter = store.session?.user.charter ?? ""
       department = store.session?.user.department ?? ""
       manager = store.session?.user.manager ?? ""
-    }.confirmationDialog(
-      "Sign out and clear private files from this device?", isPresented: $signOut
-    ) { Button("Sign out", role: .destructive) { Task { await store.logout() } } }
+    }
+    .onDisappear { signOut = false }
+  }
+
+  @ViewBuilder private var signOutActions: some View {
+    Button {
+      signOut = false
+    } label: {
+      Text("Cancel").frame(minHeight: 32)
+    }
+    .buttonStyle(.bordered)
+    Button(role: .destructive) {
+      busy = true
+      Task { await store.logout() }
+    } label: {
+      Text("Sign out").frame(minHeight: 32)
+    }
+    .buttonStyle(.bordered).disabled(busy)
   }
 }
 
@@ -494,7 +557,7 @@ struct CorrectionAcknowledgment: View {
         signature = ""
         clearID = UUID()
       }.disabled(busy)
-      if !error.isEmpty { Text(error).foregroundStyle(.red) }
+      if !error.isEmpty { Text(error).foregroundStyle(Color("FleetError")) }
       Button(busy ? "Saving…" : "Sign acknowledgment") {
         Task {
           busy = true

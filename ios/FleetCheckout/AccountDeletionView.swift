@@ -57,35 +57,38 @@ struct DeleteAccountView: View {
         )
         TextField("Type DELETE", text: $confirmation).autocorrectionDisabled()
           .textInputAutocapitalization(.characters)
-        if !error.isEmpty { Text(error).foregroundStyle(.red) }
+        if !error.isEmpty { Text(error).foregroundStyle(Color("FleetError")) }
         Button(busy ? "Requesting deletion…" : "Permanently delete my account", role: .destructive)
         { confirm = true }
         .disabled(busy || confirmation != "DELETE")
-      }
-      Link("Privacy policy", destination: FleetAPI.origin.appendingPathComponent("privacy"))
-    }.navigationTitle("Delete account").confirmationDialog(
-      "Delete your account and associated data permanently?", isPresented: $confirm,
-      titleVisibility: .visible
-    ) {
-      Button("Delete permanently", role: .destructive) {
-        Task {
-          busy = true
-          defer { busy = false }
-          error = ""
-          do {
-            let result: DeletionResult = try await store.api.request(
-              "/api/auth/delete-account", method: "POST", body: ["confirmation": confirmation])
-            if let owner = store.session?.user.id { try? NativeDraftVault.deleteAll(owner: owner) }
-            store.deletionReceipt = result.receipt
-            do { try DeletionReceipt.save(result.receipt, review: store.api.isReview) } catch {
-              store.error = error.localizedDescription
+        .confirmationDialog(
+          "Delete your account and associated data permanently?", isPresented: $confirm,
+          titleVisibility: .visible
+        ) {
+          Button("Delete permanently", role: .destructive) {
+            Task {
+              busy = true
+              defer { busy = false }
+              error = ""
+              do {
+                let result: DeletionResult = try await store.api.request(
+                  "/api/auth/delete-account", method: "POST", body: ["confirmation": confirmation])
+                if let owner = store.session?.user.id {
+                  try? NativeDraftVault.deleteAll(owner: owner)
+                }
+                store.deletionReceipt = result.receipt
+                do { try DeletionReceipt.save(result.receipt, review: store.api.isReview) } catch {
+                  store.error = error.localizedDescription
+                }
+                store.clear()
+              } catch { self.error = error.localizedDescription }
             }
-            store.clear()
-          } catch { self.error = error.localizedDescription }
+          }
+          Button("Keep my account", role: .cancel) {}
         }
       }
-      Button("Keep my account", role: .cancel) {}
-    }
+      Link("Privacy policy", destination: FleetAPI.origin.appendingPathComponent("privacy"))
+    }.navigationTitle("Delete account")
   }
 }
 
@@ -110,17 +113,18 @@ struct DeletionStatusView: View {
         Link("Support", destination: URL(string: "mailto:fleetcheckout.support@gmail.com")!)
         Link("Privacy policy", destination: FleetAPI.origin.appendingPathComponent("privacy"))
         Button("Return to sign-in") { leave = true }
-      }.navigationTitle("Deletion status").task { await check() }
-        .confirmationDialog(
-          "Save your receipt before leaving. You can check it later at fleetcheckout.app/deletion-status.",
-          isPresented: $leave, titleVisibility: .visible
-        ) {
-          Button("I saved my receipt — continue") {
-            DeletionReceipt.clear(review: store.api.isReview)
-            store.deletionReceipt = nil
+          .confirmationDialog(
+            "Save your receipt before leaving. You can check it later at fleetcheckout.app/deletion-status.",
+            isPresented: $leave, titleVisibility: .visible
+          ) {
+            Button("I saved my receipt — continue") {
+              DeletionReceipt.clear(review: store.api.isReview)
+              store.deletionReceipt = nil
+            }
+            Button("Keep receipt here", role: .cancel) {}
           }
-          Button("Keep receipt here", role: .cancel) {}
-        }
+      }.navigationTitle("Deletion status").task { await check() }
+
     }
   }
   func check() async {
