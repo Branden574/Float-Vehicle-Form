@@ -28,6 +28,7 @@
     "cookie-parser": "1.4.7",
     "express": "5.1.0",
     "express-rate-limit": "8.7.3",
+    "fontkit": "2.0.4",
     "helmet": "8.1.0",
     "lucide-react": "0.468.0",
     "multer": "2.5.0",

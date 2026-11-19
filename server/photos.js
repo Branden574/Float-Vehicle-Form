@@ -1,5 +1,6 @@
 import multer from 'multer';
 import sharp from 'sharp';
+import { photoCaption } from './photo-caption.js';
 import { PHOTO_STAMP_HEIGHT } from './photo-layout.js';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
@@ -24,11 +25,6 @@ const viewNames = {
   damage: 'Damage',
   other: 'Additional photo',
 };
-const xml = (s) =>
-  String(s).replace(
-    /[<>&"']/g,
-    (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' })[c],
-  );
 function formatTime(value, timezone) {
   return value
     ? new Intl.DateTimeFormat('en-US', {
@@ -37,6 +33,17 @@ function formatTime(value, timezone) {
         timeZone: timezone,
       }).format(new Date(value))
     : 'Not supplied';
+}
+
+// Version the derived image path so older photographs can be repaired when viewed.
+const stampedSuffix = '.caption-v2.jpg';
+function captionFor(photo, width, vehicle, employee, zone) {
+  return photoCaption(width, [
+    `${photo.stage.toUpperCase()} · ${viewNames[photo.view]} · ${vehicle}`,
+    `Device reported: ${formatTime(photo.deviceCapturedAt, zone)} · ${photo.source === 'camera' ? 'Camera (device reported)' : 'Uploaded file'}`,
+    `Server received: ${formatTime(photo.receivedAt, zone)} · ${zone}`,
+    `Employee: ${employee} · Photo timestamps do not verify true capture time`,
+  ]);
 }
 
 export function installPhotos(app, store) {
@@ -119,12 +126,12 @@ export function installPhotos(app, store) {
       dims = await sharp(display).metadata(),
       width = Math.max(dims.width, 640),
       height = dims.height;
-    const line1 = `${data.stage.toUpperCase()} · ${viewNames[data.view]} · ${vehicle.name}`;
-    const line2 = `Device reported: ${formatTime(data.deviceCapturedAt, settings.timezone)} · ${data.source === 'camera' ? 'Camera (device reported)' : 'Uploaded file'}`;
-    const line3 = `Server received: ${formatTime(receivedAt, settings.timezone)} · ${settings.timezone}`;
-    const line4 = `Employee: ${req.user.name} · Photo timestamps do not verify true capture time`;
-    const svg = Buffer.from(
-      `<svg width="${width}" height="${PHOTO_STAMP_HEIGHT}"><rect width="100%" height="100%" fill="#102c33"/>${[line1, line2, line3, line4].map((l, i) => `<text x="16" y="${24 + i * 26}" fill="white" font-family="sans-serif" font-size="${width < 900 ? 12 : 16}">${xml(l.slice(0, 150))}</text>`).join('')}</svg>`,
+    const svg = captionFor(
+      { ...data, receivedAt },
+      width,
+      vehicle.name,
+      req.user.name,
+      settings.timezone,
     );
     const stamped = await sharp(display)
       .extend({
@@ -147,7 +154,7 @@ export function installPhotos(app, store) {
       );
     const id = randomUUID(),
       originalPath = `photos/${id}.original`,
-      displayPath = `photos/${id}.jpg`;
+      displayPath = `photos/${id}${stampedSuffix}`;
     try {
       await store.evidence.put(originalPath, req.file.buffer);
       await store.evidence.put(displayPath, stamped, 'image/jpeg');
@@ -343,6 +350,26 @@ export function installPhotos(app, store) {
       res.sendFile(photo.originalPath);
     } else {
       res.type('jpeg');
+      if (!photo.displayPath.endsWith(stampedSuffix)) {
+        const bytes = await store.evidence.read(photo.displayPath);
+        const { width, height } = await sharp(bytes).metadata();
+        const trip = photo.tripId ? await store.getTrip(photo.tripId) : null;
+        const vehicle = trip?.vehicleSnapshot ?? (await store.getVehicle(photo.vehicleId));
+        const employee = trip?.employeeSnapshot ?? (await store.getUser(photo.employeeId));
+        const settings = trip?.checkoutSettings ?? (await store.getSettings());
+        const caption = captionFor(
+          photo,
+          width,
+          vehicle?.name ?? 'Not recorded',
+          employee?.name ?? 'Not recorded',
+          settings.timezone,
+        );
+        const repaired = await sharp(bytes)
+          .composite([{ input: caption, left: 0, top: height - PHOTO_STAMP_HEIGHT }])
+          .jpeg({ quality: 90 })
+          .toBuffer();
+        return res.send(repaired);
+      }
       if (store.evidence.cloud)
         return res.redirect(303, await store.evidence.signedRead(photo.displayPath));
       res.sendFile(photo.displayPath);
