@@ -71,7 +71,7 @@ private final class PasskeyPrompt: NSObject, ASAuthorizationControllerDelegate,
 @MainActor
 extension FleetAPI {
   private func passkeyResponse(registering: Bool) async throws -> [String: Any] {
-    guard !isReview, let rp = baseURL.host,
+    guard let rp = baseURL.host,
       let window = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene })
         .first(where: { $0.activationState == .foregroundActive && $0.keyWindow != nil })?.keyWindow
     else { throw FleetError(message: "Open Fleet Checkout to use your passkey.") }
@@ -96,7 +96,20 @@ extension FleetAPI {
       request = assertion
     }
     let prompt = PasskeyPrompt(window: window)
-    let authorization = try await prompt.present(request)
+    let authorization: ASAuthorization
+    // Keep the presentation delegate alive while the system displays the account picker.
+    defer { withExtendedLifetime(prompt) {} }
+    do {
+      authorization = try await prompt.present(request)
+    } catch let error as ASAuthorizationError {
+      if error.code == .canceled {
+        throw FleetError(message: "Passkey request canceled.")
+      }
+      let fallback = isReview ? "your review password" : "an email code"
+      throw FleetError(
+        message: "Passkeys are unavailable on this device right now. You can sign in with "
+          + fallback + " and try the passkey again later.")
+    }
     let id: String
     let response: [String: Any]
     if let key = authorization.credential

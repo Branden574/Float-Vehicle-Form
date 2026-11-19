@@ -40,6 +40,18 @@ struct ReviewSignInView: View {
         Text(
           "For Apple reviewers. This workspace contains synthetic vehicles and accounts, separate from staff records. Use the credentials in App Review Information. Do not upload personal information here."
         )
+        Button("Sign in with a review passkey") {
+          Task {
+            busy = true
+            error = ""
+            defer { busy = false }
+            do {
+              let session = try await store.api.passkeySession()
+              store.accept(session)
+              await store.refresh()
+            } catch { self.error = error.localizedDescription }
+          }
+        }.disabled(busy)
         TextField("Review email", text: $email).keyboardType(.emailAddress).textContentType(
           .username
         ).textInputAutocapitalization(.never).autocorrectionDisabled()

@@ -367,6 +367,7 @@ struct ProfileView: View {
   @State private var signOut = false
   @State private var removePasskeys = false
   @State private var passkeyCount = 0
+  @State private var passkeyMessage = ""
   var body: some View {
     Form {
       Section {
@@ -402,17 +403,18 @@ struct ProfileView: View {
         busy || name.trimmingCharacters(in: .whitespaces).isEmpty
           || charter.trimmingCharacters(in: .whitespaces).isEmpty
           || manager.trimmingCharacters(in: .whitespaces).isEmpty)
-      if !store.api.isReview && store.session?.user.canAccessFleet != false {
+      if store.session?.user.canAccessFleet != false {
         Section {
           Button("Create a passkey") {
             Task {
               busy = true
+              passkeyMessage = ""
               defer { busy = false }
               do {
                 try await store.api.createPasskey()
                 passkeyCount += 1
-                message = "Passkey saved. Use it the next time you sign in."
-              } catch { message = error.localizedDescription }
+                passkeyMessage = "Passkey saved. Use it the next time you sign in."
+              } catch { passkeyMessage = error.localizedDescription }
             }
           }.disabled(busy)
           if passkeyCount > 0 {
@@ -425,17 +427,19 @@ struct ProfileView: View {
                 Button("Remove all passkeys", role: .destructive) {
                   Task {
                     busy = true
+                    passkeyMessage = ""
                     defer { busy = false }
                     do {
                       let _: EmptyResponse = try await store.api.request(
                         "/api/auth/passkeys/remove", method: "POST", body: [:])
                       passkeyCount = 0
-                      message = "Passkeys removed. You can still sign in by email."
-                    } catch { message = error.localizedDescription }
+                      passkeyMessage = "Passkeys removed."
+                    } catch { passkeyMessage = error.localizedDescription }
                   }
                 }
               }
           }
+          if !passkeyMessage.isEmpty { Text(passkeyMessage).font(.callout) }
         } header: {
           Text("Passkey sign-in")
         } footer: {
