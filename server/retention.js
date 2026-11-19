@@ -16,7 +16,10 @@ export async function expireRecords(store, { time = Date.now() } = {}) {
     const photos = (await db.prepare('SELECT * FROM photos').all()).filter(
       (p) => tripIDs.has(p.trip_id) || (!p.trip_id && p.received_at < cutoff),
     );
-    if (!trips.length && !photos.length) return 0;
+    const expiredBookings = await db
+      .prepare('DELETE FROM reservations WHERE COALESCE(canceled_at,ends_at)<?')
+      .run(cutoff);
+    if (!trips.length && !photos.length && !expiredBookings.changes) return 0;
     const objects = new Set(photos.flatMap((p) => [p.original_path, p.display_path]));
     for (const id of tripIDs)
       for (const key of await store.evidence.list(`reports/${id}-`)) objects.add(key);

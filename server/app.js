@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { openStore } from './store.js';
 import { installAuth } from './auth.js';
 import { installPhotos } from './photos.js';
+import { installReservations } from './reservations.js';
 import { installTrips } from './trips.js';
 import { installDeliveryWebhook, installReportCopies } from './delivery-access.js';
 import { installAdmin } from './admin.js';
@@ -87,6 +88,7 @@ export async function createApp(options = {}) {
     }),
   );
   installPhotos(app, store);
+  installReservations(app, store);
   installTrips(app, store, options);
   installAdmin(app, store, options);
   app.use('/api', (req, res) => res.status(404).json({ error: 'API route not found.' }));

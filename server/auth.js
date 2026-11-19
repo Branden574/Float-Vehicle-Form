@@ -21,7 +21,8 @@ export async function installAuth(
   const { db } = store;
   const cookieOptions = { httpOnly: true, secure: secureCookies, sameSite: 'strict', path: '/' };
   const publicSettings = async () => {
-    const { notificationRecipients, returnReviewerEmails, ...s } = await store.getSettings();
+    const { notificationRecipients, returnReviewerEmails, reservationManagerEmails, ...s } =
+      await store.getSettings();
     return s;
   };
   const withAccess = async (user) => {

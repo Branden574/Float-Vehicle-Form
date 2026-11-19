@@ -355,9 +355,27 @@ export function installAdmin(app, store, { notificationService } = {}) {
       { reason: _reason, ...changes } = req.body;
     const before = await store.getSettings(),
       settings = validate(settingsSchema.strict(), { ...before, ...changes });
+    settings.reservationManagerEmails = [
+      ...new Set(settings.reservationManagerEmails.map((email) => email.trim().toLowerCase())),
+    ];
     settings.returnReviewerEmails = [
       ...new Set(settings.returnReviewerEmails.map((email) => email.trim().toLowerCase())),
     ];
+    for (const email of settings.reservationManagerEmails) {
+      if (before.reservationManagerEmails?.includes(email)) continue;
+      const account = await db
+        .prepare('SELECT * FROM users WHERE email=?')
+        .get(store.emailLookup(email));
+      if (
+        !account?.active ||
+        !(
+          account.staff_approved ||
+          account.role === 'admin' ||
+          settings.returnReviewerEmails.includes(email)
+        )
+      )
+        fail(400, 'Reservation managers must be active, approved fleet staff.');
+    }
     settings.requiredPhotoViews = [
       ...new Set(['front', 'rear', 'driver', 'passenger', ...(settings.requiredPhotoViews || [])]),
     ];

@@ -36,6 +36,7 @@ export type Settings = {
   accentColor: string;
   logoUrl: string;
   notificationRecipients: string[];
+  reservationManagerEmails?: string[];
   returnReviewerEmails?: string[];
   employeeCopy: boolean;
   reviewMode: 'self_service' | 'representative';

@@ -25,6 +25,7 @@ export const defaults = {
   storageLimitBytes: 50 * 1024 ** 3,
   retentionDays: 60,
   sessionMinutes: 15,
+  reservationManagerEmails: [],
   requiredPhotoViews: ['front', 'rear', 'driver', 'passenger'],
 };
 
@@ -55,6 +56,7 @@ export async function openStore(dataDir = process.env.DATA_DIR || './data') {
     );
     await db.pragma('secure_delete = ON');
     await db.exec(deletionSchema);
+    await db.exec(readFileSync(new URL('./migrations/reservations.sql', import.meta.url), 'utf8'));
     await db.exec(readFileSync(new URL('./migrations/passkeys.sql', import.meta.url), 'utf8'));
     await db.exec(
       readFileSync(new URL('./migrations/notification-deliveries.sql', import.meta.url), 'utf8'),

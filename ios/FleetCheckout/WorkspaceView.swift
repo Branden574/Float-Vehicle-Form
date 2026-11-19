@@ -23,6 +23,7 @@ struct FleetView: View {
   @State private var search = ""
   var body: some View {
     List {
+      Section { NavigationLink("Vehicle calendar & availability") { ReservationCalendar() } }
       if !store.error.isEmpty { Text(store.error).foregroundStyle(.red) }
       if !store.pendingReturns.isEmpty {
         Section("Returns awaiting your review") {
@@ -86,6 +87,7 @@ struct FleetView: View {
     }.navigationTitle("Learn4Life Fleet").searchable(
       text: $search, prompt: "Vehicle, plate or site"
     )
+    .modifier(FleetReleaseNotice())
     .refreshable { await store.refresh() }
     .toolbar {
       Button {

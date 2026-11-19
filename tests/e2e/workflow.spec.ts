@@ -822,3 +822,110 @@ test('a personal passkey signs its owner in without an email and can be removed'
   await page.getByRole('button', { name: 'Sign in with a passkey' }).click();
   await expect(page.getByRole('alert')).toContainText('Passkey verification did not complete');
 });
+
+test('staff can book, see calendar details, cancel, and defer a workspace update safely', async ({
+  page,
+}, info) => {
+  await login(page);
+  const session = await (await page.request.get('/api/auth/me')).json();
+  const vehicleName = 'Calendar ' + info.project.name;
+  const added = await page.request.post('/api/admin/vehicles', {
+    headers: { 'X-CSRF-Token': session.csrfToken },
+    data: {
+      name: vehicleName,
+      make: 'Ford',
+      model: 'Escape',
+      year: 2024,
+      plate: 'CAL-' + info.project.name,
+      vinLast4: '7210',
+      site: 'Calendar QA',
+      currentMileage: 2000,
+      status: 'available',
+    },
+  });
+  expect(added.status()).toBe(201);
+  await page.reload();
+  await page.getByRole('button', { name: 'Check availability & view calendar' }).click();
+  await expect(page.getByRole('heading', { name: 'Vehicle calendar' })).toBeVisible();
+  await page
+    .getByRole('combobox', { name: 'Vehicle', exact: true })
+    .selectOption({ label: vehicleName });
+  const base = new Date(Date.now() + 4 * 86400000).toISOString().slice(0, 10);
+  await page.getByLabel('Pickup ·').fill(base + 'T10:00');
+  await page.getByLabel('Expected return ·').fill(base + 'T12:00');
+  await page.getByRole('button', { name: 'Check availability', exact: true }).click();
+  await page.getByRole('button', { name: 'Select vehicle' }).first().click();
+  await page.getByRole('button', { name: 'Reserve vehicle', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Reservation details' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Cancel reservation' }).click();
+  await dialog.getByRole('button', { name: 'Keep reservation' }).click();
+  await dialog.getByRole('button', { name: 'Cancel reservation' }).click();
+  await dialog.getByLabel('Reason (optional)').fill('Test itinerary changed');
+  await dialog.getByRole('button', { name: 'Cancel reservation' }).click();
+  await expect(dialog).toContainText('Test itinerary changed');
+  await dialog.getByRole('button', { name: 'Close' }).click();
+  await expect(
+    page.getByText('Reservation canceled. This booking no longer holds the vehicle.'),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Week', exact: true }).click();
+  await page.getByRole('button', { name: 'Month', exact: true }).click();
+  await page.getByRole('button', { name: 'Agenda', exact: true }).click();
+  await expect(page.getByText('No bookings in this period.')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const active = page.getByRole('button', { name: 'Agenda', pressed: true });
+  await expect(active).toHaveCSS(
+    'background-color',
+    await active.evaluate((el) => {
+      const probe = document.createElement('span');
+      probe.style.color = 'var(--ink)';
+      el.append(probe);
+      const color = getComputedStyle(probe).color;
+      probe.remove();
+      return color;
+    }),
+  );
+  await page.screenshot({
+    animations: 'disabled',
+    path: 'artifacts/booking-' + info.project.name + '.png',
+    fullPage: true,
+  });
+  await page.getByRole('button', { name: 'Vehicle fleet' }).click();
+  await page.getByRole('button', { name: 'Check out', exact: true }).first().click();
+  await page.route('**/release.json', (r) =>
+    r.fulfill({ json: { release: 'synthetic-next-release' } }),
+  );
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  const banner = page.getByRole('complementary', { name: 'App update' });
+  await expect(banner).toBeVisible();
+  await banner.getByRole('button', { name: 'Refresh now' }).click();
+  await expect(banner).toContainText('Finish or leave the open form first');
+  await banner.getByRole('button', { name: 'Later' }).click();
+  await expect(banner).toBeHidden();
+});
+
+test('web release offers a safe refresh and confirms the new version on the next visit', async ({
+  page,
+}) => {
+  await login(page);
+  await page.evaluate(() =>
+    localStorage.setItem('fleet-workspace-release', 'previous-test-release'),
+  );
+  await page.reload();
+  const update = page.getByRole('complementary', { name: 'App update' });
+  await expect(update).toContainText('running the latest update');
+  await update.getByRole('button', { name: 'Got it' }).click();
+  let next = true;
+  await page.route('**/release.json', async (route) => {
+    if (next) return route.fulfill({ json: { release: 'test-deployment-ready' } });
+    return route.continue();
+  });
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect(update.getByRole('button', { name: 'Refresh now' })).toBeVisible();
+  next = false;
+  const navigate = page.waitForNavigation({ waitUntil: 'domcontentloaded' });
+  await update.getByRole('button', { name: 'Refresh now' }).click();
+  await navigate;
+  await expect(update).toBeHidden();
+  await expect(page.getByRole('heading', { name: 'My current checkouts' })).toBeVisible();
+});

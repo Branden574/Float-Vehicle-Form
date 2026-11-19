@@ -40,11 +40,12 @@
       "destination": "/api/index"
     },
     {
-      "source": "/((?!api/|apple-app-site-association.json|assets/|icon-|sw.js|favicon.ico|report-copy.html|report-copy.js|support.html|privacy.html|deletion-status.js|deletion-status.html).*)",
+      "source": "/((?!api/|apple-app-site-association.json|release.json|assets/|icon-|sw.js|favicon.ico|report-copy.html|report-copy.js|support.html|privacy.html|deletion-status.js|deletion-status.html).*)",
       "destination": "/index.html"
     }
   ],
   "headers": [
+    { "source": "/release.json", "headers": [{ "key": "Cache-Control", "value": "no-store" }] },
     {
       "source": "/(.*)",
       "headers": [

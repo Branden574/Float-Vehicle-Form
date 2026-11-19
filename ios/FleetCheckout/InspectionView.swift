@@ -9,6 +9,7 @@ struct InspectionView: View {
   @Environment(\.dismiss) private var dismiss
   let vehicle: Vehicle
   let trip: Trip?
+  var reservation: FleetBooking? = nil
   @State private var step = 0
   @State private var draftID = UUID().uuidString.lowercased()
   @State private var due = Date().addingTimeInterval(3600)
@@ -515,7 +516,10 @@ struct InspectionView: View {
     do {
       let result: DraftUnlock = try await store.api.request("/api/inspection-draft-key")
       guard revision == store.revision, owner == store.session?.user.id else { return }
-      let context = NativeDraftVault.context(vehicle: vehicle, trip: trip)
+      if let reservation { due = reservation.due }
+      let context =
+        NativeDraftVault.context(vehicle: vehicle, trip: trip)
+        + (reservation.map { "/" + $0.id } ?? "")
       let opened = try NativeDraftVault(unlock: result, owner: owner, context: context)
       saved = try opened.load()
       if !returning { mileage = String(vehicle.currentMileage) }
@@ -668,6 +672,7 @@ struct InspectionView: View {
             body["odometerReplacementAcknowledged"] = replacementAcknowledged
           }
         } else {
+          if let reservation { body["reservationId"] = reservation.id }
           body["vehicleId"] = vehicle.id
           body["startingMileage"] = Int(mileage)
           body["mileageConfirmed"] = true

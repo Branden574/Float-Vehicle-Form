@@ -1,3 +1,4 @@
+import { checkReservedPickup } from './reservations.js';
 import { mayReviewReturns } from './reviewers.js';
 import { randomUUID } from 'node:crypto';
 import { reportFilename } from './report-filename.js';
@@ -142,6 +143,7 @@ export function installTrips(app, store, { reportService } = {}) {
         .object({
           vehicleId: z.string().uuid(),
           draftId: draftSchema,
+          reservationId: z.uuid().optional(),
           projectedReturnAt: z.iso.datetime({ offset: true }),
           startingMileage: mileageSchema,
           mileageConfirmed: z.literal(true),
@@ -179,6 +181,14 @@ export function installTrips(app, store, { reportService } = {}) {
         if (!vehicle || vehicle.archived) fail(404, 'Vehicle not found.');
         if (vehicle.status !== 'available')
           fail(409, 'This vehicle was just checked out or placed on hold. Choose another vehicle.');
+        await checkReservedPickup(
+          store,
+          user,
+          vehicle.id,
+          now(),
+          b.projectedReturnAt,
+          b.reservationId,
+        );
         if (vehicle.currentMileage !== b.startingMileage)
           fail(
             409,
@@ -228,6 +238,12 @@ export function installTrips(app, store, { reportService } = {}) {
             store.encodeJSON(snapshot),
             JSON.stringify(flags),
           );
+        if (b.reservationId)
+          await db
+            .prepare(
+              "UPDATE reservations SET status='picked_up',trip_id=? WHERE id=? AND status='reserved'",
+            )
+            .run(id, b.reservationId);
         const updated = await db
           .prepare("UPDATE vehicles SET status=?,updated_at=? WHERE id=? AND status='available'")
           .run(needsReview ? 'pending_review' : 'checked_out', time, vehicle.id);

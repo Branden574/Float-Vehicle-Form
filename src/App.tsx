@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   ArrowRight,
   CarFront,
+  CalendarDays,
   ChevronRight,
   ClipboardList,
   Clock3,
@@ -28,11 +29,16 @@ import {
 } from './api';
 import type { Session, Trip, Vehicle } from './types';
 import { checkoutContext, returnContext, useDraftContexts } from './inspectionDraft';
+import {
+  VehicleCalendar,
+  type CalendarViewState,
+  type Booking,
+} from './components/VehicleCalendar';
 import { Workflow } from './components/Workflow';
 import { TripView } from './components/TripView';
 import { Admin } from './components/Admin';
 
-type Page = 'fleet' | 'trips' | 'admin';
+type Page = 'calendar' | 'fleet' | 'trips' | 'admin';
 export function Status({ value, overdue = false }: { value: string; overdue?: boolean }) {
   return (
     <span className={`status ${overdue ? 'overdue' : value}`}>
@@ -368,20 +374,28 @@ export default function App() {
     [loading, setLoading] = useState(true),
     [message, setMessage] = useState(''),
     [error, setError] = useState('');
-  const [page, setPage] = useState<Page>('fleet'),
+  const [page, setPage] = useState<Page>(() =>
+      new URLSearchParams(location.search).has('reservation') ? 'calendar' : 'fleet',
+    ),
     [vehicles, setVehicles] = useState<Vehicle[]>([]),
     [trips, setTrips] = useState<Trip[]>([]),
     [pendingReturns, setPendingReturns] = useState<Trip[]>([]),
     [search, setSearch] = useState(''),
     [filter, setFilter] = useState('all');
-  const [workflow, setWorkflow] = useState<{ vehicle: Vehicle; trip?: Trip } | null>(null),
+  const [workflow, setWorkflow] = useState<{
+      vehicle: Vehicle;
+      trip?: Trip;
+      reservation?: Booking;
+    } | null>(null),
     [detail, setDetail] = useState<string | null>(null),
     [online, setOnline] = useState(navigator.onLine),
     [busy, setBusy] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const activity = useRef(Date.now());
+  const calendarView = useRef<CalendarViewState | undefined>(undefined);
   function erase(note: string) {
+    calendarView.current = undefined;
     setEditingProfile(false);
     setSession(null);
     setWorkflow(null);
@@ -621,6 +635,7 @@ export default function App() {
           {(
             [
               ['fleet', LayoutGrid, 'Vehicle fleet'],
+              ['calendar', CalendarDays, 'Vehicle calendar'],
               ['trips', ClipboardList, 'Trip history'],
               ...(user.role === 'admin' ? [['admin', Settings2, 'Administration']] : []),
             ] as const
@@ -748,6 +763,13 @@ export default function App() {
               }}
               onChanged={() => void refresh()}
             />
+          ) : page === 'calendar' ? (
+            <VehicleCalendar
+              viewState={calendarView}
+              session={session}
+              vehicles={vehicles}
+              onPickup={(vehicle, reservation) => setWorkflow({ vehicle, reservation })}
+            />
           ) : page === 'admin' && user.role === 'admin' ? (
             <Admin
               settings={settings}
@@ -809,7 +831,10 @@ export default function App() {
                 <div>
                   <p className="eyebrow">FLEET WORKSPACE</p>
                   <h1>Find your next vehicle.</h1>
-                  <p>Select the exact vehicle, then complete a quick inspection.</p>
+                  <p>Check out a vehicle now or check availability for a future trip.</p>
+                  <button className="text-button" onClick={() => navigate('calendar')}>
+                    <CalendarDays size={18} /> Check availability &amp; view calendar
+                  </button>
                 </div>
                 <span className="today">
                   {new Intl.DateTimeFormat('en-US', {

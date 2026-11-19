@@ -4,6 +4,7 @@ struct AdminView: View {
   @EnvironmentObject var store: FleetStore
   @State private var overview: AdminOverview?
   @State private var recipients = ""
+  @State private var bookingManagers = ""
   @State private var reviewers = ""
   @State private var approvedEmail = ""
   @State private var employeeCopy = true
@@ -38,6 +39,14 @@ struct AdminView: View {
         Text(
           "One email per line, up to 20. Assigned reviewers receive a review request and approve or hold returns without full admin access. Every new return waits for their signed approval. Nobody can approve their own return; assign at least two reviewers if they also drive. Clearing this list restores administrator review under the existing inspection policy."
         )
+      }
+      Section("Reservation managers") {
+        TextField("Manager emails, one per line", text: $bookingManagers, axis: .vertical)
+          .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.emailAddress)
+        Text(
+          "Assigned staff can manage reservations and receive cancellation emails. An empty list uses assigned return reviewers."
+        ).font(.footnote)
+        Button("Save reservation managers") { Task { await saveBookingManagers() } }.disabled(busy)
       }
       Section {
         TextField("Staff email to approve", text: $approvedEmail)
@@ -108,6 +117,7 @@ struct AdminView: View {
       let result: AdminOverview = try await store.api.request("/api/admin/overview")
       overview = result
       recipients = (result.settings.notificationRecipients ?? []).joined(separator: "\n")
+      bookingManagers = (result.settings.reservationManagerEmails ?? []).joined(separator: "\n")
       employeeCopy = result.settings.employeeCopy
       reviewers = (result.settings.returnReviewerEmails ?? []).joined(separator: "\n")
     } catch { message = error.localizedDescription }
@@ -122,6 +132,24 @@ struct AdminView: View {
       approvedEmail = ""
       await load()
       message = "Staff access approved for \(email)."
+    } catch { message = error.localizedDescription }
+  }
+  func saveBookingManagers() async {
+    busy = true
+    defer { busy = false }
+    do {
+      let addresses = bookingManagers.components(separatedBy: CharacterSet(charactersIn: ",;\n"))
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }.filter {
+          !$0.isEmpty
+        }
+      let result: SettingsResult = try await store.api.request(
+        "/api/admin/settings", method: "PATCH",
+        body: [
+          "reservationManagerEmails": addresses, "reason": "Updated fleet reservation managers",
+        ])
+      store.session?.settings = result.settings
+      bookingManagers = (result.settings.reservationManagerEmails ?? []).joined(separator: "\n")
+      message = "Reservation managers saved."
     } catch { message = error.localizedDescription }
   }
   func saveReviewers() async {

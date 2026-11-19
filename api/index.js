@@ -2,6 +2,7 @@ import { waitUntil } from '@vercel/functions';
 import { createApp } from '../server/app.js';
 import { createReport } from '../server/reports.js';
 import { createEmailSender, processNotification } from '../server/notifications.js';
+import { deliverReservationNotices } from '../server/reservations.js';
 import { sendTripReminders } from '../server/reminders.js';
 import { runMaintenance } from '../server/maintenance.js';
 
@@ -35,6 +36,7 @@ export default async function handler(req, res) {
       if (path === '/api/reminders') {
         if (process.env.REVIEW_WORKSPACE === 'true' || process.env.EMAIL_PROVIDER === 'disabled')
           return res.json({ sent: 0 });
+        await deliverReservationNotices(app.locals.store, createEmailSender());
         return res.json(
           await sendTripReminders({ store: app.locals.store, send: createEmailSender() }),
         );

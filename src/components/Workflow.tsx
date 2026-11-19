@@ -23,6 +23,7 @@ import { SignaturePad } from './SignaturePad';
 const steps = ['Trip details', 'Inspection', 'Photographs', 'Review & sign'];
 const areas = ['front', 'rear', 'driver', 'passenger', 'roof', 'interior', 'windshield', 'wheels'];
 type WorkflowProps = {
+  reservation?: import('./VehicleCalendar').Booking;
   vehicle: Vehicle;
   trip?: Trip;
   user: User;
@@ -32,7 +33,9 @@ type WorkflowProps = {
 };
 export function Workflow(props: WorkflowProps) {
   const { user, vehicle, trip } = props;
-  const context = trip ? returnContext(trip.id) : checkoutContext(vehicle);
+  const context = trip
+    ? returnContext(trip.id)
+    : checkoutContext(vehicle) + (props.reservation ? '/' + props.reservation.id : '');
   const [opened, setOpened] = useState<{
     vault: DraftVault;
     draft?: InspectionDraft;
@@ -118,6 +121,7 @@ export function Workflow(props: WorkflowProps) {
   );
 }
 function InspectionForm({
+  reservation,
   vehicle,
   trip,
   user,
@@ -132,7 +136,12 @@ function InspectionForm({
   const required = [...new Set([...requiredViews, ...(settings.requiredPhotoViews || [])])];
   const [step, setStep] = useState(initial?.step ?? 0);
   const [draftId] = useState(() => initial?.draftId ?? crypto.randomUUID());
-  const [due, setDue] = useState(initial?.due ?? '');
+  const [due, setDue] = useState(() => {
+    if (initial?.due) return initial.due;
+    if (!reservation) return '';
+    const d = new Date(reservation.end);
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  });
   const [mileage, setMileage] = useState(
     initial?.mileage ?? (returning ? '' : String(vehicle.currentMileage)),
   );
@@ -287,6 +296,7 @@ function InspectionForm({
             : {
                 startingMileage: Number(mileage),
                 mileageConfirmed: confirmed,
+                ...(reservation ? { reservationId: reservation.id } : {}),
                 projectedReturnAt: new Date(due).toISOString(),
               }),
           inspection,
@@ -484,6 +494,11 @@ function InspectionForm({
                 </label>
                 {!returning && (
                   <label>
+                    {reservation && (
+                      <small>
+                        Reserved pickup: {formatDate(reservation.start, settings.timezone)}
+                      </small>
+                    )}
                     Projected return date and time
                     <input
                       type="datetime-local"

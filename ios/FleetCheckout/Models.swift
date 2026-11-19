@@ -35,6 +35,7 @@ struct FleetSettings: Codable {
   var site: String
   var timezone: String
   var notificationRecipients: [String]?
+  var reservationManagerEmails: [String]?
   var returnReviewerEmails: [String]?
   var employeeCopy: Bool
   var reviewMode: String

@@ -14,6 +14,8 @@
 		6EAC673B4613CFBB0DE700C2 /* AdminView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84CE1B405917790DD8A6DB50 /* AdminView.swift */; };
 		784AF2D2457A672344EF1EE8 /* FleetCheckoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBA3B6E149A6CD2BEA2C2B5D /* FleetCheckoutTests.swift */; };
 		92D34089F885382C002AA214 /* ReviewWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4166948DCA49DFB8FC0AD361 /* ReviewWorkspaceView.swift */; };
+		ACAA93E61E5BD9B4FA4A38EB /* ReservationCalendar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D10FA0B6C6E612EA79D8353 /* ReservationCalendar.swift */; };
+		B05D1DF47AD7CB03DBDCDAA3 /* FleetRelease.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8658A67162BCDFF01EAA8D09 /* FleetRelease.swift */; };
 		B0EE2ADE1AAD52038FC7D861 /* VehicleDiagram.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA4579CFBBCE1AF8036A6650 /* VehicleDiagram.swift */; };
 		B591558243F29F02A6483C2E /* WorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 651CD1194AA1A1136FAE79DC /* WorkspaceView.swift */; };
 		C0ABB7285C28E1CCBF89DC8A /* InspectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86750B8F23A808A945B063D1 /* InspectionView.swift */; };
@@ -43,7 +45,9 @@
 		4A73B3AB5E1A5C14CFAA68CE /* FleetStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FleetStore.swift; sourceTree = "<group>"; };
 		61B49F3DD930176273C661BF /* CaptureViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureViews.swift; sourceTree = "<group>"; };
 		651CD1194AA1A1136FAE79DC /* WorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceView.swift; sourceTree = "<group>"; };
+		6D10FA0B6C6E612EA79D8353 /* ReservationCalendar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReservationCalendar.swift; sourceTree = "<group>"; };
 		84CE1B405917790DD8A6DB50 /* AdminView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminView.swift; sourceTree = "<group>"; };
+		8658A67162BCDFF01EAA8D09 /* FleetRelease.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FleetRelease.swift; sourceTree = "<group>"; };
 		86750B8F23A808A945B063D1 /* InspectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InspectionView.swift; sourceTree = "<group>"; };
 		A2E9618255FCBE338771B408 /* AccountDeletionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountDeletionView.swift; sourceTree = "<group>"; };
 		A2FA0BD78FA23349A317CA42 /* FleetAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FleetAPI.swift; sourceTree = "<group>"; };
@@ -82,12 +86,14 @@
 				61B49F3DD930176273C661BF /* CaptureViews.swift */,
 				A2FA0BD78FA23349A317CA42 /* FleetAPI.swift */,
 				2F6CE982F4EC2A93B6DF32E5 /* FleetCheckout.entitlements */,
+				8658A67162BCDFF01EAA8D09 /* FleetRelease.swift */,
 				4A73B3AB5E1A5C14CFAA68CE /* FleetStore.swift */,
 				F8F0D1F0AD3AA18464974C77 /* InspectionDraft.swift */,
 				86750B8F23A808A945B063D1 /* InspectionView.swift */,
 				25181E0A9B555236CF1C4453 /* Models.swift */,
 				DA961FED9B93CABC191FF0FB /* Passkey.swift */,
 				2F8527E4526D63C4EFA28D42 /* PrivacyInfo.xcprivacy */,
+				6D10FA0B6C6E612EA79D8353 /* ReservationCalendar.swift */,
 				4166948DCA49DFB8FC0AD361 /* ReviewWorkspaceView.swift */,
 				BA4579CFBBCE1AF8036A6650 /* VehicleDiagram.swift */,
 				651CD1194AA1A1136FAE79DC /* WorkspaceView.swift */,
@@ -209,11 +215,13 @@
 				6EAC673B4613CFBB0DE700C2 /* AdminView.swift in Sources */,
 				07C153949CEFD6D2A70FBBB4 /* CaptureViews.swift in Sources */,
 				D6BDCA57845C0C02617910CE /* FleetAPI.swift in Sources */,
+				B05D1DF47AD7CB03DBDCDAA3 /* FleetRelease.swift in Sources */,
 				DF085C4484BA5F39F81044E6 /* FleetStore.swift in Sources */,
 				4D9FA087869719C6A732FF23 /* InspectionDraft.swift in Sources */,
 				C0ABB7285C28E1CCBF89DC8A /* InspectionView.swift in Sources */,
 				D5707B9F59B3A885ADDE426E /* Models.swift in Sources */,
 				E494585D1845D964C303B6A2 /* Passkey.swift in Sources */,
+				ACAA93E61E5BD9B4FA4A38EB /* ReservationCalendar.swift in Sources */,
 				92D34089F885382C002AA214 /* ReviewWorkspaceView.swift in Sources */,
 				B0EE2ADE1AAD52038FC7D861 /* VehicleDiagram.swift in Sources */,
 				B591558243F29F02A6483C2E /* WorkspaceView.swift in Sources */,
@@ -283,7 +291,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 14;
+				CURRENT_PROJECT_VERSION = 16;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -360,7 +368,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 14;
+				CURRENT_PROJECT_VERSION = 16;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;

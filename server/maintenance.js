@@ -1,3 +1,4 @@
+import { deliverReservationNotices } from './reservations.js';
 import { processNotification } from './notifications.js';
 import { expireRecords } from './retention.js';
 import { processDeletions } from './deletion.js';
@@ -5,6 +6,7 @@ import { processDeletions } from './deletion.js';
 /** Durable outbox rows survive function shutdown; claims prevent duplicate sends. */
 export async function runMaintenance({ store, send }) {
   await expireRecords(store);
+  await deliverReservationNotices(store, send);
   const deletions = await processDeletions(store);
   const time = new Date().toISOString();
   await store.db

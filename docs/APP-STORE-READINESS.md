@@ -1,5 +1,11 @@
 # Fleet Checkout release readiness
 
+## November 18, 2026 calendar and update testing
+
+Version 1.0.2 (build 16) is in internal TestFlight for **Owner iPad Testing**. The signed archive supports iPhone and iPad. Its Face ID purpose string, associated domains and bundled privacy manifest were checked. App Review’s demo instructions include passkeys and the reservation workflow.
+
+An iPhone simulator reserved and canceled a vehicle in the isolated review workspace. A real deployment change produced **Restart now** and **Later** on the native Fleet screen. Both actions were exercised. A synthetic cancellation email was accepted by Resend at its designated delivery test address. The PostgreSQL migration was applied to the staff and review schemas after rehearsal, and an isolated Supabase schema passed the booking and cancellation concurrency checks.
+
 ## November 18, 2026 passkey testing
 
 Version 1.0.2 (build 14) is available to Owner iPad Testing on iPhone and iPad. Beta App Review Information includes the following test steps.
@@ -8,7 +14,7 @@ Version 1.0.2 (build 14) is available to Owner iPad Testing on iPhone and iPad. 
 2. Open **My profile**, select **Create a passkey**, and approve the system prompt.
 3. Sign out, select **Sign in with a review passkey**, and confirm that the same review account opens.
 
-An iPad Pro simulator completed these steps with simulated Face ID and successfully removed the test credential afterward. The review workspace and staff workspace use separate associated domains. Staff can always use an email code. Apple handles device verification, and Fleet Checkout stores the credential identifier and public key. A successful Face ID match on a physical staff device still needs confirmation.
+An iPad Pro simulator and an iPhone simulator completed these steps with simulated Face ID and successfully removed the test credential afterward. The review workspace and staff workspace use separate associated domains. Staff can always use an email code. Apple handles device verification, and Fleet Checkout stores the credential identifier and public key. A successful Face ID match on a physical staff device still needs confirmation.
 
 ## November 18, 2026 staff testing release
 

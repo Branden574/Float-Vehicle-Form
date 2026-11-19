@@ -1,3 +1,4 @@
+import { deliverReservationNotices } from './reservations.js';
 import nodemailer from 'nodemailer';
 import { createHash, randomUUID } from 'node:crypto';
 import { createReport } from './reports.js';
@@ -279,6 +280,7 @@ export function startNotificationWorker({ store, send, intervalMs = 15_000 }) {
           "SELECT * FROM notifications WHERE status IN ('pending','failed') ORDER BY created_at LIMIT 100",
         )
         .all();
+      await deliverReservationNotices(store, send);
       for (const row of rows) {
         if (closed) break;
         // Retain completed PDFs even when mail has no configured recipient.

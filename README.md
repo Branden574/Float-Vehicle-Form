@@ -8,7 +8,19 @@ The hosted test app is available at [fleetcheckout.app](https://fleetcheckout.ap
 
 ## Native iPhone and iPad app
 
-The repository also includes a SwiftUI app in [`ios/`](ios/README.md), using the same accounts, vehicles, inspections and PDF API. Open the committed Xcode project to run it. Native builds are separate from web deployment; TestFlight and App Store distribution are not configured yet. Scheduled encrypted cloud backups and isolated restore checks are documented in [cloud backups](docs/CLOUD-BACKUPS.md).
+The repository also includes a SwiftUI app in [`ios/`](ios/README.md), using the same accounts, vehicles, inspections and PDF API. Open the committed Xcode project to run it. Signed native builds are distributed through TestFlight and the App Store. Scheduled encrypted cloud backups and isolated restore checks are documented in [cloud backups](docs/CLOUD-BACKUPS.md).
+
+## Reservations and release notices
+
+In **Fleet → Vehicle calendar & availability**, choose a pickup and expected return to check the full period before starting an inspection. Times use the workspace time zone. Calendar filters include vehicle and site. Month, week and agenda views show the same bookings. Staff can see vehicle availability across this fleet. Booking owners and assigned managers can see reservation details and cancellation notes.
+
+A future booking holds its time. Physical pickup requires the usual signed checkout during the reserved period. Open the booking, then choose **Start checkout inspection**. Approval, return inspection and form delivery follow the existing trip rules. Adjacent bookings can meet at the same instant. Out-of-service vehicles, pending inspections, overlapping trips and overdue returns can restrict availability.
+
+Open **My upcoming reservations** or a calendar entry to cancel. After confirmation, the booking releases its time and the system records who canceled it. Under **Administration → Reviewers → Reservation managers**, an administrator can assign approved staff for the fleet. When this list is empty, assigned return reviewers receive cancellation notices. A manager canceling another driver’s booking also notifies that driver. Recipients can open **Vehicle calendar → Cancellation notices** to see the notice and email status. Administrators and assigned managers can include canceled bookings in the calendar.
+
+Calendar data refreshes on opening, returning to the screen and approximately every minute while visible. The server rechecks availability when creating a reservation or signing out a vehicle. The local SQLite migration runs at startup. On hosted PostgreSQL, apply the reservation migration to the workspace schema before releasing the clients.
+
+Each deployed web build publishes an uncached release identifier. Open web sessions offer **Refresh now** or **Later** when a newer deployment appears. The native Fleet screen offers **Restart now** to reload workspace data, or **Later** to keep working. Inspections can be completed first. Native executable updates install through TestFlight or the App Store. Deploy the web release after the matching iOS build from `ios/project.yml` is available to testers.
 
 ## Start locally
 

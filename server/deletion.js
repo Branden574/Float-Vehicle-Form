@@ -222,7 +222,11 @@ async function prepareDeletion(store, job) {
           .run(row.user_id, row.key);
     }
     const settings = await store.getSettings();
-    for (const key of ['returnReviewerEmails', 'notificationRecipients'])
+    for (const key of [
+      'returnReviewerEmails',
+      'notificationRecipients',
+      'reservationManagerEmails',
+    ])
       settings[key] = settings[key].filter(
         (email) => email.toLowerCase() !== user.email.toLowerCase(),
       );
@@ -233,6 +237,17 @@ async function prepareDeletion(store, job) {
       .run(store.emailLookup(user.email));
     if (db.kind === 'postgres')
       await db.prepare('DELETE FROM upload_tickets WHERE employee_id=?').run(user.id);
+    await db
+      .prepare('DELETE FROM reservation_notices WHERE recipient_key=?')
+      .run(store.emailLookup(user.email));
+    await db
+      .prepare(
+        'DELETE FROM reservation_notices WHERE reservation_id IN (SELECT id FROM reservations WHERE canceled_by=?)',
+      )
+      .run(user.id);
+    await db
+      .prepare('UPDATE reservations SET canceled_by=NULL, reason_json=NULL WHERE canceled_by=?')
+      .run(user.id);
     await db.prepare('DELETE FROM users WHERE id=?').run(user.id);
     await db
       .prepare('UPDATE deletion_jobs SET user_id=NULL,plan_json=?,error=NULL WHERE id=?')
