@@ -10,40 +10,134 @@ import {
   Trash2,
 } from 'lucide-react';
 import { ApiError, errorMessage, formatDate, miles, post } from '../api';
-import type { Inspection, Photo, Settings, Trip, User, Vehicle } from '../types';
+import {
+  checkoutContext,
+  returnContext,
+  DraftVault,
+  type InspectionDraft,
+  type DraftSlot,
+} from '../inspectionDraft';
+import type { Inspection, Settings, Trip, User, Vehicle } from '../types';
 import { PhotoCapture, requiredViews, viewLabels } from './PhotoCapture';
 import { SignaturePad } from './SignaturePad';
 const steps = ['Trip details', 'Inspection', 'Photographs', 'Review & sign'];
 const areas = ['front', 'rear', 'driver', 'passenger', 'roof', 'interior', 'windshield', 'wheels'];
-export function Workflow({
-  vehicle,
-  trip,
-  user,
-  settings,
-  onClose,
-  onComplete,
-}: {
+type WorkflowProps = {
   vehicle: Vehicle;
   trip?: Trip;
   user: User;
   settings: Settings;
   onClose: () => void;
   onComplete: (trip: Trip) => void;
-}) {
+};
+export function Workflow(props: WorkflowProps) {
+  const { user, vehicle, trip } = props;
+  const context = trip ? returnContext(trip.id) : checkoutContext(vehicle);
+  const [opened, setOpened] = useState<{
+    vault: DraftVault;
+    draft?: InspectionDraft;
+    ready: boolean;
+  }>();
+  const [error, setError] = useState('');
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    let stopped = false,
+      vault: DraftVault | undefined;
+    setOpened(undefined);
+    setError('');
+    (async () => {
+      vault = await DraftVault.open(user.id, context);
+      if (stopped) {
+        vault.close();
+        return;
+      }
+      const draft = await vault.read();
+      if (!stopped) setOpened({ vault, draft, ready: !draft });
+    })().catch((e) => {
+      if (!stopped) setError(errorMessage(e));
+    });
+    return () => {
+      stopped = true;
+      vault?.close();
+    };
+  }, [user.id, context, attempt]);
+  if (opened?.ready)
+    return <InspectionForm {...props} vault={opened.vault} initial={opened.draft} />;
+  if (opened?.draft)
+    return (
+      <section className="workflow">
+        <h1>Resume inspection</h1>
+        <p>
+          You have an unfinished {trip ? 'return' : 'checkout'} for {vehicle.name} on this device.
+        </p>
+        <button className="button primary" onClick={() => setOpened({ ...opened, ready: true })}>
+          Resume inspection
+        </button>
+        {!opened.draft.pending && (
+          <button
+            className="button secondary"
+            onClick={async () => {
+              if (!window.confirm('Discard this saved inspection?')) return;
+              try {
+                await opened.vault.remove();
+                setOpened({ vault: opened.vault, ready: true });
+              } catch (e) {
+                setError(errorMessage(e));
+              }
+            }}
+          >
+            Discard draft
+          </button>
+        )}
+        <button className="text-button" onClick={props.onClose}>
+          Back to fleet
+        </button>
+        {error && <p role="alert">{error}</p>}
+      </section>
+    );
+  return (
+    <section className="workflow">
+      {error ? (
+        <>
+          <p role="alert">{error}</p>
+          <button onClick={() => setAttempt((a) => a + 1)}>Retry opening inspection</button>
+          <button onClick={props.onClose}>Back to fleet</button>
+        </>
+      ) : (
+        <p>Opening your private draft…</p>
+      )}
+    </section>
+  );
+}
+function InspectionForm({
+  vehicle,
+  trip,
+  user,
+  settings,
+  onClose,
+  onComplete,
+  vault,
+  initial,
+}: WorkflowProps & { vault: DraftVault; initial?: InspectionDraft }) {
   const returning = !!trip;
   const stage = returning ? 'return' : 'checkout';
   const required = [...new Set([...requiredViews, ...(settings.requiredPhotoViews || [])])];
-  const [step, setStep] = useState(0);
-  const [draftId] = useState(() => crypto.randomUUID());
-  const [due, setDue] = useState('');
-  const [mileage, setMileage] = useState(returning ? '' : String(vehicle.currentMileage));
-  const [confirmed, setConfirmed] = useState(false);
-  const [inspection, setInspection] = useState<Partial<Inspection>>({
-    damage: [],
-    notes: '',
-    ...(returning ? { damageScope: 'new' as const } : {}),
-  });
-  const [photos, setPhotos] = useState<Photo[]>([]);
+  const [step, setStep] = useState(initial?.step ?? 0);
+  const [draftId] = useState(() => initial?.draftId ?? crypto.randomUUID());
+  const [due, setDue] = useState(initial?.due ?? '');
+  const [mileage, setMileage] = useState(
+    initial?.mileage ?? (returning ? '' : String(vehicle.currentMileage)),
+  );
+  const [confirmed, setConfirmed] = useState(initial?.confirmed ?? false);
+  const [inspection, setInspection] = useState<Partial<Inspection>>(
+    initial?.inspection ?? {
+      damage: [],
+      notes: '',
+      ...(returning ? { damageScope: 'new' as const } : {}),
+    },
+  );
+  const [slots, setSlots] = useState<DraftSlot[]>(initial?.slots ?? []);
+  const photos = slots.flatMap((slot) => (slot.photo ? [slot.photo] : []));
   const [signature, setSignature] = useState('');
   const [ack, setAck] = useState({
     accurate: false,
@@ -53,11 +147,11 @@ export function Workflow({
   });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [uncertain, setUncertain] = useState(false);
+  const [uncertain, setUncertain] = useState(!!initial?.pending);
   const [discrepancy, setDiscrepancy] = useState(false);
   const [observed, setObserved] = useState('');
   const [discrepancyReason, setDiscrepancyReason] = useState('');
-  const submission = useRef<{ key: string; body: unknown } | null>(null);
+  const submission = useRef<{ key: string; body: unknown } | null>(initial?.pending ?? null);
   const heading = useRef<HTMLHeadingElement>(null);
   const employee = trip?.employeeSnapshot || user;
   const start = trip?.startingMileage ?? vehicle.currentMileage;
@@ -67,6 +161,38 @@ export function Workflow({
     ? odometer.oldReading - start + Number(mileage) - odometer.newReading
     : Number(mileage) - start;
   const [replacementAcknowledged, setReplacementAcknowledged] = useState(false);
+  const snapshot = (): InspectionDraft => ({
+    draftId,
+    step,
+    due,
+    mileage,
+    confirmed,
+    inspection,
+    slots,
+    pending: submission.current,
+  });
+  const [saveStatus, setSaveStatus] = useState('Draft saves on this device for 24 hours.');
+  const firstRender = useRef(true);
+  const finished = useRef(false);
+  const saveSequence = useRef(0);
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    if (finished.current || submission.current) return;
+    const seq = ++saveSequence.current;
+    setSaveStatus('Saving draft…');
+    vault.save(snapshot()).then(
+      () => {
+        if (seq === saveSequence.current) setSaveStatus('Draft saved on this device for 24 hours.');
+      },
+      (e) => {
+        if (seq === saveSequence.current)
+          setSaveStatus('Draft could not be saved: ' + errorMessage(e));
+      },
+    );
+  }, [step, due, mileage, confirmed, inspection, slots, uncertain]);
   useEffect(() => {
     const prevent = (event: BeforeUnloadEvent) => {
       event.preventDefault();
@@ -97,6 +223,8 @@ export function Workflow({
         return 'Answer each inspection question with Yes or No.';
       if (!inspection.windshield) return 'Select the windshield condition.';
     }
+    if (index === 2 && slots.some((slot) => slot.file && !slot.photo))
+      return 'Retry or remove unfinished uploads before continuing.';
     if (index === 2 && required.some((view) => !photos.some((photo) => photo.view === view)))
       return 'Store all required photographs before continuing.';
     return '';
@@ -162,16 +290,20 @@ export function Workflow({
     setBusy(true);
     setError('');
     try {
+      await vault.save(snapshot());
       const result = await post<{ trip: Trip }>(
         returning ? `/trips/${trip.id}/return` : '/trips/checkout',
         submission.current.body,
         { 'Idempotency-Key': submission.current.key },
       );
+      finished.current = true;
+      await vault.remove().catch(() => {});
       onComplete(result.trip);
     } catch (error) {
       setError(errorMessage(error));
       if (error instanceof ApiError && error.status > 0 && error.status < 500) {
         submission.current = null;
+        await vault.save(snapshot()).catch((e) => setSaveStatus(errorMessage(e)));
         setUncertain(false);
       } else setUncertain(true);
     } finally {
@@ -194,6 +326,8 @@ export function Workflow({
         observedMileage: Number(observed),
         reason: discrepancyReason,
       });
+      finished.current = true;
+      await vault.remove().catch(() => {});
       onClose();
     } catch (error) {
       setError(errorMessage(error));
@@ -220,16 +354,16 @@ export function Workflow({
       <button
         className="text-button back-link"
         disabled={busy}
-        onClick={() => {
-          if (
-            window.confirm(
-              'Leave this draft? Unsigned details will be cleared. No checkout or return has been completed.',
-            )
-          )
+        onClick={async () => {
+          try {
+            await vault.save(snapshot());
             onClose();
+          } catch (e) {
+            setError(errorMessage(e));
+          }
         }}
       >
-        <ArrowLeft size={17} /> Back to fleet
+        <ArrowLeft size={17} /> Save & exit
       </button>
       <div className="page-heading">
         <div>
@@ -241,6 +375,7 @@ export function Workflow({
           </p>
         </div>
         <span className="draft-label">Draft — not submitted</span>
+        <small role="status">{saveStatus}</small>
       </div>
       <ol className="stepper" aria-label="Inspection progress">
         {steps.map((label, index) => (
@@ -582,7 +717,8 @@ export function Workflow({
                 stage={stage}
                 draftId={draftId}
                 settings={settings}
-                onChange={setPhotos}
+                initial={initial?.slots ?? []}
+                onChange={setSlots}
               />
             </div>
             <div hidden={step !== 3}>

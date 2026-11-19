@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Camera, Check, ImagePlus, RotateCcw, Upload, X } from 'lucide-react';
 import { errorMessage, formatDate, uploadPhoto } from '../api';
+import type { DraftSlot } from '../inspectionDraft';
 import type { Photo, Settings } from '../types';
 export const requiredViews = ['front', 'rear', 'driver', 'passenger'] as const;
 export const viewLabels: Record<string, string> = {
@@ -34,6 +35,7 @@ export function PhotoCapture({
   stage,
   draftId,
   settings,
+  initial,
   onChange,
 }: {
   vehicleId: string;
@@ -41,12 +43,21 @@ export function PhotoCapture({
   stage: 'checkout' | 'return';
   draftId: string;
   settings: Settings;
-  onChange: (photos: Photo[]) => void;
+  initial: DraftSlot[];
+  onChange: (slots: DraftSlot[]) => void;
 }) {
   const required = [...new Set([...requiredViews, ...(settings.requiredPhotoViews || [])])];
-  const [slots, setSlots] = useState<Slot[]>(
-    required.map((view) => ({ key: view, view, progress: 0, busy: false })),
-  );
+  const [slots, setSlots] = useState<Slot[]>(() => [
+    ...initial.map((slot) => ({
+      ...slot,
+      progress: slot.photo ? 100 : 0,
+      busy: false,
+      error: slot.file ? 'Ready to retry this upload.' : undefined,
+    })),
+    ...required
+      .filter((view) => !initial.some((slot) => slot.key === view))
+      .map((view) => ({ key: view, view, progress: 0, busy: false })),
+  ]);
   const [cameraKey, setCameraKey] = useState<string | null>(null);
   const [cameraError, setCameraError] = useState('');
   const [cameraReady, setCameraReady] = useState(false);
@@ -54,11 +65,31 @@ export function PhotoCapture({
   const video = useRef<HTMLVideoElement>(null);
   const stream = useRef<MediaStream | null>(null);
   const urls = useRef(new Set<string>());
+  const previous = useRef<DraftSlot[]>([]);
   useEffect(() => {
-    onChange(
-      slots.flatMap((slot) => (slot.photo && !slot.busy && !slot.error ? [slot.photo] : [])),
-    );
-  }, [slots]);
+    const stored = slots
+      .filter((slot) => slot.photo || slot.file)
+      .map(({ key, view, photo, file, source, capturedAt }) => ({
+        key,
+        view,
+        photo,
+        file: photo ? undefined : file,
+        source,
+        capturedAt,
+      }));
+    if (
+      stored.length === previous.current.length &&
+      stored.every(
+        (slot, index) =>
+          slot.key === previous.current[index].key &&
+          slot.photo === previous.current[index].photo &&
+          slot.file === previous.current[index].file,
+      )
+    )
+      return;
+    previous.current = stored;
+    onChange(stored);
+  }, [slots, onChange]);
   useEffect(
     () => () => {
       stream.current?.getTracks().forEach((track) => track.stop());
@@ -141,7 +172,7 @@ export function PhotoCapture({
     }).forEach(([name, value]) => data.append(name, value));
     try {
       const photo = await uploadPhoto(data, (value) => update(key, { progress: value }));
-      update(key, { photo, busy: false, progress: 100 });
+      update(key, { photo, file: undefined, busy: false, progress: 100 });
     } catch (error) {
       update(key, { busy: false, error: errorMessage(error) });
     }
@@ -241,6 +272,15 @@ export function PhotoCapture({
             {slot.error && (
               <div className="inline-error" role="alert">
                 {slot.error}
+                <button
+                  type="button"
+                  className="text-button"
+                  onClick={() =>
+                    update(slot.key, { file: undefined, preview: undefined, error: undefined })
+                  }
+                >
+                  Remove unsaved photo
+                </button>
                 <button
                   type="button"
                   className="text-button"

@@ -36,6 +36,7 @@ export function Admin({
     [reason, setReason] = useState(''),
     [replacement, setReplacement] = useState(false),
     [invitation, setInvitation] = useState('');
+  const [approvedEmail, setApprovedEmail] = useState('');
   const [reviewers, setReviewers] = useState((settings.returnReviewerEmails || []).join('\n'));
   const [config, setConfig] = useState(settings),
     [recipients, setRecipients] = useState<string[]>(
@@ -100,8 +101,14 @@ export function Admin({
     e.preventDefault();
     if (!staff) return;
     void perform(async () => {
-      const { id, ...body } = staff;
-      if (id) await patch(`/admin/users/${id}`, { ...body, reason });
+      const {
+        id,
+        staffApproved,
+        canAccessFleet: _fleet,
+        canReviewReturns: _review,
+        ...body
+      } = staff;
+      if (id) await patch(`/admin/users/${id}`, { ...body, staffApproved, reason });
       else {
         const result = await post<{ inviteToken: string }>('/admin/users', body);
         setInvitation(`${location.origin}/#invite=${result.inviteToken}`);
@@ -490,15 +497,52 @@ export function Admin({
                   <Plus size={17} /> Invite staff
                 </button>
               </div>
+              <form
+                className="editor-panel"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void perform(async () => {
+                    await post('/admin/staff-approvals', { email: approvedEmail.trim() });
+                    setNotice(
+                      `Staff access approved for ${approvedEmail.trim()}. They can now sign in with an email code.`,
+                    );
+                    setApprovedEmail('');
+                  });
+                }}
+              >
+                <label>
+                  Staff email to approve
+                  <input
+                    type="email"
+                    required
+                    maxLength={254}
+                    value={approvedEmail}
+                    onChange={(e) => setApprovedEmail(e.target.value)}
+                    autoComplete="off"
+                  />
+                </label>
+                <p className="fine">
+                  Approval opens the fleet workspace. To authorize driving or deactivate an account,
+                  choose Edit access.
+                </p>
+                <button className="button primary" disabled={busy || !approvedEmail.trim()}>
+                  Approve email
+                </button>
+              </form>
               {overview.users.map((u) => (
                 <div className="admin-row" key={u.id}>
                   <div>
                     <strong>
-                      {u.name}
+                      {u.name || 'Profile not yet completed'}
                       {!u.active ? ' · Inactive' : ''}
                     </strong>
                     <p>
-                      {u.email} · {u.department || 'No department'}
+                      {u.email} ·{' '}
+                      {u.staffApproved || u.role === 'admin'
+                        ? 'Approved staff'
+                        : settings.returnReviewerEmails?.includes(u.email)
+                          ? 'Assigned reviewer'
+                          : 'Awaiting approval'}
                     </p>
                   </div>
                   <span>{humanize(u.role)}</span>
@@ -544,7 +588,7 @@ export function Admin({
                         {label}
                         <input
                           type={key === 'email' ? 'email' : 'text'}
-                          required={key === 'name' || key === 'email'}
+                          required={(!staff.id && key === 'name') || key === 'email'}
                           value={staff[key]}
                           onChange={(e) => setStaff({ ...staff, [key]: e.target.value })}
                         />
@@ -555,7 +599,11 @@ export function Admin({
                       <select
                         value={staff.role}
                         onChange={(e) =>
-                          setStaff({ ...staff, role: e.target.value as User['role'] })
+                          setStaff({
+                            ...staff,
+                            role: e.target.value as User['role'],
+                            staffApproved: e.target.value === 'admin' || staff.staffApproved,
+                          })
                         }
                       >
                         <option value="staff">Staff</option>
@@ -563,11 +611,34 @@ export function Admin({
                       </select>
                     </label>
                   </div>
+                  {staff.id && (
+                    <label className="check-label">
+                      <input
+                        type="checkbox"
+                        checked={!!staff.staffApproved}
+                        disabled={staff.role === 'admin'}
+                        onChange={(e) =>
+                          setStaff({
+                            ...staff,
+                            staffApproved: e.target.checked,
+                            authorizedDriver: e.target.checked && staff.authorizedDriver,
+                          })
+                        }
+                      />
+                      Approved staff email
+                    </label>
+                  )}
                   <label className="check-label">
                     <input
                       type="checkbox"
                       checked={staff.authorizedDriver}
-                      onChange={(e) => setStaff({ ...staff, authorizedDriver: e.target.checked })}
+                      onChange={(e) =>
+                        setStaff({
+                          ...staff,
+                          authorizedDriver: e.target.checked,
+                          staffApproved: e.target.checked || staff.staffApproved,
+                        })
+                      }
                     />
                     Authorized float-pool driver
                   </label>
@@ -865,21 +936,68 @@ export function Admin({
               </form>
               <h2>Sending history</h2>
               <p>
-                Accepted means the provider accepted the message, not that it reached an inbox.
-                Unknown sends require provider review before an explicit resend.
+                Accepted means the sending provider took the message. Delivered means the
+                recipient’s mail server accepted it. Check the provider’s records before retrying a
+                delayed or unknown send.
               </p>
               {overview.notifications.map((n) => (
                 <div className="notification-admin" key={n.id}>
                   <div className="row between">
                     <strong>
-                      {n.stage === 'return' ? 'Checkout + check-in' : 'Checkout'} ·{' '}
-                      {n.tripId.slice(0, 8)}
+                      {n.stage === 'return'
+                        ? 'Checkout + check-in'
+                        : n.stage === 'return_review'
+                          ? 'Return review request'
+                          : 'Checkout'}{' '}
+                      · {n.tripId.slice(0, 8)}
                     </strong>
                     <Status value={n.status} />
                   </div>
                   <p>
-                    {n.recipients?.join(', ') || 'No recipients configured'} · {n.attempts} attempts
+                    {!n.deliveries?.length &&
+                      `${n.recipients?.join(', ') || 'No recipients configured'} · `}
+                    {n.attempts} {n.attempts === 1 ? 'attempt' : 'attempts'}
                   </p>
+                  {n.deliveries?.map((delivery) => (
+                    <div className="row between" key={delivery.email}>
+                      <p>
+                        {delivery.email} ·{' '}
+                        {delivery.status === 'delivered'
+                          ? 'Delivered to mail server'
+                          : humanize(delivery.status)}
+                        {delivery.viaLink ? ' · Private download link' : ''} ·{' '}
+                        {formatDate(delivery.updatedAt, settings.timezone)}
+                      </p>
+                      {['failed', 'bounced', 'suppressed', 'unknown', 'delayed'].includes(
+                        delivery.status,
+                      ) &&
+                        !['pending', 'processing', 'awaiting_review'].includes(n.status) && (
+                          <button
+                            className="button secondary"
+                            disabled={busy}
+                            onClick={() => {
+                              const uncertain = ['unknown', 'delayed'].includes(delivery.status);
+                              const reason = uncertain
+                                ? window.prompt(
+                                    'Check provider records and enter a reason to resend to this recipient.',
+                                  )
+                                : undefined;
+                              if (uncertain && (!reason || reason.length < 5)) return;
+                              void perform(async () => {
+                                await post(`/admin/notifications/${n.id}/retry`, {
+                                  recipient: delivery.email,
+                                  resend: uncertain,
+                                  reason,
+                                });
+                                setNotice(`Retry requested for ${delivery.email}.`);
+                              });
+                            }}
+                          >
+                            Retry this recipient
+                          </button>
+                        )}
+                    </div>
+                  ))}
                   {n.error && <p className="inline-error">{n.error}</p>}
                   <p className="fine">
                     {formatDate(n.createdAt, settings.timezone)}
@@ -892,7 +1010,11 @@ export function Admin({
                       className="button secondary"
                       disabled={busy}
                       onClick={() => {
-                        const resend = n.status !== 'failed';
+                        const resend =
+                          n.status !== 'failed' ||
+                          n.deliveries?.some(
+                            (d) => !['failed', 'bounced', 'suppressed'].includes(d.status),
+                          );
                         let reason = '';
                         if (resend) {
                           reason =

@@ -39,5 +39,9 @@ export function openPrivacy(dataDir, explicit = process.env.PROFILE_ENCRYPTION_K
       Buffer.concat([decipher.update(payload.subarray(28)), decipher.final()]).toString('utf8'),
     );
   };
-  return { encode, decode, lookup, fingerprint };
+  const draftKey = (userId) =>
+    createHmac('sha256', key)
+      .update('fleet-local-draft-v1\0' + userId)
+      .digest('base64');
+  return { encode, decode, lookup, fingerprint, draftKey };
 }

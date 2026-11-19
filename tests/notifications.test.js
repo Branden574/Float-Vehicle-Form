@@ -36,7 +36,10 @@ test('assistant recipients receive checkout and check-in PDFs; settings persist 
   };
   const checkoutNotification = (await f.store.listNotifications(checkout.data.trip.id))[0];
   await processNotification({ store: f.store, notificationId: checkoutNotification.id, send });
-  assert.deepEqual(messages[0].to, [...recipients, f.staff.email]);
+  assert.deepEqual(
+    messages.map((m) => m.to),
+    [...recipients, f.staff.email].map((email) => [email]),
+  );
   assert.match(messages[0].text, /Not yet returned/);
   assert.equal(messages[0].attachments[0].filename, reportFilename(checkout.data.trip, 'checkout'));
   const checkoutPdf = await PDFDocument.load(messages[0].attachments[0].content);
@@ -62,11 +65,14 @@ test('assistant recipients receive checkout and check-in PDFs; settings persist 
     (row) => row.stage === 'return',
   );
   await processNotification({ store: f.store, notificationId: returnNotification.id, send });
-  assert.equal(messages.length, 2);
-  assert.deepEqual(messages[1].to, [...recipients, f.staff.email]);
-  assert.match(messages[1].text, /both completed forms/);
+  assert.equal(messages.length, 6);
+  assert.deepEqual(
+    messages.slice(3).map((m) => m.to),
+    [...recipients, f.staff.email].map((email) => [email]),
+  );
+  assert.match(messages[3].text, /both completed forms/);
   const expectedName = reportFilename(returned.data.trip, 'return');
-  assert.equal(messages[1].attachments[0].filename, expectedName);
+  assert.equal(messages[3].attachments[0].filename, expectedName);
   const detail = await f.s.request(`/trips/${checkout.data.trip.id}`);
   assert.equal(detail.data.reportFilenames.return, expectedName);
   assert.equal(
@@ -98,7 +104,7 @@ test('assistant recipients receive checkout and check-in PDFs; settings persist 
     download: true,
   });
   assert.equal(signedName, expectedName);
-  const returnPdf = await PDFDocument.load(messages[1].attachments[0].content);
+  const returnPdf = await PDFDocument.load(messages[3].attachments[0].content);
   assert.ok(
     returnPdf.getPageCount() >= checkoutPdf.getPageCount() + 4,
     'return adds two photo pages and a full page for each scanned receipt',

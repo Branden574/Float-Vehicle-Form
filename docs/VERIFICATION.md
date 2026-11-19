@@ -60,7 +60,7 @@ An organization representative should complete the following on an actual manage
 - [ ] Host-specific photo codec support, disk monitoring, backup scheduling, encrypted off-device storage and a restore rehearsal on the deployed operating system.
 - [ ] Fleet/staff master records, driver eligibility, review responsibility and retention policy approved by the organization.
 
-SSO, confirmed-delivery webhooks, future reservations, automatic retention deletion, App Store distribution and physical odometer integration are not implemented or claimed. Native iOS implementation and its separate acceptance boundary are documented below. One active-trip odometer replacement event is supported per trip. Load/scale, high availability and a formal independent penetration test have not been performed.
+The app supports email-code sign-in and manual odometer entry. See the release record in docs/APP-STORE-READINESS.md for App Store and TestFlight status, and docs/CLOUD-BACKUPS.md for retention and recovery. One active-trip odometer replacement event is supported per trip. Load/scale, high availability and a formal independent penetration test have not been performed.
 
 ## Reproduce
 

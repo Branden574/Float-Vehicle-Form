@@ -25,12 +25,17 @@ struct InspectionView: View {
   @State private var selectedPhoto: PhotosPickerItem?
   @State private var camera = false
   @State private var receiptScanner = false
-  @State private var pendingReceiptPages: [Data] = []
+  @State private var queued: [QueuedInspectionPhoto] = []
+  @State private var vault: NativeDraftVault?
+  @State private var saved: InspectionDraft?
+  @State private var unlocking = true
+  @State private var finished = false
+  @State private var draftStatus = "Draft saves on this device for 24 hours."
   @State private var signature = ""
   @State private var clearID = UUID()
   @State private var acknowledgments: [String: Bool] = [:]
   @State private var replacementAcknowledged = false
-  @State private var pendingBody: [String: Any]?
+  @State private var pendingBody: Data?
   @State private var pendingKey = ""
   @State private var busy = false
   @State private var loadingPhoto = false
@@ -95,6 +100,27 @@ struct InspectionView: View {
           Button("Done") { dismiss() }.buttonStyle(.borderedProminent).foregroundStyle(
             Color("FleetOnAccent"))
         }.padding(32)
+      } else if unlocking {
+        ProgressView("Opening your private draft…")
+      } else if let saved {
+        VStack(spacing: 16) {
+          Text("Resume inspection").font(.title.bold())
+          Text("You have an unfinished \(stage) for \(vehicle.name) on this device.")
+          Button("Resume inspection") {
+            restore(saved)
+            self.saved = nil
+          }
+          if saved.pendingBody == nil {
+            Button("Discard draft", role: .destructive) { cancel = true }
+          }
+          Button("Back to fleet") { dismiss() }
+        }.padding()
+      } else if vault == nil {
+        VStack(spacing: 16) {
+          Text(error)
+          Button("Retry opening inspection") { Task { await unlock() } }
+          Button("Back to fleet") { dismiss() }
+        }
       } else {
         Form {
           Section {
@@ -108,6 +134,7 @@ struct InspectionView: View {
               "Step \(step + 1) of 4 · \(["Trip details","Inspection","Photographs","Review & sign"][step])"
             ).font(.caption)
           }
+          Text(draftStatus).font(.footnote).foregroundStyle(.secondary)
           if !error.isEmpty {
             Text(error).foregroundStyle(.red).accessibilityIdentifier("workflowError")
           }
@@ -119,7 +146,7 @@ struct InspectionView: View {
           }.disabled(busy || loadingPhoto || pendingBody != nil)
           if pendingBody != nil {
             Text(
-              "Submission status is uncertain. Retry the same submission to avoid a duplicate. Keep this draft open."
+              "Submission status is uncertain. Retry the same submission to check its status."
             ).foregroundStyle(.orange)
           }
           Section {
@@ -153,25 +180,33 @@ struct InspectionView: View {
       .navigationBarTitleDisplayMode(.inline)
       .quickLookPreview($preview)
       .toolbar {
-        if completed == nil { Button("Cancel") { cancel = true }.disabled(busy || loadingPhoto) }
+        if completed == nil && vault != nil && saved == nil {
+          Button("Save & exit") { if persist() { dismiss() } }.disabled(busy || loadingPhoto)
+        }
       }
       .interactiveDismissDisabled(completed == nil)
       .confirmationDialog(
-        "Discard this unfinished inspection? Uploaded photos are not a completed trip. If a submission is uncertain, check Trip history before starting another.",
-        isPresented: $cancel
-      ) { Button("Discard draft", role: .destructive) { dismiss() } }
-      .onAppear {
-        if ownerSession == nil { ownerSession = store.revision }
-        if mileage.isEmpty && !returning { mileage = String(vehicle.currentMileage) }
+        "Discard this unfinished inspection?", isPresented: $cancel
+      ) {
+        Button("Discard draft", role: .destructive) {
+          do {
+            try vault?.remove()
+            finished = true
+            dismiss()
+          } catch { self.error = error.localizedDescription }
+        }
+      }
+      .task { if vault == nil { await unlock() } }
+      .onChange(of: snapshot) { _, _ in if !unlocking && saved == nil && !finished { _ = persist() }
       }
       .sheet(isPresented: $camera) {
-        CameraCapture { data in Task { await upload(data, source: "camera") } }.ignoresSafeArea()
+        CameraCapture { data in
+          Task { await queueAndUpload([data], source: "camera", view: viewName) }
+        }.ignoresSafeArea()
       }
       .fullScreenCover(isPresented: $receiptScanner) {
         ReceiptScanner(remainingPages: max(0, 30 - photos.count)) { pages in
-          pendingReceiptPages = pages
-          loadingPhoto = true
-          Task { await uploadReceiptPages() }
+          Task { await queueAndUpload(pages, source: "camera", view: "receipt") }
         } onError: {
           error = $0
         }
@@ -187,7 +222,7 @@ struct InspectionView: View {
               throw FleetError(message: "Could not read that photograph.")
             }
             // Imported originals retain their original bytes and are labelled as uploads.
-            await upload(data, source: "upload")
+            await queueAndUpload([data], source: "upload", view: viewName)
           } catch { self.error = error.localizedDescription }
           selectedPhoto = nil
         }
@@ -305,7 +340,7 @@ struct InspectionView: View {
             } else {
               receiptScanner = true
             }
-          }.disabled(busy || loadingPhoto || photos.count >= 30 || !pendingReceiptPages.isEmpty)
+          }.disabled(busy || loadingPhoto || photos.count >= 30 || !queued.isEmpty)
           Text(
             "Use Apple's scanner to crop and capture each receipt page. Saved scans attach to this return and its emailed form package."
           )
@@ -316,18 +351,15 @@ struct InspectionView: View {
           )
           .font(.footnote).foregroundStyle(.secondary)
         }
-        if !pendingReceiptPages.isEmpty {
-          Text(
-            "\(pendingReceiptPages.count) scanned receipt pages waiting to upload. Keep this draft open."
-          )
-          Button("Retry receipt uploads") {
-            loadingPhoto = true
-            Task { await uploadReceiptPages() }
-          }.disabled(busy || loadingPhoto)
-          Button("Remove unsaved receipt scans", role: .destructive) {
-            pendingReceiptPages = []
-          }.disabled(busy || loadingPhoto)
-        }
+      }
+      if !queued.isEmpty {
+        Text("\(queued.count) photos or receipt pages waiting to upload.")
+        Button("Retry uploads") { Task { await uploadQueue() } }.disabled(busy || loadingPhoto)
+        Button("Remove unsaved photos", role: .destructive) {
+          let old = queued
+          queued = []
+          if persist() { for item in old { vault?.removePhoto(item.id) } } else { queued = old }
+        }.disabled(busy || loadingPhoto)
       }
       if UIImagePickerController.isSourceTypeAvailable(.camera) {
         Button("Take photo", systemImage: "camera") { camera = true }.disabled(
@@ -400,8 +432,8 @@ struct InspectionView: View {
     }
   }
   func validate(_ index: Int) -> String {
-    if index == 2 && !pendingReceiptPages.isEmpty {
-      return "Upload or remove the remaining scanned receipt pages before continuing."
+    if index == 2 && !queued.isEmpty {
+      return "Upload or remove all waiting photos and receipt pages before continuing."
     }
     if index == 0 {
       guard let value = Int(mileage), value >= 0, value <= 9_999_999 else {
@@ -430,15 +462,101 @@ struct InspectionView: View {
     }
     return ""
   }
-  func uploadReceiptPages() async {
+  var snapshot: InspectionDraft {
+    InspectionDraft(
+      draftID: draftID, step: step, mileage: mileage, due: due, confirmed: confirmed,
+      checks: checks, windshield: windshield, marks: marks, notes: notes, photos: photos,
+      uploads: queued, pendingBody: pendingBody, pendingKey: pendingKey)
+  }
+  func unlock() async {
+    guard let owner = store.session?.user.id else { return }
+    unlocking = true
+    let revision = store.revision
+    do {
+      let result: DraftUnlock = try await store.api.request("/api/inspection-draft-key")
+      guard revision == store.revision, owner == store.session?.user.id else { return }
+      let context = NativeDraftVault.context(vehicle: vehicle, trip: trip)
+      let opened = try NativeDraftVault(unlock: result, owner: owner, context: context)
+      saved = try opened.load()
+      if !returning { mileage = String(vehicle.currentMileage) }
+      ownerSession = revision
+      vault = opened
+      error = ""
+    } catch { self.error = error.localizedDescription }
+    unlocking = false
+  }
+  func restore(_ d: InspectionDraft) {
+    draftID = d.draftID
+    step = d.step
+    mileage = d.mileage
+    due = d.due
+    confirmed = d.confirmed
+    checks = d.checks
+    windshield = d.windshield
+    marks = d.marks
+    notes = d.notes
+    photos = d.photos
+    queued = d.uploads
+    pendingBody = d.pendingBody
+    pendingKey = d.pendingKey
+  }
+  @discardableResult func persist() -> Bool {
+    guard let vault, ownerSession == store.revision, store.session != nil, !finished else {
+      return false
+    }
+    do {
+      try vault.save(snapshot)
+      draftStatus = "Draft saved on this device for 24 hours."
+      return true
+    } catch {
+      draftStatus = "Could not save the latest draft: " + error.localizedDescription
+      return false
+    }
+  }
+  func queueAndUpload(_ pages: [Data], source: String, view: String) async {
+    guard let vault, ownerSession == store.revision else { return }
+    guard queued.count + photos.count + pages.count <= 30,
+      pages.allSatisfy({ $0.count <= 12 * 1024 * 1024 })
+    else {
+      error = "Each photo must be under 12 MB. An inspection can have up to 30 photos."
+      return
+    }
+    var added: [QueuedInspectionPhoto] = []
+    do {
+      for data in pages {
+        let item = QueuedInspectionPhoto(
+          id: UUID(), source: source, view: view,
+          capturedAt: source == "camera" ? ISO8601DateFormatter().string(from: Date()) : nil)
+        try vault.storePhoto(data, id: item.id)
+        added.append(item)
+      }
+      queued.append(contentsOf: added)
+      guard persist() else { return }
+      await uploadQueue()
+    } catch {
+      for item in added { vault.removePhoto(item.id) }
+      self.error = error.localizedDescription
+    }
+  }
+  func uploadQueue() async {
+    guard let vault else { return }
+    loadingPhoto = true
     defer { loadingPhoto = false }
-    while let page = pendingReceiptPages.first {
-      guard await upload(page, source: "camera", view: "receipt") else { return }
-      pendingReceiptPages.removeFirst()
+    while let item = queued.first {
+      do {
+        let bytes = try vault.photo(item.id)
+        guard await upload(bytes, item: item) else { return }
+        queued.removeFirst()
+        guard persist() else { return }
+        vault.removePhoto(item.id)
+      } catch {
+        self.error = error.localizedDescription
+        return
+      }
     }
   }
   @discardableResult
-  func upload(_ data: Data, source: String, view: String? = nil) async -> Bool {
+  func upload(_ data: Data, item: QueuedInspectionPhoto) async -> Bool {
     guard !busy, ownerSession == store.revision, store.session != nil else { return false }
     guard photos.count < 30 else {
       error = "Each inspection allows 30 photos and receipt pages combined."
@@ -452,12 +570,10 @@ struct InspectionView: View {
     error = ""
     defer { busy = false }
     var metadata: [String: Any] = [
-      "vehicleId": vehicle.id, "stage": stage, "view": view ?? viewName, "draftId": draftID,
-      "source": source,
+      "vehicleId": vehicle.id, "stage": stage, "view": item.view, "draftId": draftID,
+      "source": item.source,
     ]
-    if source == "camera" {
-      metadata["deviceCapturedAt"] = ISO8601DateFormatter().string(from: Date())
-    }
+    if let captured = item.capturedAt { metadata["deviceCapturedAt"] = captured }
     if let trip { metadata["tripId"] = trip.id }
     do {
       let photo = try await store.api.upload(data, metadata: metadata)
@@ -513,7 +629,7 @@ struct InspectionView: View {
           body["mileageConfirmed"] = true
           body["projectedReturnAt"] = ISO8601DateFormatter().string(from: due)
         }
-        pendingBody = body
+        pendingBody = try JSONSerialization.data(withJSONObject: body, options: .sortedKeys)
         pendingKey = UUID().uuidString
       } catch {
         self.error = error.localizedDescription
@@ -524,11 +640,16 @@ struct InspectionView: View {
     error = ""
     defer { busy = false }
     do {
+      guard persist(), let pendingBody,
+        let body = try JSONSerialization.jsonObject(with: pendingBody) as? [String: Any]
+      else { return }
       let result: TripResult = try await store.api.request(
         returning ? "/api/trips/\(trip!.id)/return" : "/api/trips/checkout", method: "POST",
-        body: pendingBody, key: pendingKey)
+        body: body, key: pendingKey)
+      finished = true
+      try? vault?.remove()
       completed = result.trip
-      pendingBody = nil
+      self.pendingBody = nil
       await store.refresh()
     } catch let failure as FleetError {
       error = failure.localizedDescription

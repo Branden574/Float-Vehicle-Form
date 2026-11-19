@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { patch, post, errorMessage, clearPrivateState } from '../api';
+import { deleteLocalDrafts } from '../inspectionDraft';
 import type { Session } from '../types';
 export function Profile({
   session,
@@ -26,10 +27,17 @@ export function Profile({
   return (
     <main className="profile-page">
       <p className="eyebrow">Your fleet profile</p>
-      <h1>{session.user.charter ? 'Your saved details' : 'Welcome. Tell us about you.'}</h1>
+      <h1>
+        {session.user.canAccessFleet === false
+          ? 'Fleet access pending'
+          : session.user.charter
+            ? 'Your saved details'
+            : 'Welcome. Tell us about you.'}
+      </h1>
       <p>
-        These details will prefill your future checkouts. Signed past trips keep their original
-        details.
+        {session.user.canAccessFleet === false
+          ? 'Ask your fleet administrator to approve your work email. You can manage or delete your profile here.'
+          : 'These details will prefill your future checkouts. Signed past trips keep their original details.'}
       </p>
       <form
         onSubmit={async (e) => {
@@ -119,6 +127,7 @@ export function Profile({
                 const result = await post<{ receipt: string }>('/auth/delete-account', {
                   confirmation,
                 });
+                await deleteLocalDrafts(session.user.id).catch(() => {});
                 clearPrivateState();
                 window.location.replace('/deletion-status#' + result.receipt);
               } catch (e) {

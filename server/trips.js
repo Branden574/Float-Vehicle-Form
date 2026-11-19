@@ -52,6 +52,11 @@ export function installTrips(app, store, { reportService } = {}) {
       }
     }
   };
+  app.get('/api/inspection-draft-key', (req, res) =>
+    res
+      .set('Cache-Control', 'private, no-store')
+      .json({ owner: req.user.id, key: store.draftKey(req.user.id) }),
+  );
   app.get('/api/vehicles', async (req, res) =>
     res.json({
       vehicles: (

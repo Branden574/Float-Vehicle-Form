@@ -7,6 +7,8 @@ export type User = {
   manager: string;
   role: 'staff' | 'admin';
   canReviewReturns?: boolean;
+  staffApproved?: boolean;
+  canAccessFleet?: boolean;
   authorizedDriver: boolean;
   active: boolean;
 };
@@ -20,6 +22,7 @@ export type Vehicle = {
   vinLast4: string;
   site: string;
   currentMileage: number;
+  mileageVersion?: number;
   status: 'available' | 'checked_out' | 'pending_review' | 'out_of_service';
   photoUrl: string;
   notes: string;
@@ -139,6 +142,7 @@ export type Notification = {
   attempts: number;
   createdAt: string;
   recipients?: string[];
+  deliveries?: { email: string; status: string; updatedAt: string; viaLink: boolean }[];
   acceptedAt?: string;
 };
 export type Audit = {

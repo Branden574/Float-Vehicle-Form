@@ -91,6 +91,10 @@ test('email verification limits guesses, expires codes, refuses disabled account
       code: messages.at(-1).text.match(/code is (\d{6})/)[1],
     };
   };
+  for (const email of ['attempts@example.test', 'expired@example.test', 'failed@example.test']) {
+    const result = await f.a.request('/admin/staff-approvals', { method: 'POST', body: { email } });
+    assert.equal(result.status, 200);
+  }
   const limited = await request('attempts@example.test');
   const wrong = limited.code === '000000' ? '000001' : '000000';
   for (let i = 0; i < 5; i++)
@@ -114,20 +118,32 @@ test('email verification limits guesses, expires codes, refuses disabled account
   );
 });
 
-test('first verified email creates a staff profile without driver or administrator privileges', async (t) => {
+test('an administrator approves a staff email for passwordless access without driver or administrator privileges', async (t) => {
   let message;
   const f = await fixture(t, {
     sendSignInCode: async (mail) => {
       message = mail;
     },
   });
-  const requested = await post(f, 'request-code', { email: 'new@example.test' });
+  const email = 'new@example.test';
+  const approval = { method: 'POST', body: { email: ' NEW@example.test ' } };
+  assert.equal((await f.s.request('/admin/staff-approvals', approval)).status, 403);
+  const approved = await f.a.request('/admin/staff-approvals', approval);
+  assert.equal(approved.status, 200);
+  assert.equal(approved.data.user.email, email);
+  assert.equal(approved.data.user.staffApproved, true);
+  assert.equal(
+    (await f.a.request('/admin/staff-approvals', approval)).data.user.id,
+    approved.data.user.id,
+  );
+  const requested = await post(f, 'request-code', { email });
   const session = await post(f, 'verify-code', {
     challengeId: requested.body.challengeId,
     code: message.text.match(/code is (\d{6})/)[1],
   });
   assert.equal(session.status, 200);
   assert.equal(session.body.user.role, 'staff');
+  assert.equal(session.body.user.canAccessFleet, true);
   assert.equal(session.body.user.authorizedDriver, false);
   assert.equal(session.body.user.charter, '');
   const headers = {
@@ -221,4 +237,144 @@ test('email code resend enforces a minute and invalidates the previous challenge
     (await post(f, 'verify-code', { challengeId: next.body.challengeId, code: newCode })).status,
     200,
   );
+});
+
+test('unknown and email-copy-only addresses cannot open a fleet account', async (t) => {
+  const f = await fixture(t, {
+    sendSignInCode: async () => assert.fail('Unknown address received an OTP'),
+  });
+  const email = 'assistant@example.test';
+  assert.equal(
+    (
+      await f.a.request('/admin/settings', {
+        method: 'PATCH',
+        body: { notificationRecipients: [email], reason: 'Send form copies to assistant' },
+      })
+    ).status,
+    200,
+  );
+  const request = await post(f, 'request-code', { email });
+  assert.equal(request.status, 200);
+  assert.equal(request.body.retryAfterSeconds, 60);
+  assert.equal((await post(f, 'request-code', { email })).status, 429);
+  assert.equal(
+    await f.store.db.prepare('SELECT id FROM users WHERE email=?').get(f.store.emailLookup(email)),
+    undefined,
+  );
+});
+
+test('legacy profiles retain deletion access; reviewer-only access follows the current assignment', async (t) => {
+  const messages = [];
+  const f = await fixture(t, { sendSignInCode: async (mail) => messages.push(mail) });
+  async function signIn(email) {
+    const request = await post(f, 'request-code', { email });
+    assert.deepEqual(messages.at(-1).to, [email]);
+    const session = await post(f, 'verify-code', {
+      challengeId: request.body.challengeId,
+      code: messages.at(-1).text.match(/code is (\d{6})/)[1],
+    });
+    assert.equal(session.status, 200);
+    return {
+      user: session.body.user,
+      headers: {
+        Cookie: session.cookie,
+        'X-CSRF-Token': session.body.csrfToken,
+        'Content-Type': 'application/json',
+      },
+    };
+  }
+  const legacy = await f.store.createUser({
+    name: 'Former applicant',
+    email: 'applicant@example.test',
+    staffApproved: false,
+  });
+  const applicant = await signIn(legacy.email);
+  assert.equal(applicant.user.canAccessFleet, false);
+  for (const route of ['/vehicles', '/trips', '/admin/overview'])
+    assert.equal((await fetch(f.url + '/api' + route, { headers: applicant.headers })).status, 403);
+  assert.equal(
+    (
+      await fetch(f.url + '/api/auth/delete-account', {
+        method: 'POST',
+        headers: applicant.headers,
+        body: JSON.stringify({ confirmation: 'DELETE' }),
+      })
+    ).status,
+    202,
+  );
+  const email = 'reviewer-only@example.test';
+  async function setReviewers(emails) {
+    assert.equal(
+      (
+        await f.a.request('/admin/settings', {
+          method: 'PATCH',
+          body: { returnReviewerEmails: emails, reason: 'Change assigned return reviewers' },
+        })
+      ).status,
+      200,
+    );
+  }
+  await setReviewers([email]);
+  const reviewer = await signIn(email);
+  assert.equal(reviewer.user.staffApproved, false);
+  assert.equal(reviewer.user.canReviewReturns, true);
+  assert.equal((await fetch(f.url + '/api/vehicles', { headers: reviewer.headers })).status, 200);
+  await setReviewers([]);
+  assert.equal((await fetch(f.url + '/api/vehicles', { headers: reviewer.headers })).status, 403);
+  assert.equal(
+    (await (await fetch(f.url + '/api/auth/me', { headers: reviewer.headers })).json()).user
+      .canAccessFleet,
+    false,
+  );
+});
+
+test('removing email approval immediately revokes active sessions, preserves deletion and permits reapproval', async (t) => {
+  const f = await fixture(t);
+  const remove = await f.a.request('/admin/users/' + f.staff.id, {
+    method: 'PATCH',
+    body: {
+      staffApproved: false,
+      authorizedDriver: false,
+      reason: 'Remove fleet workspace access',
+    },
+  });
+  assert.equal(remove.status, 200);
+  assert.equal(remove.data.user.staffApproved, false);
+  assert.equal((await f.s.request('/vehicles')).status, 401);
+  const returning = await f.client(f.staff.email);
+  assert.equal(returning.user.canAccessFleet, false);
+  assert.equal((await returning.request('/vehicles')).status, 403);
+  const grant = await f.a.request('/admin/staff-approvals', {
+    method: 'POST',
+    body: { email: f.staff.email },
+  });
+  assert.equal(grant.status, 200);
+  assert.equal(grant.data.user.id, f.staff.id);
+  assert.equal(grant.data.user.authorizedDriver, false);
+  assert.equal((await returning.request('/vehicles')).status, 200);
+});
+
+test('staff migration keeps previously invited staff and drivers while requiring approval for self-registrations', async (t) => {
+  const f = await fixture(t);
+  if (f.store.db.kind !== 'sqlite') return t.skip('SQLite migration fixture');
+  const invited = await f.store.createUser({ name: 'Invited', email: 'invited@example.test' });
+  await f.store.audit(
+    f.admin.id,
+    'invite_user',
+    'user',
+    invited.id,
+    null,
+    null,
+    'Administrator invited staff member',
+  );
+  const visitor = await f.store.createUser({ name: 'Visitor', email: 'visitor@example.test' });
+  await f.store.db.exec('ALTER TABLE users DROP COLUMN staff_approved');
+  const migrated = await openStore(f.directory);
+  try {
+    for (const user of [f.admin, f.staff, invited])
+      assert.equal((await migrated.getUser(user.id)).staffApproved, true);
+    assert.equal((await migrated.getUser(visitor.id)).staffApproved, false);
+  } finally {
+    await migrated.close();
+  }
 });

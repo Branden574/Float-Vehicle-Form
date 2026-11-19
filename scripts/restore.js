@@ -122,6 +122,16 @@ export async function restoreBackup({
       database.transaction(() => {
         if (database.prepare("SELECT name FROM sqlite_master WHERE name='login_codes'").get())
           database.prepare('DELETE FROM login_codes').run();
+        if (
+          database
+            .prepare("SELECT name FROM sqlite_master WHERE name='notification_deliveries'")
+            .get()
+        )
+          database
+            .prepare(
+              "UPDATE notification_deliveries SET link_expires_at=NULL, code_hash=NULL, status=CASE WHEN status='sending' THEN 'unknown' ELSE status END",
+            )
+            .run();
         database.prepare('DELETE FROM sessions').run();
         database.prepare('UPDATE users SET invite_hash=NULL, invite_expires_at=NULL').run();
         // A queued message may have been sent after this snapshot was taken.

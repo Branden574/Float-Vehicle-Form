@@ -3,6 +3,51 @@ import XCTest
 @testable import FleetCheckout
 
 final class FleetCheckoutTests: XCTestCase {
+  @MainActor func testEncryptedInspectionRecoveryAndAccountIsolation() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let account = DraftUnlock(
+      owner: "test-driver", key: Data(repeating: 12, count: 32).base64EncodedString())
+    let other = DraftUnlock(
+      owner: "other-driver", key: Data(repeating: 33, count: 32).base64EncodedString())
+    let makeVault = { (unlock: DraftUnlock) in
+      try NativeDraftVault(unlock: unlock, owner: unlock.owner, context: "return/trip", root: root)
+    }
+    let original = try makeVault(account)
+    let upload = QueuedInspectionPhoto(
+      id: UUID(), source: "camera", view: "receipt", capturedAt: "2026-11-18T12:00:00Z")
+    let receipt = Data("Test scanned receipt".utf8)
+    let signedPayload = Data("Signed original test payload".utf8)
+    let snapshot = InspectionDraft(
+      draftID: "draft", step: 3, mileage: "41671", due: Date(), confirmed: true,
+      checks: ["gasCard": "yes"], windshield: "clear", marks: [], notes: "Private inspection note",
+      photos: [], uploads: [upload], pendingBody: signedPayload,
+      pendingKey: "original-idempotency-key")
+    try original.storePhoto(receipt, id: upload.id)
+    try original.save(snapshot)
+    let restored = try makeVault(account)
+    XCTAssertEqual(try restored.load(), snapshot)
+    XCTAssertEqual(try restored.photo(upload.id), receipt)
+    let otherVault = try makeVault(other)
+    XCTAssertNil(try otherVault.load())
+    try otherVault.save(snapshot)
+    XCTAssertThrowsError(
+      try NativeDraftVault(unlock: other, owner: account.owner, context: "return/trip", root: root))
+    for case let url as URL in FileManager.default.enumerator(
+      at: root, includingPropertiesForKeys: nil)!
+    {
+      guard let data = try? Data(contentsOf: url) else { continue }
+      XCTAssertNil(data.range(of: receipt))
+      XCTAssertNil(data.range(of: signedPayload))
+      XCTAssertNil(data.range(of: Data(snapshot.notes.utf8)))
+    }
+    try original.save(snapshot)
+    XCTAssertThrowsError(try restored.save(snapshot))
+    XCTAssertThrowsError(try restored.remove())
+    try NativeDraftVault.deleteAll(owner: account.owner, root: root)
+    XCTAssertNil(try makeVault(account).load())
+    XCTAssertEqual(try makeVault(other).load(), snapshot)
+  }
   @MainActor func testReceiptScanKeepsAllPagesAndBoundsUploadSize() throws {
     let format = UIGraphicsImageRendererFormat()
     format.scale = 1

@@ -1,5 +1,5 @@
 import pg from 'pg';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 
 // Opt-in tests use isolated schemas; never clear the actual fleet schema.
@@ -25,6 +25,11 @@ export async function cloudFixture(t) {
       'utf8',
     ).replace(/\bfleet\b/g, schema),
   );
+  for (const file of readdirSync(new URL('../supabase/migrations/', import.meta.url)).sort()) {
+    if (file <= '20261109214534_account_deletion.sql' || !file.endsWith('.sql')) continue;
+    const sql = readFileSync(new URL('../supabase/migrations/' + file, import.meta.url), 'utf8');
+    await admin.query(sql.replace(/\bfleet\b/g, schema));
+  }
   process.env.DATABASE_SCHEMA = schema;
   return async () => {
     if (!/^qa_[a-f0-9]{20}$/.test(schema)) throw new Error('Invalid test schema');

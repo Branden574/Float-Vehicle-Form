@@ -6,7 +6,7 @@ Sign in with the initial administrator invitation created by IT. The app opens w
 
 1. **Settings:** enter the organization/app name, site and timezone (default `America/Los_Angeles`). Supply an approved logo URL/accent if desired. Use **Form emails** to add approved admin assistant recipients after the mail provider is configured.
 2. **Vehicles:** add each exact vehicle, its plate/asset ID, VIN last four, location and verified initial odometer reading. Save it, then upload its identification photograph or configure an approved HTTPS image URL.
-3. **Staff:** staff can verify their email with a one-time code, then save their name, charter and manager. You can also invite them. Explicitly grant authorized-driver eligibility after checking their access. Administrator status alone does not authorize someone to drive.
+3. **Staff:** approve each work email before its owner signs in with a one-time code and saves their name, charter and manager. You can also invite them. Explicitly grant authorized-driver eligibility after checking their access. Administrator status alone does not authorize someone to drive.
 4. Choose **Self-service** or **Representative review**. Representative review requires a different authenticated administrator to sign. Nobody can enter someone else's approval automatically.
 5. Set mileage-alert, photo, session, capacity and retention policies. Front/rear/driver/passenger images remain mandatory at checkout and return; additional views can also be required.
 6. Complete the physical iPad acceptance checklist in [VERIFICATION.md](VERIFICATION.md) before staff rollout.
@@ -46,9 +46,9 @@ A physical return can be complete while the vehicle remains **Pending Review** o
 
 ## Poor connectivity and shared-device privacy
 
-**Draft — not submitted** is literal. The browser keeps unfinished text, signature and photo selection only in memory. Keep the page open during a connection interruption, reconnect, then use **Retry upload** or **Retry submission**. A retry of an uncertain final submission uses the same idempotency key so duplicate taps do not create another trip.
+Checkout and return inspections save encrypted drafts on the current device. Choose **Save & exit** or wait for the saved status. On the same browser or native app, sign back in with the same staff account. Select **Resume checkout** or **Resume return** for the vehicle and then **Resume inspection**. Drafts expire after 24 hours without changes. Browser storage eviction or clearing app data can remove drafts earlier.
 
-Reloading, closing Safari, browser eviction, signing out or session expiry may clear the unfinished form. No reliable iPad background sync is claimed. Uploaded draft photos remain private on the server; losing the browser form does not secretly finalize a trip or delete signed evidence.
+Answers, damage marks, mileage and queued photographs or receipt pages resume where you left them. Retry any unfinished uploads. An unsigned draft needs fresh acknowledgments and a signature. If a signed submission was interrupted, explicitly retry the same request. The app reuses its signed contents and idempotency key. A saved draft never checks out or returns a vehicle by itself.
 
 Always use **Sign out** before handing over the iPad. Local private UI is cleared immediately across open tabs on the same site; server sign-out is then confirmed. If offline, the login screen states that server sign-out is pending. Reconnect and let sign-out complete before handover. Never share passwords or select another person's name as authentication. Sessions also expire after configured inactivity and an absolute eight-hour limit.
 
@@ -71,7 +71,7 @@ Signed original totals remain visible; correction addenda are separately labeled
 
 ## Staff and vehicle administration
 
-Use **Edit access** to update department, manager, eligibility, active status or role with a reason. Access changes revoke sessions. **Reset / renew invitation** creates a new one-use password-setting link; share it privately through the organization's approved channel. Verified new emails can register as staff but cannot drive until an administrator authorizes them. Existing password sign-in remains available as a fallback.
+Use **Edit access** to update department, manager, eligibility, active status or role with a reason. Access changes revoke sessions. **Reset / renew invitation** creates a new one-use password-setting link; share it privately through the organization's approved channel. Under **Staff**, enter the employee’s work email and choose **Approve email**. They can sign in with a one-time code and complete their profile. Enable driver authorization separately. Clear **Approved staff email** to remove staff access and driver privileges while keeping the employee’s account deletion controls available. To remove reviewer access, also remove their email from **Return reviewers**. Turn off **Account active** to disable sign-in entirely. Assigned return reviewers can sign in while assigned. Adding a form-email recipient only delivers form copies. Existing password sign-in remains available as a fallback.
 
 Archive retired vehicles instead of deleting them. Active trips must be completed or declined before mileage/status/archive changes. Vehicle IDs remain stable when names change. Complete any required representative return signature before releasing that vehicle.
 
@@ -81,7 +81,9 @@ Open **Administration → Form emails**. Enter each admin assistant's address, u
 
 Each checkout automatically queues one PDF with the completed checkout front, check-in back clearly marked **Not yet returned**, signatures, damage marks, and checkout photos. Each check-in queues both completed forms plus all checkout and return photos. When representative review is required, sending waits for the required signature.
 
-The sending history lists recipient addresses, status, and failures. **Accepted** means the email provider accepted the message; it is not an inbox-delivery confirmation. After changing recipients, use **Retry failed notification** for older failed reports. Successful or uncertain sends require an explicit resend reason to avoid accidental duplicates.
+Open **Sending history** on the web or **Administration → Email delivery history** on iPad to see each recipient. **Accepted** means the sending provider took the message. **Delivered to mail server** means the recipient’s email server accepted it. For a bounce or failure, check the address and choose **Retry this recipient**. A delayed or uncertain send requires a reason because another copy may already be on the way. Older emails can show only provider acceptance.
+
+PDFs larger than 20 MiB are sent as a private download link. The recipient opens it within seven days, requests a one-time code at the configured address and downloads the report. The code expires after ten minutes. An assistant can download their copy without a fleet account. Removing the recipient revokes their link. A completed return supersedes the checkout link.
 
 ## Reports, notifications, storage and audit
 
@@ -89,7 +91,6 @@ The sending history lists recipient addresses, status, and failures. **Accepted*
 - **Checkout PDF** starts with the completed original checkout page and a blank check-in back marked Not yet returned. **Both forms & photos** starts with the original checkout and check-in pages. Both include supporting details, authentic signatures, corrections, timestamps and the relevant finalized photographs. The original layout and branding are preserved in a clean reconstruction with newly drawn form rules, labels and diagram. Download again to get the updated original-form layout for existing trips; previously saved PDF files are retained. The stray x from the source scan is absent. Blue numbered marks retain the exact positions selected on the iPad. Older area-only records remain approximate, with full notes in the supporting pages.
 - Photo comparisons link to stamped viewing copies and authenticated original downloads. Downloaded files and emailed attachments are outside the app's access/session controls; handle them under organization policy.
 - **Export CSV** exports original trip readings and status. Correction addenda are available in trip reports and the database backup; they do not silently replace signed CSV values.
-- **Form emails → Sending history** shows queued, awaiting review, failed, accepted or unknown states. Configure recipients/provider, then retry failures. Check provider records before explicitly resending an accepted/unknown message and enter a reason. Provider acceptance is not confirmed inbox delivery.
 - **Private storage** shows disk use against the configured photo budget. Reports and database growth require extra headroom. No evidence is automatically deleted at the limit.
 - **Audit** shows the most recent 500 administrative events. The full audit trail is in the database and backup. Passwords and invitation tokens are excluded from audit entries.
 - Follow the organization's retention schedule and [backup/restore procedure](DEPLOYMENT.md). Retention settings do not run an automatic purge.
@@ -102,8 +103,12 @@ Review the diagram before signing. Return inspection provides the checkout diagr
 
 ## Email sign-in and saved profiles
 
-Enter your own email and choose **Email me a sign-in code**, then enter the six-digit code. A code expires in ten minutes, works once and permits five guesses. First-time staff save their name, charter/school and manager; email is already verified. Subsequent sign-ins reuse the profile and show **My current checkouts**. **My profile** updates future forms; signed past records retain their original details. A new staff account cannot check out a vehicle until an administrator enables authorized-driver access.
+Enter your approved work email and choose **Email me a sign-in code**, then enter the six-digit code. A code expires in ten minutes, works once and permits five guesses. First-time staff save their name, charter/school and manager; email is already verified. Subsequent sign-ins reuse the profile and show **My current checkouts**. **My profile** updates future forms; signed past records retain their original details. A new staff account cannot check out a vehicle until an administrator enables authorized-driver access.
 
 Profiles and structured personal-data JSON in the database use AES-256-GCM encryption. Email lookup uses a keyed hash. Photos, generated PDFs and CSV exports are not encrypted by this feature; protect host disks and backups separately. Sessions on a shared iPad still require sign-out.
 
 On return, amber **C** marks show the checkout inspection and cannot be moved or deleted. Add only new or worsening damage as blue **N** marks. Both sets appear on the check-in form; the checkout form stays unchanged. Older area-only entries are identified as approximate instead of claiming an exact point.
+
+## Overdue reminders
+
+Fleet Checkout checks hourly for overdue vehicles. Once the projected return time passes, the driver receives one reminder to complete check-in. If a returned vehicle has been waiting for review for 24 hours, each currently assigned reviewer receives one reminder. When the reviewer list is empty, active administrators handle pending reviews. The driver is excluded from reminders to review their own return. The reminder ends when the vehicle is returned or the review is recorded, respectively.

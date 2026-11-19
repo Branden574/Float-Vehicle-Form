@@ -56,6 +56,9 @@ export async function openStore(dataDir = process.env.DATA_DIR || './data') {
     await db.pragma('secure_delete = ON');
     await db.exec(deletionSchema);
     await db.exec(
+      readFileSync(new URL('./migrations/notification-deliveries.sql', import.meta.url), 'utf8'),
+    );
+    await db.exec(
       'CREATE TABLE IF NOT EXISTS privacy_meta (id INTEGER PRIMARY KEY CHECK(id=1), key_check TEXT NOT NULL)',
     );
   }
@@ -70,6 +73,16 @@ export async function openStore(dataDir = process.env.DATA_DIR || './data') {
     const columns = await db.prepare('PRAGMA table_info(users)').all();
     if (!columns.some((c) => c.name === 'profile_json'))
       await db.exec('ALTER TABLE users ADD COLUMN profile_json TEXT');
+    if (!columns.some((c) => c.name === 'staff_approved')) {
+      await db.transaction(async () => {
+        await db.exec(
+          'ALTER TABLE users ADD COLUMN staff_approved INTEGER NOT NULL DEFAULT 0 CHECK(staff_approved IN (0,1))',
+        );
+        await db.exec(`UPDATE users SET staff_approved=1 WHERE role='admin' OR authorized_driver=1 OR password_hash IS NOT NULL OR invite_hash IS NOT NULL
+          OR id IN (SELECT entity_id FROM audit WHERE entity_type='user' AND action IN ('invite_user','renew_invitation'))
+          OR id IN (SELECT employee_id FROM trips WHERE status IN ('active','pending_checkout'))`);
+      })();
+    }
     let migrated = false;
     await db.transaction(async () => {
       await db.prepare('INSERT OR IGNORE INTO privacy_meta VALUES(1,?)').run(privacy.fingerprint);
@@ -144,6 +157,7 @@ export async function openStore(dataDir = process.env.DATA_DIR || './data') {
           ...privacy.decode(r.profile_json),
           role: r.role,
           authorizedDriver: !!r.authorized_driver,
+          staffApproved: !!r.staff_approved,
           active: !!r.active,
         }
       : null;
@@ -347,6 +361,7 @@ export async function openStore(dataDir = process.env.DATA_DIR || './data') {
     manager = '',
     role = 'staff',
     authorizedDriver = false,
+    staffApproved = true,
     active = true,
     password,
     inviteToken,
@@ -354,7 +369,7 @@ export async function openStore(dataDir = process.env.DATA_DIR || './data') {
     const id = randomUUID();
     await db
       .prepare(
-        'INSERT INTO users(id,email,name,department,manager,role,authorized_driver,active,password_hash,invite_hash,invite_expires_at,created_at,profile_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        'INSERT INTO users(id,email,name,department,manager,role,authorized_driver,active,password_hash,invite_hash,invite_expires_at,created_at,profile_json,staff_approved) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
       )
       .run(
         id,
@@ -370,6 +385,7 @@ export async function openStore(dataDir = process.env.DATA_DIR || './data') {
         inviteToken ? new Date(Date.now() + 72 * 3600000).toISOString() : null,
         now(),
         privacy.encode({ email: email.trim().toLowerCase(), name, department, manager, charter }),
+        +staffApproved,
       );
     return await getUser(id);
   };
@@ -454,6 +470,7 @@ export async function openStore(dataDir = process.env.DATA_DIR || './data') {
     encodeJSON: privacy.encode,
     decodeJSON: privacy.decode,
     emailLookup: privacy.lookup,
+    draftKey: privacy.draftKey,
     enqueueNotification,
     close: async () => await db.close(),
   };

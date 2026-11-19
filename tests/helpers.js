@@ -61,12 +61,17 @@ export async function signature() {
     ).toString('base64')
   );
 }
-export async function fixture(t, { reports = false, sendSignInCode } = {}) {
+export async function fixture(
+  t,
+  { reports = false, sendSignInCode, sendReportCode, resendWebhookSecret } = {},
+) {
   const cleanCloud = await cloudFixture(t);
   const directory = await realpath(await mkdtemp(path.join(tmpdir(), 'fleet-test-')));
   const app = await createApp({
     dataDir: directory,
     sendSignInCode,
+    sendReportCode,
+    resendWebhookSecret,
     secureCookies: false,
     reportService: reports ? createReport : undefined,
   });

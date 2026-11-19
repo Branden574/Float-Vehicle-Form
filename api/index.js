@@ -2,6 +2,7 @@ import { waitUntil } from '@vercel/functions';
 import { createApp } from '../server/app.js';
 import { createReport } from '../server/reports.js';
 import { createEmailSender, processNotification } from '../server/notifications.js';
+import { sendTripReminders } from '../server/reminders.js';
 import { runMaintenance } from '../server/maintenance.js';
 
 let initialization;
@@ -24,15 +25,27 @@ function application() {
 export default async function handler(req, res) {
   try {
     const app = await application();
-    if (req.url.split('?')[0] === '/api/maintenance') {
+    const path = req.url.split('?')[0];
+    if (path === '/api/maintenance' || path === '/api/reminders') {
       if (
         !process.env.CRON_SECRET ||
         req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`
       )
         return res.status(401).json({ error: 'Unauthorized' });
+      if (path === '/api/reminders') {
+        if (process.env.REVIEW_WORKSPACE === 'true' || process.env.EMAIL_PROVIDER === 'disabled')
+          return res.json({ sent: 0 });
+        return res.json(
+          await sendTripReminders({ store: app.locals.store, send: createEmailSender() }),
+        );
+      }
       return res.json(await runMaintenance({ store: app.locals.store, send: createEmailSender() }));
     }
-    if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method))
+    if (
+      path !== '/api/hooks/resend' &&
+      !path.startsWith('/api/report-copy/') &&
+      !['GET', 'HEAD', 'OPTIONS'].includes(req.method)
+    )
       res.once('finish', () => {
         if (res.statusCode < 400)
           waitUntil(

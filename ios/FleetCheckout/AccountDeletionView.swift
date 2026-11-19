@@ -75,6 +75,7 @@ struct DeleteAccountView: View {
           do {
             let result: DeletionResult = try await store.api.request(
               "/api/auth/delete-account", method: "POST", body: ["confirmation": confirmation])
+            if let owner = store.session?.user.id { try? NativeDraftVault.deleteAll(owner: owner) }
             store.deletionReceipt = result.receipt
             do { try DeletionReceipt.save(result.receipt, review: store.api.isReview) } catch {
               store.error = error.localizedDescription

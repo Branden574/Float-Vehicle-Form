@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="robots" content="noindex" />
+    <title>Private report · Fleet Checkout</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font:
+          100%/1.5 system-ui,
+          sans-serif;
+      }
+      body {
+        margin: 0;
+        padding: clamp(1.5rem, 7vw, 5rem);
+        background: Canvas;
+        color: CanvasText;
+      }
+      main {
+        max-width: 32rem;
+        margin: auto;
+      }
+      h1 {
+        line-height: 1.2;
+      }
+      label,
+      input,
+      button {
+        display: block;
+      }
+      input,
+      button {
+        font: inherit;
+        border-radius: 0.45rem;
+        padding: 0.65rem 1rem;
+        margin: 0.5rem 0 1rem;
+      }
+      input {
+        width: 8rem;
+        border: 1px solid GrayText;
+        letter-spacing: 0.15em;
+      }
+      button {
+        background: #17664e;
+        color: white;
+        border: 0;
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.6;
+      }
+      small {
+        font-weight: 600;
+      }
+    </style>
+    <script src="/report-copy.js" defer></script>
+  </head>
+  <body>
+    <main>
+      <small>Learn4Life Fleet Checkout</small>
+      <h1>Download your private report</h1>
+      <p>
+        Request a code at the email address that received this report. Your code lasts 10 minutes.
+      </p>
+      <button id="request" type="button">Email my verification code</button>
+      <form id="verify" hidden>
+        <label for="code">Six-digit verification code</label
+        ><input
+          id="code"
+          type="text"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          maxlength="6"
+          pattern="[0-9]{6}"
+          required
+        /><button>Download PDF</button>
+      </form>
+      <p id="status" role="status" aria-live="polite"></p>
+    </main>
+  </body>
+</html>

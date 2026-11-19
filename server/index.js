@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { createApp } from './app.js';
+import { sendTripReminders } from './reminders.js';
 import { processDeletions } from './deletion.js';
 import { createReport } from './reports.js';
 import {
@@ -26,6 +27,17 @@ const app = await createApp({
   notificationService: async (options) => await processNotification({ ...options, send }),
 });
 const worker = startNotificationWorker({ store: app.locals.store, send });
+const reminders = setInterval(() => {
+  if (
+    process.env.REVIEW_WORKSPACE !== 'true' &&
+    process.env.EMAIL_PROVIDER &&
+    process.env.EMAIL_PROVIDER !== 'disabled'
+  )
+    sendTripReminders({ store: app.locals.store, send }).catch(() =>
+      console.error('Trip reminders will retry.'),
+    );
+}, 3600000);
+reminders.unref();
 let cleanupRunning = false;
 const cleanup = setInterval(async () => {
   if (cleanupRunning) return;
@@ -47,6 +59,7 @@ const server = app.listen(Number(process.env.PORT || 3000), process.env.HOST || 
 server.requestTimeout = 180000;
 async function stop() {
   worker.stop();
+  clearInterval(reminders);
   clearInterval(cleanup);
   await server.close(async () => {
     await app.locals.store.close();

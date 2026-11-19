@@ -75,6 +75,12 @@ private enum SignInNotice {
     lastActive = Date()
   }
   func refresh() async {
+    guard session?.user.canAccessFleet != false else {
+      vehicles = []
+      trips = []
+      pendingReturns = []
+      return
+    }
     let started = revision
     do {
       async let fleet: VehicleList = api.request("/api/vehicles")
@@ -120,6 +126,19 @@ private enum SignInNotice {
           DeletionStatusView()
         } else if store.restoring {
           ProgressView("Opening your fleet…")
+        } else if store.session?.user.canAccessFleet == false {
+          NavigationStack {
+            Form {
+              Section("Fleet access pending") {
+                Text("Ask your fleet administrator to approve your work email.")
+                Button("Check approval") { Task { await store.restore() } }
+              }
+              Section("Account") {
+                NavigationLink("Delete my account") { DeleteAccountView() }
+                Button("Sign out") { Task { await store.logout() } }
+              }
+            }.navigationTitle("Fleet Checkout")
+          }
         } else if store.session != nil {
           WorkspaceView().id(store.revision)
         } else {
@@ -244,7 +263,7 @@ struct SignInView: View {
           Label("Your account. Your signature.", systemImage: "lock.shield").font(.footnote)
             .foregroundStyle(.secondary)
           Text(
-            "First time? Verify your email, save your details, then ask your fleet administrator to authorize you as a driver."
+            "Use the work email your fleet administrator approved. Ask them to add your email if you need access."
           ).font(.footnote).foregroundStyle(.secondary)
         }.padding(32).frame(maxWidth: 560).frame(maxWidth: .infinity)
       }.navigationTitle("Fleet Checkout").navigationBarTitleDisplayMode(.inline)
@@ -272,8 +291,8 @@ struct SignInView: View {
       cooldown = Date().addingTimeInterval(Double(response.retryAfterSeconds ?? 60))
       message =
         resend
-        ? "A new code was sent. Use the code in your newest email."
-        : "Your code is on its way."
+        ? "Use the code in your newest email. Earlier codes have expired."
+        : "If your email has access, check your inbox for a sign-in code."
       if wantsCodeAlerts {
         noticeTask?.cancel()
         noticeTask = Task {

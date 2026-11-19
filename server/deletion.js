@@ -193,6 +193,12 @@ async function prepareDeletion(store, job) {
       )
         await db.prepare('DELETE FROM audit WHERE id=?').run(row.id);
     }
+    await db
+      .prepare('DELETE FROM trip_reminders WHERE recipient_key=?')
+      .run(store.emailLookup(user.email));
+    await db
+      .prepare('DELETE FROM notification_deliveries WHERE recipient_key=?')
+      .run(store.emailLookup(user.email));
     for (const row of await db.prepare('SELECT id,recipients_json FROM notifications').all()) {
       const recipients = store.decodeJSON(row.recipients_json);
       const filtered = recipients.filter(

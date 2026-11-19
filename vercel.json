@@ -32,7 +32,7 @@
       "destination": "/api/index"
     },
     {
-      "source": "/((?!api/|assets/|icon-|sw.js|favicon.ico|support.html|privacy.html|deletion-status.js|deletion-status.html).*)",
+      "source": "/((?!api/|assets/|icon-|sw.js|favicon.ico|report-copy.html|report-copy.js|support.html|privacy.html|deletion-status.js|deletion-status.html).*)",
       "destination": "/index.html"
     }
   ],
@@ -78,6 +78,7 @@
     }
   ],
   "crons": [
+    { "path": "/api/reminders", "schedule": "15 * * * *" },
     {
       "path": "/api/maintenance",
       "schedule": "0 8 * * *"

@@ -99,6 +99,7 @@ struct FleetView: View {
 struct VehicleView: View {
   @EnvironmentObject var store: FleetStore
   let vehicle: Vehicle
+  @State private var hasDraft = false
   @State private var checkout = false
   @State private var discrepancy = false
   @State private var observed = ""
@@ -117,7 +118,7 @@ struct VehicleView: View {
       }
       if !vehicle.notes.isEmpty { Section("Vehicle notes") { Text(vehicle.notes) } }
       Section {
-        Button("Check out this vehicle") { checkout = true }
+        Button(hasDraft ? "Resume checkout" : "Check out this vehicle") { checkout = true }
           .disabled(
             vehicle.status != "available" || store.session?.user.authorizedDriver != true
               || store.session?.user.charter.isEmpty != false)
@@ -130,7 +131,8 @@ struct VehicleView: View {
         Button("Report a mileage discrepancy") { discrepancy = true }
       }
     }.navigationTitle(vehicle.name)
-      .sheet(isPresented: $checkout) {
+      .onAppear { updateDraftLabel() }
+      .sheet(isPresented: $checkout, onDismiss: updateDraftLabel) {
         NavigationStack { InspectionView(vehicle: vehicle, trip: nil) }
       }
       .sheet(isPresented: $discrepancy) {
@@ -158,6 +160,10 @@ struct VehicleView: View {
           }
         }
       }
+  }
+  private func updateDraftLabel() {
+    hasDraft = NativeDraftVault.hasDraft(
+      owner: store.session?.user.id, context: NativeDraftVault.context(vehicle: vehicle, trip: nil))
   }
 }
 struct HistoryView: View {
@@ -198,6 +204,7 @@ struct TripView: View {
   let tripID: String
   @State private var detail: TripDetail?
   @State private var error = ""
+  @State private var hasReturnDraft = false
   @State private var returning = false
   @State private var reviewing = false
   @State private var revision: MileageRevision?
@@ -262,7 +269,8 @@ struct TripView: View {
           }
         }
         if trip.status == "active" && trip.employeeId == store.session?.user.id {
-          Button("Return this vehicle") { returning = true }.buttonStyle(.borderedProminent)
+          Button(hasReturnDraft ? "Resume return" : "Return this vehicle") { returning = true }
+            .buttonStyle(.borderedProminent)
             .foregroundStyle(Color("FleetOnAccent"))
         }
         if trip.status == "returned"
@@ -326,6 +334,8 @@ struct TripView: View {
   func load() async {
     do {
       detail = try await store.api.request("/api/trips/\(tripID)")
+      hasReturnDraft = NativeDraftVault.hasDraft(
+        owner: store.session?.user.id, context: "return/" + tripID)
       error = ""
     } catch { self.error = error.localizedDescription }
   }

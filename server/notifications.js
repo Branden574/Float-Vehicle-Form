@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { createReport } from './reports.js';
 import { reportFilename } from './report-filename.js';
 
@@ -71,6 +71,9 @@ export function createEmailSender(env = process.env) {
           subject: message.subject,
           text: message.text,
           html: message.html,
+          tags: message.deliveryId
+            ? [{ name: 'fleet_delivery', value: message.deliveryId }]
+            : undefined,
           attachments: message.attachments.map((a) => ({
             filename: a.filename,
             content: a.content.toString('base64'),
@@ -146,13 +149,7 @@ export async function processNotification({ store, notificationId, send, report 
         new Error('No notification recipient configured. Add recipients and retry.'),
         { definiteFailure: true },
       );
-    if (pdf.length > 20 * 1024 * 1024)
-      throw Object.assign(
-        new Error(
-          'Report exceeds the 20 MB attachment safety limit. Download the report and review sending limits with IT.',
-        ),
-        { definiteFailure: true },
-      );
+    const useLink = !reviewRequest && pdf.length > 20 * 1024 * 1024;
     const settings = trip.checkoutSettings || (await store.getSettings());
     const label =
       row.stage === 'checkout'
@@ -181,15 +178,77 @@ export async function processNotification({ store, notificationId, send, report 
         };
     // Rendering can take time; a return may have completed while the PDF was built.
     if (row.stage === 'checkout') rejectObsoleteCheckout(await store.getTrip(row.trip_id));
-    attemptingDelivery = true;
-    const result = await send(message);
-    if (!result?.accepted)
-      throw new Error('Provider did not confirm acceptance. Review the provider before resending.');
+    const failures = [];
+    let accepted = 0;
+    let lastProviderId = null;
+    for (const recipient of new Set(recipients.map((email) => email.trim().toLowerCase()))) {
+      if (row.stage === 'checkout') rejectObsoleteCheckout(await store.getTrip(row.trip_id));
+      const deliveryId = randomUUID();
+      const expiresAt = useLink ? new Date(Date.now() + 7 * 86400000).toISOString() : null;
+      await db
+        .prepare(
+          `INSERT INTO notification_deliveries
+        (id,notification_id,recipient_key,recipient_json,attempt,status,updated_at,link_expires_at)
+        VALUES(?,?,?,?,?,'sending',?,?)`,
+        )
+        .run(
+          deliveryId,
+          row.id,
+          store.emailLookup(recipient),
+          store.encodeJSON(recipient),
+          row.attempts,
+          time(),
+          expiresAt,
+        );
+      const outgoing = {
+        ...message,
+        to: [recipient],
+        messageId: `<fleet-${deliveryId}@fleet.local>`,
+        deliveryId,
+      };
+      if (useLink) {
+        const token = `${deliveryId}.${store.emailLookup('report-copy:' + deliveryId)}`;
+        const link = new URL(
+          '/report-copy.html',
+          process.env.PUBLIC_ORIGIN || 'https://fleetcheckout.app',
+        );
+        link.hash = token;
+        outgoing.text = `${label}\n\nThis report exceeds the attachment limit. Open your private link within seven days and request a verification code at this email address to download the PDF.\n\n${link.href}`;
+        outgoing.attachments = [];
+      }
+      attemptingDelivery = true;
+      try {
+        const result = await send(outgoing);
+        if (!result?.accepted) throw new Error('Mail provider acceptance is unknown.');
+        lastProviderId = result.id || outgoing.messageId;
+        await db
+          .prepare(
+            `UPDATE notification_deliveries SET provider_id=?,
+          status=CASE WHEN status='sending' THEN 'accepted' ELSE status END,
+          updated_at=CASE WHEN event_at IS NULL THEN ? ELSE updated_at END WHERE id=?`,
+          )
+          .run(lastProviderId, time(), deliveryId);
+        accepted++;
+      } catch (error) {
+        const state = error.definiteFailure ? 'failed' : 'unknown';
+        await db
+          .prepare(
+            'UPDATE notification_deliveries SET status=?,updated_at=? WHERE id=? AND event_at IS NULL',
+          )
+          .run(state, time(), deliveryId);
+        failures.push({ state, error });
+      }
+    }
+    if (failures.length) {
+      throw Object.assign(new Error(safeError(failures[0].error)), {
+        definiteFailure: accepted === 0 && failures.every((f) => f.state === 'failed'),
+      });
+    }
     await db
       .prepare(
         "UPDATE notifications SET status='accepted',provider_id=?,accepted_at=?,updated_at=?,error=NULL WHERE id=?",
       )
-      .run(result.id || row.message_id, time(), time(), notificationId);
+      .run(lastProviderId, time(), time(), row.id);
   } catch (error) {
     const status = !attemptingDelivery || error.definiteFailure ? 'failed' : 'unknown';
     await db

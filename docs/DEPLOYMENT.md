@@ -92,6 +92,7 @@ Optional Resend:
 EMAIL_PROVIDER=resend
 EMAIL_FROM=approved-sender-on-your-verified-domain
 RESEND_API_KEY=your-secret-key
+RESEND_WEBHOOK_SECRET=your-endpoint-signing-secret
 ```
 
 No provider account, domain, paid plan or billing change is created by these files. Review [the free-tier limits](COSTS.md) before configuring a provider. Restart the service after changing environment variables. Provider API keys and SMTP secrets stay server-side and must not be committed.
@@ -99,10 +100,10 @@ No provider account, domain, paid plan or billing change is created by these fil
 - Checkout mail contains the checkout form and its photos. Return mail contains **both** checkout and check-in sections plus a photo appendix.
 - Representative-required notifications wait in `awaiting_review` until the applicable representative signs. The physical transaction and draft report are already saved.
 - Submissions use idempotency keys; one durable outbox row is created per trip/stage. The worker claims a row atomically and processes it every 15 seconds. Failed sends are retried explicitly by an administrator.
-- `accepted` means provider acceptance, **not confirmed delivery**. This version does not receive delivery webhooks; the delivery field remains unset. Confirm delivery in the provider's records when needed.
+- In Resend, register `https://fleetcheckout.app/api/hooks/resend` for `email.delivered`, `email.bounced`, `email.delivery_delayed`, `email.failed` and `email.suppressed`. Set its signing secret in `RESEND_WEBHOOK_SECRET` on the server and redeploy. The administration history updates each recipient after a signed event. **Accepted** means the sending provider took the message. **Delivered** means the receiving mail server accepted it.
 - An interrupted/ambiguous send becomes `unknown`. A stable SMTP Message-ID helps tracking but does not guarantee recipient deduplication. To avoid blind duplicate delivery, unknown sends require an administrator to check the provider and give a reason before an explicit resend.
 - Resend requests additionally use an idempotency key; the provider documents a 24-hour retention window. Do not infer permanent deduplication. [Resend idempotency](https://resend.com/docs/dashboard/emails/idempotency-keys), [send API](https://resend.com/docs/api-reference/emails/send-email), [SMTP configuration](https://nodemailer.com/smtp).
-- A report above 20 MB is retained but not emailed automatically. Download it and resolve attachment limits with IT. Reports normally embed normalized viewing copies rather than full-size originals.
+- A report above 20 MiB is sent as a seven-day, recipient-specific link to the app at `PUBLIC_ORIGIN`. The recipient requests a fresh six-digit email code to download the PDF. Configure the app origin and mail sender before enabling email delivery.
 
 ## Backup and restore
 

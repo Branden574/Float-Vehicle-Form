@@ -68,3 +68,10 @@ CREATE TABLE IF NOT EXISTS idempotency (
  PRIMARY KEY(user_id,key)
 );
 INSERT OR IGNORE INTO schema_migrations(version,applied_at) VALUES(1,strftime('%Y-%m-%dT%H:%M:%fZ','now'));
+
+CREATE TABLE IF NOT EXISTS trip_reminders (
+ trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+ kind TEXT NOT NULL, recipient_key TEXT NOT NULL, status TEXT NOT NULL,
+ attempts INTEGER NOT NULL, updated_at TEXT NOT NULL,
+ PRIMARY KEY(trip_id,kind,recipient_key)
+);

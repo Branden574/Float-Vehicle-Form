@@ -157,6 +157,18 @@ test('administrator setup, staff checkout/return, photos, signatures, PDF and sh
     .first()
     .setInputFiles({ name: 'interrupted.jpg', mimeType: 'image/jpeg', buffer: first });
   await expect(page.getByRole('alert').filter({ hasText: /interrupted/i })).toBeVisible();
+  await page.getByRole('button', { name: 'Save & exit' }).click();
+  await signOut(page);
+  await login(page);
+  await page.getByLabel('Search vehicles', { exact: true }).fill(name);
+  await expect(page.getByRole('button', { name: 'Check out', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Resume checkout' })).toHaveCount(0);
+  await signOut(page);
+  await login(page, 'driver@example.test');
+  await page.getByLabel('Search vehicles', { exact: true }).fill(name);
+  await page.getByRole('button', { name: 'Resume checkout' }).click();
+  await page.getByRole('button', { name: 'Resume inspection' }).click();
+  await expect(page.getByRole('heading', { name: 'Photographs', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Retry upload', exact: false }).click();
   await expect(page.locator('.photo-label').filter({ hasText: 'Stored' })).toHaveCount(1);
   await page.unroute(/\/api\/photos(?:\/upload-ticket\/[^/]+\/complete)?$/);
@@ -166,10 +178,34 @@ test('administrator setup, staff checkout/return, photos, signatures, PDF and sh
     fullPage: true,
     animations: 'disabled',
   });
+  let firstRequest = '';
+  let firstKey = '';
+  await page.route('**/api/trips/checkout', async (route) => {
+    if (!firstRequest) {
+      firstRequest = route.request().postData()!;
+      firstKey = route.request().headers()['idempotency-key'];
+      await route.abort('failed');
+    } else {
+      expect(route.request().postData()).toBe(firstRequest);
+      expect(route.request().headers()['idempotency-key']).toBe(firstKey);
+      await route.continue();
+    }
+  });
   await signAndSubmit(page, false, true);
+  await expect(page.getByText('The response was interrupted.', { exact: false })).toBeVisible();
+  await page.getByRole('button', { name: 'Save & exit' }).click();
+  await page.reload();
+  await page.getByLabel('Search vehicles', { exact: true }).fill(name);
+  await page.getByRole('button', { name: 'Resume checkout' }).click();
+  await page.getByRole('button', { name: 'Resume inspection' }).click();
+  await page.getByRole('button', { name: 'Retry submission' }).click();
   await expect(page.getByText('Checkout confirmed. Your vehicle is ready to use.')).toBeVisible();
   await page.getByRole('button', { name: 'Return vehicle', exact: true }).click();
   await page.getByLabel('Ending odometer reading', { exact: true }).fill('42625');
+  await page.getByRole('button', { name: 'Save & exit' }).click();
+  await page.getByRole('button', { name: 'Resume return' }).click();
+  await page.getByRole('button', { name: 'Resume inspection' }).click();
+  await expect(page.getByLabel('Ending odometer reading', { exact: true })).toHaveValue('42625');
   await expect(page.locator('.trip-total strong')).toContainText('125');
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await inspect(page);
@@ -526,6 +562,13 @@ test('email codes create and remember an encrypted profile on a shared device', 
     await page.getByLabel('One-time code').fill(mail.text.match(/code is (\d{6})/)[1]);
     await page.getByRole('button', { name: 'Verify code & sign in', exact: true }).click();
   }
+  await login(page);
+  await page.getByRole('button', { name: 'Administration', exact: false }).click();
+  await page.getByRole('tab', { name: 'Staff', exact: true }).click();
+  await page.getByLabel('Staff email to approve').fill(email);
+  await page.getByRole('button', { name: 'Approve email', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('Staff access approved');
+  await signOut(page);
   await codeLogin();
   await expect(page.getByRole('heading', { name: 'Welcome. Tell us about you.' })).toBeVisible();
   await page.getByLabel('Full name').fill('Profile Test Driver');

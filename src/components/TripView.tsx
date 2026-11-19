@@ -1,3 +1,4 @@
+import { returnContext, useDraftContexts } from '../inspectionDraft';
 import { DamageDiagram } from './DamageDiagram';
 import { useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, Download, RefreshCw } from 'lucide-react';
@@ -36,6 +37,7 @@ export function TripView({
     [action, setAction] = useState(''),
     [oldReading, setOldReading] = useState(''),
     [newReading, setNewReading] = useState('');
+  const drafts = useDraftContexts(user.id);
   async function load() {
     try {
       setData(await api<TripDetail>(`/trips/${id}`));
@@ -144,7 +146,8 @@ export function TripView({
         )}
         {trip.status === 'active' && trip.employeeId === user.id && (
           <button className="button primary" onClick={() => onReturn(trip)}>
-            Return vehicle <ArrowRight size={18} />
+            {drafts?.has(returnContext(id)) ? 'Resume return' : 'Return vehicle'}{' '}
+            <ArrowRight size={18} />
           </button>
         )}
         <button className="icon-button" aria-label="Refresh trip" onClick={() => void load()}>

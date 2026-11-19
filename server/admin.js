@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
+import { deliveryHistory } from './delivery-access.js';
 import { requireAdmin } from './auth.js';
 import {
   fail,
@@ -43,7 +44,7 @@ export function installAdmin(app, store, { notificationService } = {}) {
       vehicles: (await db.prepare('SELECT * FROM vehicles ORDER BY archived,name').all()).map(
         store.mapVehicle,
       ),
-      notifications: await store.listNotifications(),
+      notifications: await deliveryHistory(store),
       settings: await store.getSettings(),
       storage: {
         bytes: diskUsage(store.dataDir),
@@ -215,6 +216,38 @@ export function installAdmin(app, store, { notificationService } = {}) {
       .immediate();
     res.json({ vehicle: result });
   });
+  app.post('/api/admin/staff-approvals', async (req, res) => {
+    const { email } = validate(
+      z.object({ email: z.string().trim().pipe(z.email().max(254)) }).strict(),
+      req.body,
+    );
+    const user = await db.transaction(async () => {
+      const previous = await db
+        .prepare('SELECT * FROM users WHERE email=?')
+        .get(store.emailLookup(email));
+      if (previous && !previous.active)
+        fail(409, 'This account is inactive. Edit staff access to reactivate it first.');
+      if (previous?.staff_approved) return store.publicUser(previous);
+      let user;
+      if (previous) {
+        await db.prepare('UPDATE users SET staff_approved=1 WHERE id=?').run(previous.id);
+        user = await store.getUser(previous.id);
+      } else {
+        user = await store.createUser({ email, name: '', staffApproved: true });
+      }
+      await store.audit(
+        req.user.id,
+        'approve_staff_email',
+        'user',
+        user.id,
+        null,
+        { email: user.email },
+        'Administrator approved staff email for fleet access',
+      );
+      return user;
+    })();
+    res.json({ user });
+  });
   app.post('/api/admin/users', async (req, res) => {
     const data = validate(userSchema.strict(), req.body),
       inviteToken = randomBytes(32).toString('hex');
@@ -241,9 +274,14 @@ export function installAdmin(app, store, { notificationService } = {}) {
       .transaction(async () => {
         const before = await store.getUser(req.params.id);
         if (!before) fail(404, 'Staff member not found.');
-        const { reason: _reason, ...changes } = req.body,
-          { id: _id, ...current } = before;
-        const data = validate(userSchema.strict(), { ...current, ...changes });
+        const { reason: _reason, staffApproved: requestedApproval, ...changes } = req.body,
+          { id: _id, staffApproved, ...current } = before;
+        const approval = validate(z.boolean().optional(), requestedApproval);
+        // Access edits can precede first sign-in, when the employee fills in their name.
+        const schema = before.name
+          ? userSchema
+          : userSchema.extend({ name: z.string().trim().max(200) });
+        const data = validate(schema.strict(), { ...current, ...changes });
         if (before.id === req.user.id && (!data.active || data.role !== 'admin'))
           fail(400, 'Another administrator must change your administrator access.');
         if (
@@ -258,8 +296,18 @@ export function installAdmin(app, store, { notificationService } = {}) {
         )
           fail(409, 'Keep at least one active administrator.');
         await store.updateUser(before.id, data);
+        if (approval === false && (data.authorizedDriver || data.role === 'admin'))
+          fail(400, 'Remove driver and administrator privileges before removing staff approval.');
+        const nextApproval =
+          approval ?? (staffApproved || data.authorizedDriver || data.role === 'admin');
+        if (nextApproval !== staffApproved)
+          await db
+            .prepare('UPDATE users SET staff_approved=? WHERE id=?')
+            .run(+nextApproval, before.id);
         // Immediately revoke sessions on access changes, including driver authorization.
         if (
+          nextApproval !== staffApproved ||
+          data.email.trim().toLowerCase() !== before.email ||
           data.role !== before.role ||
           data.active !== before.active ||
           data.authorizedDriver !== before.authorizedDriver
@@ -280,7 +328,7 @@ export function installAdmin(app, store, { notificationService } = {}) {
     await db
       .transaction(async () => {
         await db
-          .prepare('UPDATE users SET invite_hash=?,invite_expires_at=? WHERE id=?')
+          .prepare('UPDATE users SET staff_approved=1,invite_hash=?,invite_expires_at=? WHERE id=?')
           .run(hash(inviteToken), new Date(Date.now() + 72 * 3600000).toISOString(), user.id);
         await db.prepare('DELETE FROM sessions WHERE user_id=?').run(user.id);
         await store.audit(
@@ -348,7 +396,32 @@ export function installAdmin(app, store, { notificationService } = {}) {
                 !(await store.getReviews(row.trip_id)).some((review) => review.stage === 'return');
         if (needsSignature)
           fail(409, 'Complete the required representative signature before sending this report.');
-        const resend = ['accepted', 'delivered', 'unknown'].includes(row.status);
+        const target =
+          req.body.recipient === undefined
+            ? null
+            : validate(z.email(), req.body.recipient).toLowerCase();
+        const delivery =
+          target &&
+          (await db
+            .prepare(
+              'SELECT status FROM notification_deliveries WHERE notification_id=? AND recipient_key=? ORDER BY attempt DESC LIMIT 1',
+            )
+            .get(row.id, store.emailLookup(target)));
+        if (target && !delivery) fail(404, 'Recipient delivery not found.');
+        const possiblePriorSend = target
+          ? !['bounced', 'failed', 'suppressed'].includes(delivery.status)
+          : await db
+              .prepare(
+                `SELECT 1 FROM notification_deliveries d WHERE notification_id=?
+            AND status NOT IN ('bounced','failed','suppressed')
+            AND NOT EXISTS (SELECT 1 FROM notification_deliveries newer
+              WHERE newer.notification_id=d.notification_id AND newer.recipient_key=d.recipient_key AND newer.attempt>d.attempt)
+            LIMIT 1`,
+              )
+              .get(row.id);
+        const resend =
+          Boolean(possiblePriorSend) ||
+          (!target && ['accepted', 'delivered', 'unknown'].includes(row.status));
         if (resend && (req.body.resend !== true || !req.body.reason))
           fail(400, 'Review provider records, then request an explicit resend with a reason.');
         const reason = resend
@@ -365,14 +438,17 @@ export function installAdmin(app, store, { notificationService } = {}) {
               : [...settings.notificationRecipients];
         if (row.stage !== 'return_review' && settings.employeeCopy)
           recipients.push(trip.employeeSnapshot.email);
-        if (!recipients.length) fail(400, 'Configure notification recipients before retrying.');
+        const sendTo = target
+          ? recipients.filter((email) => email.toLowerCase() === target)
+          : recipients;
+        if (!sendTo.length) fail(400, 'Configure this notification recipient before retrying.');
         await db
           .prepare(
             "UPDATE notifications SET status='pending',error=NULL,updated_at=?,recipients_json=?,message_id=?,accepted_at=NULL,delivered_at=NULL,provider_id=NULL WHERE id=?",
           )
           .run(
             now(),
-            store.encodeJSON([...new Set(recipients)]),
+            store.encodeJSON([...new Set(sendTo)]),
             resend ? `<fleet-${randomUUID()}@fleet.local>` : row.message_id,
             row.id,
           );
@@ -382,7 +458,7 @@ export function installAdmin(app, store, { notificationService } = {}) {
           'notification',
           row.id,
           { status: row.status },
-          { status: 'pending', recipients },
+          { status: 'pending', recipients: sendTo },
           reason,
         );
         return store.mapNotification(

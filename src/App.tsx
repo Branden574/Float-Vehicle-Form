@@ -26,6 +26,7 @@ import {
   setCsrf,
 } from './api';
 import type { Session, Trip, Vehicle } from './types';
+import { checkoutContext, returnContext, useDraftContexts } from './inspectionDraft';
 import { Workflow } from './components/Workflow';
 import { TripView } from './components/TripView';
 import { Admin } from './components/Admin';
@@ -89,8 +90,8 @@ function Login({
       setResendAt(Date.now() + (result.retryAfterSeconds || 60) * 1000);
       setCodeNotice(
         resending
-          ? 'A new code has been sent. Use the newest email; the previous code no longer works.'
-          : 'Your sign-in code has been sent.',
+          ? 'Use the newest email to sign in. Earlier codes have expired.'
+          : 'If your email has access, check your inbox for a sign-in code.',
       );
     } catch (e) {
       setError(errorMessage(e));
@@ -317,7 +318,7 @@ function Login({
           <p className="fine">
             {token
               ? 'Use at least 12 characters.'
-              : 'First time? Verify your email, save your details, then ask your fleet administrator to authorize you as a driver.'}
+              : 'Use the work email your fleet administrator approved. Ask them to add your email if you need access.'}
           </p>
           <p className="fine">
             <a href="/privacy">Privacy policy</a> · <a href="/support">Support</a>
@@ -412,8 +413,8 @@ export default function App() {
     })();
   }, []);
   useEffect(() => {
-    if (session) void refresh();
-  }, [session?.user.id]);
+    if (session && session.user.canAccessFleet !== false) void refresh();
+  }, [session?.user.id, session?.user.canAccessFleet]);
   useEffect(() => {
     const expire = () =>
       erase('Your session expired. Sign in again. Unsubmitted form details were cleared.');
@@ -447,7 +448,11 @@ export default function App() {
     const visible = () => {
       if (document.visibilityState === 'visible') {
         check();
-        api<Session>('/auth/me').catch(() => {});
+        api<Session>('/auth/me')
+          .then((latest) => {
+            setSession((current) => (current?.user.id === latest.user.id ? latest : current));
+          })
+          .catch(() => {});
       }
     };
     const restore = (e: PageTransitionEvent) => {
@@ -484,7 +489,11 @@ export default function App() {
     }
   }
   function navigate(next: Page) {
-    if (workflow && !window.confirm('Leave and clear this unfinished inspection?')) return;
+    if (
+      workflow &&
+      !window.confirm('Leave this inspection? Your saved draft can be reopened on this device.')
+    )
+      return;
     setWorkflow(null);
     setDetail(null);
     setPage(next);
@@ -492,6 +501,7 @@ export default function App() {
     setFilter('all');
     void refresh();
   }
+  const drafts = useDraftContexts(session?.user.id, !!workflow);
   if (loading)
     return (
       <div className="loading-screen">
@@ -501,7 +511,7 @@ export default function App() {
     );
   if (!session)
     return <Login onSession={(s) => accept(s, true)} message={message} signingOut={signingOut} />;
-  if (!session.user.charter || editingProfile)
+  if (session.user.canAccessFleet === false || !session.user.charter || editingProfile)
     return (
       <Profile
         session={session}
@@ -509,7 +519,11 @@ export default function App() {
           accept(s);
           setEditingProfile(false);
         }}
-        onCancel={session.user.charter ? () => setEditingProfile(false) : undefined}
+        onCancel={
+          session.user.charter && session.user.canAccessFleet !== false
+            ? () => setEditingProfile(false)
+            : undefined
+        }
         onSignOut={() => void signOut()}
       />
     );
@@ -750,9 +764,13 @@ export default function App() {
                         <button
                           type="button"
                           className="button secondary compact"
-                          onClick={() => setDetail(t.id)}
+                          onClick={() =>
+                            drafts?.has(returnContext(t.id))
+                              ? setWorkflow({ vehicle: t.vehicleSnapshot, trip: t })
+                              : setDetail(t.id)
+                          }
                         >
-                          View checkout
+                          {drafts?.has(returnContext(t.id)) ? 'Resume return' : 'View checkout'}
                         </button>
                       </div>
                     ))
@@ -897,7 +915,8 @@ export default function App() {
                         disabled={v.status !== 'available' || !user.authorizedDriver || !online}
                         onClick={() => setWorkflow({ vehicle: v })}
                       >
-                        Check out <ArrowRight size={17} />
+                        {drafts?.has(checkoutContext(v)) ? 'Resume checkout' : 'Check out'}{' '}
+                        <ArrowRight size={17} />
                       </button>
                     </article>
                   ))}

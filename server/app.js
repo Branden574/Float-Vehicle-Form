@@ -10,6 +10,7 @@ import { openStore } from './store.js';
 import { installAuth } from './auth.js';
 import { installPhotos } from './photos.js';
 import { installTrips } from './trips.js';
+import { installDeliveryWebhook, installReportCopies } from './delivery-access.js';
 import { installAdmin } from './admin.js';
 import { installDeletion, installDeletionStatus } from './deletion.js';
 
@@ -38,6 +39,7 @@ export async function createApp(options = {}) {
       referrerPolicy: { policy: 'no-referrer' },
     }),
   );
+  installDeliveryWebhook(app, store, options);
   app.use(express.json({ limit: '1mb' }));
   app.use(cookieParser());
   app.get('/manifest.webmanifest', async (req, res) => {
@@ -65,6 +67,7 @@ export async function createApp(options = {}) {
       .set('Cache-Control', 'no-store')
       .json({ ok: (await store.db.prepare('SELECT 1 AS healthy').get()).healthy === 1 }),
   );
+  installReportCopies(app, store, options);
   installDeletionStatus(app, store);
   await installAuth(app, store, options);
   installDeletion(app, store, options);

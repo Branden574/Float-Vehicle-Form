@@ -8,6 +8,8 @@ struct FleetUser: Codable, Identifiable {
   var charter: String
   var manager: String
   var role: String
+  var staffApproved: Bool?
+  var canAccessFleet: Bool?
   var authorizedDriver: Bool
   var active: Bool
 }
@@ -20,6 +22,7 @@ struct Vehicle: Codable, Identifiable {
   var plate: String
   var vinLast4: String
   var site: String
+  var mileageVersion: Int? = nil
   var currentMileage: Int
   var status: String
   var photoUrl: String
@@ -121,7 +124,7 @@ struct Trip: Codable, Identifiable {
     return ending - startingMileage
   }
 }
-struct FleetPhoto: Codable, Identifiable {
+struct FleetPhoto: Codable, Identifiable, Equatable {
   var id: String
   var view: String
   var stage: String
@@ -171,7 +174,30 @@ struct UploadTicket: Decodable {
   var headers: [String: String]?
 }
 struct SettingsResult: Decodable { var settings: FleetSettings }
+struct ReportDelivery: Decodable, Identifiable {
+  var id: String { email }
+  var email: String
+  var status: String
+  var updatedAt: String
+  var viaLink: Bool
+}
+struct FormNotice: Decodable, Identifiable {
+  var id: String
+  var tripId: String
+  var stage: String
+  var status: String
+  var createdAt: String
+  var recipients: [String]
+  var deliveries: [ReportDelivery]?
+  var error: String?
+  var title: String {
+    if stage == "return" { return "Completed check-in" }
+    if stage == "return_review" { return "Return review request" }
+    return "Checkout"
+  }
+}
 struct AdminOverview: Decodable {
+  var notifications: [FormNotice]?
   var users: [FleetUser]
   var vehicles: [Vehicle]
   var settings: FleetSettings

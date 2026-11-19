@@ -23,8 +23,16 @@ export async function installAuth(
     const { notificationRecipients, returnReviewerEmails, ...s } = await store.getSettings();
     return s;
   };
+  const withAccess = async (user) => {
+    const canReviewReturns = mayReviewReturns(user, await store.getSettings());
+    return {
+      ...user,
+      canReviewReturns,
+      canAccessFleet: user.staffApproved || user.role === 'admin' || canReviewReturns,
+    };
+  };
   const response = async (user, csrfToken) => ({
-    user: { ...user, canReviewReturns: mayReviewReturns(user, await store.getSettings()) },
+    user: await withAccess(user),
     csrfToken,
     settings: user.role === 'admin' ? await store.getSettings() : await publicSettings(),
   });
@@ -156,6 +164,11 @@ export async function installAuth(
           new Date(Date.now() + 600000).toISOString(),
         );
     })();
+    const account = await db.prepare('SELECT active FROM users WHERE email=?').get(lookup);
+    const assigned = (await store.getSettings()).returnReviewerEmails.includes(email.toLowerCase());
+    // Give every address the same challenge and cooldown without mailing unknown addresses.
+    if (account ? !account.active : !assigned)
+      return res.json({ challengeId: id, expiresInSeconds: 600, retryAfterSeconds: 60 });
     try {
       await (sendSignInCode || createEmailSender())({
         to: [email],
@@ -209,10 +222,14 @@ export async function installAuth(
       const existing = await db.prepare('SELECT * FROM users WHERE email=?').get(r.email_lookup);
       if (existing && !existing.active)
         fail(401, 'Sign-in is unavailable. Contact your administrator.');
+      const email = store.decodeJSON(r.email_json);
+      if (!existing && !(await store.getSettings()).returnReviewerEmails.includes(email))
+        fail(403, 'Ask your fleet administrator to approve your email address.');
       const user = existing
         ? store.publicUser(existing)
         : await store.createUser({
-            email: store.decodeJSON(r.email_json),
+            email,
+            staffApproved: false,
             name: '',
             role: 'staff',
             authorizedDriver: false,
@@ -315,7 +332,13 @@ export async function installAuth(
     await db
       .prepare('UPDATE sessions SET last_seen_at=? WHERE token_hash=?')
       .run(now(), hash(token));
-    req.user = { ...user, canReviewReturns: mayReviewReturns(user, await store.getSettings()) };
+    req.user = await withAccess(user);
+    // Previously self-registered people retain access to their own profile and deletion controls.
+    if (
+      !req.user.canAccessFleet &&
+      !['/auth/me', '/auth/profile', '/auth/logout', '/auth/delete-account'].includes(req.path)
+    )
+      fail(403, 'Your fleet administrator must approve your email before you can view the fleet.');
     req.session = session;
     next();
   });
@@ -338,8 +361,12 @@ export async function installAuth(
     if (data.email.toLowerCase() !== req.user.email.toLowerCase())
       fail(400, 'Use your invited sign-in email. Ask an administrator to change it.');
     const user = await db.transaction(async () => {
+      // A simultaneous administrator edit can change the email or revoke privileges.
+      const current = await store.getUser(req.user.id);
+      if (!current?.active || current.email !== req.user.email)
+        fail(401, 'Your account changed. Sign in again.');
       const updated = await store.updateUser(req.user.id, {
-        ...req.user,
+        ...current,
         ...data,
         department: data.department || data.charter,
       });
@@ -359,7 +386,8 @@ export async function installAuth(
   app.post('/api/auth/logout', async (req, res) => {
     await db.prepare('DELETE FROM sessions WHERE token_hash=?').run(req.session.token_hash);
     res.clearCookie('fleet_session', cookieOptions);
-    res.set('Clear-Site-Data', '"cache", "storage"');
+    // Encrypted inspections survive sign-out. Their decryption key requires a verified session.
+    res.set('Clear-Site-Data', '"cache"');
     res.status(204).end();
   });
   return { publicSettings };

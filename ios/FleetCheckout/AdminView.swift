@@ -5,6 +5,7 @@ struct AdminView: View {
   @State private var overview: AdminOverview?
   @State private var recipients = ""
   @State private var reviewers = ""
+  @State private var approvedEmail = ""
   @State private var employeeCopy = true
   @State private var message = ""
   @State private var busy = false
@@ -38,14 +39,40 @@ struct AdminView: View {
           "One email per line, up to 20. Assigned reviewers receive a review request and approve or hold returns without full admin access. Every new return waits for their signed approval. Nobody can approve their own return; assign at least two reviewers if they also drive. Clearing this list restores administrator review under the existing inspection policy."
         )
       }
+      Section {
+        TextField("Staff email to approve", text: $approvedEmail)
+          .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.emailAddress)
+        Button("Approve email") { Task { await approveEmail() } }
+          .disabled(busy || approvedEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+      } header: {
+        Text("Approve staff email")
+      } footer: {
+        Text(
+          "Approved staff can sign in to the fleet workspace. Open their record below to authorize driving or deactivate their account."
+        )
+      }
       if let overview {
+        Section("Form emails") {
+          NavigationLink("Email delivery history") {
+            EmailDeliveryView(notices: overview.notifications ?? [])
+          }
+        }
         Section("Staff access") {
           ForEach(overview.users) { user in
             NavigationLink {
               StaffEditor(user: user, onSave: { Task { await load() } })
             } label: {
               VStack(alignment: .leading) {
-                Text(user.name)
+                Text(user.name.isEmpty ? "Profile not yet completed" : user.name)
+                Text(
+                  !user.active
+                    ? "Inactive"
+                    : user.staffApproved == true || user.role == "admin"
+                      ? "Approved staff"
+                      : overview.settings.returnReviewerEmails?.contains(user.email) == true
+                        ? "Assigned reviewer" : "Awaiting approval"
+                )
+                .font(.caption)
                 Text(user.email).font(.caption).foregroundStyle(.secondary)
                 Text(user.authorizedDriver ? "Authorized driver" : "Driver approval needed").font(
                   .caption)
@@ -71,7 +98,7 @@ struct AdminView: View {
       Section("Additional administration") {
         Link("Open complete web administration", destination: FleetAPI.origin)
         Text(
-          "Use the web dashboard for mileage corrections, odometer replacement documentation, notification retries, audit exports and organization settings."
+          "Use the web dashboard for mileage corrections, odometer replacement documentation, audit exports and organization settings."
         ).font(.footnote).foregroundStyle(.secondary)
       }
     }.navigationTitle("Administration").task { await load() }.refreshable { await load() }
@@ -83,6 +110,18 @@ struct AdminView: View {
       recipients = (result.settings.notificationRecipients ?? []).joined(separator: "\n")
       employeeCopy = result.settings.employeeCopy
       reviewers = (result.settings.returnReviewerEmails ?? []).joined(separator: "\n")
+    } catch { message = error.localizedDescription }
+  }
+  func approveEmail() async {
+    busy = true
+    defer { busy = false }
+    let email = approvedEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+    do {
+      let _: EmptyResponse = try await store.api.request(
+        "/api/admin/staff-approvals", method: "POST", body: ["email": email])
+      approvedEmail = ""
+      await load()
+      message = "Staff access approved for \(email)."
     } catch { message = error.localizedDescription }
   }
   func saveReviewers() async {
@@ -129,11 +168,110 @@ struct AdminView: View {
     } catch { message = error.localizedDescription }
   }
 }
+private struct EmailDeliveryView: View {
+  @EnvironmentObject var store: FleetStore
+  @State var notices: [FormNotice]
+  @State private var busy = false
+  @State private var message = ""
+  @State private var reason = ""
+  @State private var retrySelection: (notice: FormNotice, delivery: ReportDelivery)?
+
+  var body: some View {
+    List {
+      if !message.isEmpty { Text(message) }
+      if notices.isEmpty { Text("No form emails yet.") }
+      ForEach(notices) { notice in
+        Section {
+          Text("Trip \(notice.tripId.prefix(8)) · \(displayDate(notice.createdAt))")
+            .font(.caption).foregroundStyle(.secondary)
+          if let deliveries = notice.deliveries, !deliveries.isEmpty {
+            ForEach(deliveries) { delivery in
+              VStack(alignment: .leading, spacing: 4) {
+                Text(delivery.email)
+                Text(
+                  delivery.status == "delivered"
+                    ? "Delivered to mail server" : humanize(delivery.status))
+                Text(displayDate(delivery.updatedAt)).font(.caption).foregroundStyle(.secondary)
+                if delivery.viaLink { Text("Private download link").font(.caption) }
+                if ["failed", "bounced", "suppressed", "unknown", "delayed"].contains(
+                  delivery.status)
+                  && !["processing", "pending", "awaiting_review"].contains(notice.status)
+                {
+                  Button("Retry this recipient") {
+                    if ["unknown", "delayed"].contains(delivery.status) {
+                      reason = ""
+                      retrySelection = (notice, delivery)
+                    } else {
+                      Task { await retry(notice, delivery) }
+                    }
+                  }.disabled(busy)
+                }
+              }
+            }
+          } else {
+            Text(humanize(notice.status))
+            ForEach(notice.recipients, id: \.self) { Text($0) }
+          }
+          if let error = notice.error { Text(error).font(.footnote) }
+        } header: {
+          Text(notice.title)
+        }
+      }
+    }
+    .navigationTitle("Email delivery")
+    .task { await refresh() }.refreshable { await refresh() }
+    .alert(
+      "Resend to this recipient?",
+      isPresented: Binding(
+        get: { retrySelection != nil },
+        set: { if !$0 { retrySelection = nil } }
+      ), presenting: retrySelection
+    ) { selection in
+      TextField("Reason", text: $reason)
+      Button("Cancel", role: .cancel) {}
+      Button("Resend") {
+        let explanation = reason
+        Task { await retry(selection.notice, selection.delivery, reason: explanation) }
+      }.disabled(reason.trimmingCharacters(in: .whitespacesAndNewlines).count < 5)
+    } message: { selection in
+      Text(
+        "Check the provider's records for \(selection.delivery.email) before requesting another copy."
+      )
+    }
+  }
+
+  private func refresh() async {
+    do {
+      let overview: AdminOverview = try await store.api.request("/api/admin/overview")
+      notices = overview.notifications ?? []
+    } catch { message = error.localizedDescription }
+  }
+
+  private func retry(_ notice: FormNotice, _ delivery: ReportDelivery, reason: String? = nil) async
+  {
+    guard !busy else { return }
+    busy = true
+    defer { busy = false }
+    var body: [String: Any] = ["recipient": delivery.email]
+    if let reason {
+      body["resend"] = true
+      body["reason"] = reason
+    }
+    do {
+      let _: EmptyResponse = try await store.api.request(
+        "/api/admin/notifications/\(notice.id)/retry", method: "POST", body: body)
+      message = "Retry requested for \(delivery.email)."
+      await refresh()
+    } catch { message = error.localizedDescription }
+  }
+}
+
 struct StaffEditor: View {
   @EnvironmentObject var store: FleetStore
   @Environment(\.dismiss) private var dismiss
   let user: FleetUser
   var onSave: () -> Void
+  @State private var approved = false
   @State private var authorized = false
   @State private var active = true
   @State private var role = "staff"
@@ -146,12 +284,15 @@ struct StaffEditor: View {
         Text(user.email)
         Text("\(user.charter) · \(user.manager)")
       }
+      Toggle("Approved staff email", isOn: $approved).disabled(role == "admin")
+        .onChange(of: approved) { _, approved in if !approved { authorized = false } }
       Toggle("Authorized fleet driver", isOn: $authorized)
+        .onChange(of: authorized) { _, authorized in if authorized { approved = true } }
       Toggle("Active account", isOn: $active)
       Picker("Role", selection: $role) {
         Text("Staff").tag("staff")
         Text("Administrator").tag("admin")
-      }
+      }.onChange(of: role) { _, role in if role == "admin" { approved = true } }
       TextField("Reason for this change", text: $reason, axis: .vertical)
       if !error.isEmpty { Text(error).foregroundStyle(.red) }
       Button(busy ? "Saving…" : "Save access") {
@@ -159,13 +300,10 @@ struct StaffEditor: View {
           busy = true
           defer { busy = false }
           do {
-            var body =
-              try JSONSerialization.jsonObject(with: JSONEncoder().encode(user)) as! [String: Any]
-            body.removeValue(forKey: "id")
-            body["authorizedDriver"] = authorized
-            body["active"] = active
-            body["role"] = role
-            body["reason"] = reason
+            let body: [String: Any] = [
+              "staffApproved": approved, "authorizedDriver": authorized, "active": active,
+              "role": role, "reason": reason,
+            ]
             let _: EmptyResponse = try await store.api.request(
               "/api/admin/users/\(user.id)", method: "PATCH", body: body)
             onSave()
@@ -174,6 +312,7 @@ struct StaffEditor: View {
         }
       }.disabled(busy || reason.count < 5)
     }.navigationTitle("Staff access").onAppear {
+      approved = user.staffApproved ?? true
       authorized = user.authorizedDriver
       active = user.active
       role = user.role
