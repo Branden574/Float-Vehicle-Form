@@ -92,6 +92,11 @@ export async function createApp(options = {}) {
   app.use('/api', (req, res) => res.status(404).json({ error: 'API route not found.' }));
   const dist = options.distDir || fileURLToPath(new URL('../dist', import.meta.url));
   if (existsSync(dist)) {
+    app.get(
+      ['/.well-known/apple-app-site-association', '/apple-app-site-association'],
+      (_req, res) =>
+        res.type('application/json').sendFile(path.join(dist, 'apple-app-site-association.json')),
+    );
     for (const page of ['privacy', 'deletion-status'])
       app.get('/' + page, (req, res) =>
         res.set('Cache-Control', 'no-cache').sendFile(path.join(dist, page + '.html')),

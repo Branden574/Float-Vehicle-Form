@@ -16,6 +16,10 @@
       "destination": "/apple-app-site-association.json"
     },
     {
+      "source": "/apple-app-site-association",
+      "destination": "/apple-app-site-association.json"
+    },
+    {
       "source": "/privacy",
       "destination": "/privacy.html"
     },
