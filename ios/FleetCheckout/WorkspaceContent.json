@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "fleetReminder": "Verify the plate and VIN before checkout.",
+  "fleetReminder": "Before checkout, match the license plate and the last four VIN digits to the vehicle.",
   "damageInstructions": "Tap the vehicle exactly where the damage is.",
   "receiptInstructions": "Use Apple's scanner to crop and capture each receipt page. Saved scans attach to this return and its emailed form package."
 }
