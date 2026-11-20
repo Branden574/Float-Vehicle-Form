@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { fixture } from './helpers.js';
+import { fixture, password } from './helpers.js';
 import { openStore } from '../server/store.js';
 
 async function post(f, route, body) {
@@ -377,4 +377,56 @@ test('staff migration keeps previously invited staff and drivers while requiring
   } finally {
     await migrated.close();
   }
+});
+
+test('remembered email sessions have a fixed 60-day lifetime, require fresh authentication for sensitive actions, and sign out per device', async (t) => {
+  const messages = [];
+  const f = await fixture(t, { sendSignInCode: async (mail) => messages.push(mail) });
+  const {
+    body: { challengeId },
+  } = await post(f, 'request-code', { email: f.staff.email });
+  const code = messages[0].text.match(/code is (\d{6})/)[1];
+  const response = await fetch(f.url + '/api/auth/verify-code', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ challengeId, code, rememberMe: true }),
+  });
+  assert.equal(response.status, 200);
+  const login = await response.json();
+  const end = Date.parse(login.rememberedUntil);
+  assert.ok(Math.abs(end - Date.now() - 60 * 86400000) < 5000);
+  const header = response.headers.get('Set-Cookie');
+  assert.match(header, /HttpOnly/i);
+  assert.match(header, /SameSite=Strict/i);
+  assert.ok(header.includes('Expires=' + new Date(end).toUTCString()));
+  const cookie = header.split(';')[0];
+  const call = (path, method = 'GET', session = cookie) =>
+    fetch(f.url + '/api/auth/' + path, {
+      method,
+      headers: { Cookie: session, 'X-CSRF-Token': login.csrfToken },
+    });
+  await f.store.db
+    .prepare('UPDATE sessions SET created_at=?,last_seen_at=? WHERE user_id=?')
+    .run(
+      new Date(Date.now() - 59 * 86400000).toISOString(),
+      new Date(Date.now() - 58 * 86400000).toISOString(),
+      f.staff.id,
+    );
+  const restored = await call('me');
+  assert.equal((await restored.json()).rememberedUntil, login.rememberedUntil);
+  assert.equal((await call('passkeys/register/options', 'POST')).status, 403);
+  assert.equal(
+    (await call('me', 'GET', f.s.cookie.replace('fleet_session=', 'fleet_session=r1.'))).status,
+    401,
+  );
+  assert.equal((await f.s.request('/auth/me')).status, 401);
+  const other = await post(f, 'login', { email: f.staff.email, password, rememberMe: true });
+  assert.equal(other.status, 200);
+  assert.equal((await call('logout', 'POST')).status, 204);
+  assert.equal((await call('me')).status, 401);
+  assert.equal((await call('me', 'GET', other.cookie)).status, 200);
+  await f.store.db
+    .prepare('UPDATE sessions SET expires_at=? WHERE user_id=?')
+    .run(new Date(Date.now() - 1).toISOString(), f.staff.id);
+  assert.equal((await call('me', 'GET', other.cookie)).status, 401);
 });

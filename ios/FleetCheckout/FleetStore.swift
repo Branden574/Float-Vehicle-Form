@@ -44,8 +44,14 @@ private enum SignInNotice {
 
 @MainActor final class FleetStore: ObservableObject {
   let api: FleetAPI
-  init(review: Bool = false) {
-    api = FleetAPI(review: review)
+  @Published private(set) var workspaceContent: WorkspaceContent
+  private let defaults: UserDefaults
+  init(review: Bool = false, api: FleetAPI? = nil, defaults: UserDefaults = .standard) {
+    let client = api ?? FleetAPI(review: review)
+    self.api = client
+    self.defaults = defaults
+    workspaceContent = WorkspaceContent.stored(
+      for: client.baseURL.absoluteString, defaults: defaults)
     deletionReceipt = DeletionReceipt.read(review: review)
   }
   @Published var deletionReceipt: String?
@@ -74,24 +80,38 @@ private enum SignInNotice {
     api.csrf = result.csrfToken
     lastActive = Date()
   }
+  private func schedule(for session: FleetSession) async throws -> ([Vehicle], [Trip], [Trip]) {
+    guard session.user.canAccessFleet != false else { return ([], [], []) }
+    async let fleet: VehicleList = api.request("/api/vehicles")
+    async let history: TripList = api.request("/api/trips")
+    let (vehicles, records) = try await (fleet.vehicles, history)
+    return (vehicles, records.trips, records.pendingReturns ?? [])
+  }
   func refresh() async {
-    guard session?.user.canAccessFleet != false else {
-      vehicles = []
-      trips = []
-      pendingReturns = []
-      return
-    }
+    guard let session else { return }
     let started = revision
     do {
-      async let fleet: VehicleList = api.request("/api/vehicles")
-      async let history: TripList = api.request("/api/trips")
-      let result = try await (fleet.vehicles, history)
+      let snapshot = try await schedule(for: session)
       guard started == revision else { return }
-      vehicles = result.0
-      trips = result.1.trips
-      pendingReturns = result.1.pendingReturns ?? []
+      (vehicles, trips, pendingReturns) = snapshot
       error = ""
-    } catch { self.error = error.localizedDescription }
+    } catch { if started == revision { self.error = error.localizedDescription } }
+  }
+  func applyWorkspaceUpdate(_ content: WorkspaceContent) async throws {
+    guard content.isSupported, let user = session?.user.id else {
+      throw FleetError(message: "This workspace update requires a newer app.")
+    }
+    let started = revision
+    let latest: FleetSession = try await api.request("/api/auth/me")
+    guard latest.user.id == user, started == revision else { throw CancellationError() }
+    let snapshot = try await schedule(for: latest)
+    try Task.checkCancellation()
+    guard started == revision, session?.user.id == user else { throw CancellationError() }
+    try content.persist(for: api.baseURL.absoluteString, defaults: defaults)
+    accept(latest)
+    (vehicles, trips, pendingReturns) = snapshot
+    workspaceContent = content
+    error = ""
   }
   func logout() async {
     api.signOut()
@@ -108,7 +128,9 @@ private enum SignInNotice {
   }
   func resume() async {
     guard let session else { return }
-    if Date().timeIntervalSince(lastActive) >= Double(session.settings.sessionMinutes * 60) {
+    if session.rememberedUntil == nil
+      && Date().timeIntervalSince(lastActive) >= Double(session.settings.sessionMinutes * 60)
+    {
       await logout()
     } else {
       await restore()
@@ -163,8 +185,21 @@ private enum SignInNotice {
     }
   }
 }
+struct RememberDeviceToggle: View {
+  @Binding var enabled: Bool
+  var body: some View {
+    Toggle(isOn: $enabled) {
+      VStack(alignment: .leading, spacing: 3) {
+        Text("Remember me for 60 days")
+        Text("Use on your personal device.").font(.footnote).foregroundStyle(.secondary)
+      }
+    }
+  }
+}
+
 struct SignInView: View {
   @EnvironmentObject var store: FleetStore
+  @State private var rememberMe = false
   @State private var email = ""
   @State private var code = ""
   @State private var challenge = ""
@@ -187,6 +222,7 @@ struct SignInView: View {
           Text("Sign in to inspect a vehicle, record your trip, and keep every form together.")
             .foregroundStyle(.secondary)
           VStack(alignment: .leading, spacing: 16) {
+            RememberDeviceToggle(enabled: $rememberMe).disabled(busy)
             if challenge.isEmpty {
               Button {
                 Task {
@@ -194,7 +230,7 @@ struct SignInView: View {
                   error = ""
                   defer { busy = false }
                   do {
-                    let session = try await store.api.passkeySession()
+                    let session = try await store.api.passkeySession(rememberMe: rememberMe)
                     store.accept(session)
                     await store.refresh()
                   } catch { self.error = error.localizedDescription }
@@ -359,7 +395,8 @@ struct SignInView: View {
     defer { busy = false }
     do {
       let result: FleetSession = try await store.api.request(
-        "/api/auth/verify-code", method: "POST", body: ["challengeId": challenge, "code": code])
+        "/api/auth/verify-code", method: "POST",
+        body: ["challengeId": challenge, "code": code, "rememberMe": rememberMe])
       store.accept(result)
       await store.refresh()
     } catch { self.error = error.localizedDescription }

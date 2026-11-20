@@ -1646,6 +1646,18 @@ figcaption {
 .login-form label {
   font-size: 0.8rem;
 }
+.login-form .remember-device {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  margin: 0 0 16px;
+}
+.remember-device small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+}
 .login-form form {
   margin: 32px 0 19px;
 }

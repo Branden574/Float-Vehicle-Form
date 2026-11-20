@@ -10,7 +10,9 @@
 		07C153949CEFD6D2A70FBBB4 /* CaptureViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61B49F3DD930176273C661BF /* CaptureViews.swift */; };
 		1D198A78433CD94AA13D8021 /* AccountDeletionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2E9618255FCBE338771B408 /* AccountDeletionView.swift */; };
 		28F6A3B6F1DBE3D1F56FC612 /* DocumentPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = A66C21237D3A3EF35B0E4DA0 /* DocumentPreview.swift */; };
+		2CEFEF3F86D1BC5BA26CBE3E /* WorkspaceContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE95B10E042D93D4CDFDEDF8 /* WorkspaceContent.swift */; };
 		400170B8BEEAD5A9EB090432 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 2F8527E4526D63C4EFA28D42 /* PrivacyInfo.xcprivacy */; };
+		4396690BAC1D64820DBF600B /* WorkspaceContent.json in Resources */ = {isa = PBXBuildFile; fileRef = 7DD1536DB1914564625E5AD1 /* WorkspaceContent.json */; };
 		4D9FA087869719C6A732FF23 /* InspectionDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F0D1F0AD3AA18464974C77 /* InspectionDraft.swift */; };
 		6EAC673B4613CFBB0DE700C2 /* AdminView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84CE1B405917790DD8A6DB50 /* AdminView.swift */; };
 		784AF2D2457A672344EF1EE8 /* FleetCheckoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBA3B6E149A6CD2BEA2C2B5D /* FleetCheckoutTests.swift */; };
@@ -47,6 +49,7 @@
 		61B49F3DD930176273C661BF /* CaptureViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureViews.swift; sourceTree = "<group>"; };
 		651CD1194AA1A1136FAE79DC /* WorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceView.swift; sourceTree = "<group>"; };
 		6D10FA0B6C6E612EA79D8353 /* ReservationCalendar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReservationCalendar.swift; sourceTree = "<group>"; };
+		7DD1536DB1914564625E5AD1 /* WorkspaceContent.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = WorkspaceContent.json; sourceTree = "<group>"; };
 		84CE1B405917790DD8A6DB50 /* AdminView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminView.swift; sourceTree = "<group>"; };
 		8658A67162BCDFF01EAA8D09 /* FleetRelease.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FleetRelease.swift; sourceTree = "<group>"; };
 		86750B8F23A808A945B063D1 /* InspectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InspectionView.swift; sourceTree = "<group>"; };
@@ -56,6 +59,7 @@
 		BA4579CFBBCE1AF8036A6650 /* VehicleDiagram.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VehicleDiagram.swift; sourceTree = "<group>"; };
 		CCCFB0F0C4B410CE05FF8951 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		DA961FED9B93CABC191FF0FB /* Passkey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Passkey.swift; sourceTree = "<group>"; };
+		EE95B10E042D93D4CDFDEDF8 /* WorkspaceContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceContent.swift; sourceTree = "<group>"; };
 		F8DE039F159C5B5B9BF6F53D /* FleetCheckoutTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = FleetCheckoutTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F8F0D1F0AD3AA18464974C77 /* InspectionDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InspectionDraft.swift; sourceTree = "<group>"; };
 		FBA3B6E149A6CD2BEA2C2B5D /* FleetCheckoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FleetCheckoutTests.swift; sourceTree = "<group>"; };
@@ -99,6 +103,8 @@
 				6D10FA0B6C6E612EA79D8353 /* ReservationCalendar.swift */,
 				4166948DCA49DFB8FC0AD361 /* ReviewWorkspaceView.swift */,
 				BA4579CFBBCE1AF8036A6650 /* VehicleDiagram.swift */,
+				7DD1536DB1914564625E5AD1 /* WorkspaceContent.json */,
+				EE95B10E042D93D4CDFDEDF8 /* WorkspaceContent.swift */,
 				651CD1194AA1A1136FAE79DC /* WorkspaceView.swift */,
 			);
 			path = FleetCheckout;
@@ -196,6 +202,7 @@
 			files = (
 				C6C07DD747DE4509CD2328BE /* Assets.xcassets in Resources */,
 				400170B8BEEAD5A9EB090432 /* PrivacyInfo.xcprivacy in Resources */,
+				4396690BAC1D64820DBF600B /* WorkspaceContent.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -228,6 +235,7 @@
 				ACAA93E61E5BD9B4FA4A38EB /* ReservationCalendar.swift in Sources */,
 				92D34089F885382C002AA214 /* ReviewWorkspaceView.swift in Sources */,
 				B0EE2ADE1AAD52038FC7D861 /* VehicleDiagram.swift in Sources */,
+				2CEFEF3F86D1BC5BA26CBE3E /* WorkspaceContent.swift in Sources */,
 				B591558243F29F02A6483C2E /* WorkspaceView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -295,7 +303,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 21;
+				CURRENT_PROJECT_VERSION = 22;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -372,7 +380,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 21;
+				CURRENT_PROJECT_VERSION = 22;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;

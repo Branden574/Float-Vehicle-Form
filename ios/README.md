@@ -43,3 +43,15 @@ The web deployment does not distribute this app. A signed native archive must be
 - Choose public, unlisted or Apple Business Manager distribution. Staff-only unlisted distribution still requires App Review and app authentication.
 
 Apple references: [TestFlight](https://developer.apple.com/testflight/), [upload builds](https://developer.apple.com/help/app-store-connect/manage-builds/upload-builds), [unlisted distribution](https://developer.apple.com/support/unlisted-app-distribution/).
+
+## Shipping workspace updates
+
+Edit the plain-text fleet reminder, damage instructions, or receipt instructions in
+`FleetCheckout/WorkspaceContent.json` and deploy the web project to production.
+Vite validates the copy and includes it in `/release.json`. Build 22 and later check
+on the visible Fleet tab and approximately once a minute while it stays open.
+**Refresh now** fetches the deployed copy, session, vehicles and trips. The app keeps
+the last successful copy across launches. A failed refresh can be retried. **Later**
+defers that deployment for a day. To roll back, redeploy a previous copy.
+New native controls, workflows, and changes to the supported content fields ship in
+a signed binary through App Review. TestFlight and App Store updates open their respective apps.

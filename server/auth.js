@@ -9,6 +9,10 @@ import { hash, now, passwordHash, passwordMatches } from './store.js';
 import { fail, validate } from './validation.js';
 import { z } from 'zod';
 
+const rememberDuration = 60 * 24 * 60 * 60 * 1000;
+// The mode prefix is part of the server-verified hash of the entire opaque cookie.
+const rememberedPrefix = 'r1.';
+
 export async function installAuth(
   app,
   store,
@@ -33,7 +37,8 @@ export async function installAuth(
       canAccessFleet: user.staffApproved || user.role === 'admin' || canReviewReturns,
     };
   };
-  const response = async (user, csrfToken) => ({
+  const response = async (user, csrfToken, rememberedUntil = null) => ({
+    rememberedUntil,
     user: await withAccess(user),
     csrfToken,
     settings: user.role === 'admin' ? await store.getSettings() : await publicSettings(),
@@ -98,14 +103,19 @@ export async function installAuth(
       await db
         .prepare('DELETE FROM sessions WHERE token_hash=?')
         .run(hash(req.cookies.fleet_session));
-    const token = randomBytes(32).toString('hex'),
+    const remember = req.body?.rememberMe === true;
+    const duration = remember ? rememberDuration : 8 * 3600000;
+    const token = (remember ? rememberedPrefix : '') + randomBytes(32).toString('hex'),
       csrf = randomBytes(32).toString('hex'),
       time = now(),
-      expires = new Date(Date.now() + 8 * 3600000).toISOString();
+      expires = new Date(Date.now() + duration).toISOString();
     await db
       .prepare('INSERT INTO sessions VALUES(?,?,?,?,?,?)')
       .run(hash(token), user.id, csrf, time, time, expires);
-    res.cookie('fleet_session', token, cookieOptions).json(await response(user, csrf));
+    const options = remember ? { ...cookieOptions, expires: new Date(expires) } : cookieOptions;
+    res
+      .cookie('fleet_session', token, options)
+      .json(await response(user, csrf, remember ? expires : null));
   };
   const codeLimit = rateLimit({
     store: rateLimitStore(db, 'codeLimit'),
@@ -205,6 +215,7 @@ export async function installAuth(
     const { challengeId, code } = validate(
       z
         .object({
+          rememberMe: z.boolean().optional(),
           challengeId: z.string().regex(/^[a-f0-9]{48}$/),
           code: z.string().regex(/^\d{6}$/),
         })
@@ -268,7 +279,11 @@ export async function installAuth(
   });
   app.post('/api/auth/login', loginLimit, accountLimit, async (req, res) => {
     const data = validate(
-      z.object({ email: z.email().max(254), password: z.string().max(200) }),
+      z.object({
+        email: z.email().max(254),
+        password: z.string().max(200),
+        rememberMe: z.boolean().optional(),
+      }),
       req.body,
     );
     const r = await db
@@ -323,9 +338,10 @@ export async function installAuth(
     if (
       !session ||
       !user?.active ||
-      Date.parse(session.expires_at) < Date.now() ||
-      Date.parse(session.last_seen_at) <
-        Date.now() - (await store.getSettings()).sessionMinutes * 60000
+      Date.parse(session.expires_at) <= Date.now() ||
+      (!token.startsWith(rememberedPrefix) &&
+        Date.parse(session.last_seen_at) <=
+          Date.now() - (await store.getSettings()).sessionMinutes * 60000)
     ) {
       await db.prepare('DELETE FROM sessions WHERE token_hash=?').run(hash(token));
       res.clearCookie('fleet_session', cookieOptions);
@@ -355,12 +371,13 @@ export async function installAuth(
       !['/auth/me', '/auth/profile', '/auth/logout', '/auth/delete-account'].includes(req.path)
     )
       fail(403, 'Your fleet administrator must approve your email before you can view the fleet.');
+    req.rememberedUntil = token.startsWith(rememberedPrefix) ? session.expires_at : null;
     req.session = session;
     next();
   });
   mountPasskeys();
   app.get('/api/auth/me', async (req, res) =>
-    res.json(await response(req.user, req.session.csrf_token)),
+    res.json(await response(req.user, req.session.csrf_token, req.rememberedUntil)),
   );
   app.patch('/api/auth/profile', async (req, res) => {
     const data = validate(
@@ -398,7 +415,7 @@ export async function installAuth(
       );
       return updated;
     })();
-    res.json(await response(user, req.session.csrf_token));
+    res.json(await response(user, req.session.csrf_token, req.rememberedUntil));
   });
   app.post('/api/auth/logout', async (req, res) => {
     await db.prepare('DELETE FROM sessions WHERE token_hash=?').run(req.session.token_hash);

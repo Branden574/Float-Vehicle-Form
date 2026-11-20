@@ -175,4 +175,9 @@ export type Overview = {
   storage: { bytes: number; limitBytes: number };
   settings: Settings;
 };
-export type Session = { user: User; csrfToken: string; settings: Settings };
+export type Session = {
+  rememberedUntil?: string | null;
+  user: User;
+  csrfToken: string;
+  settings: Settings;
+};

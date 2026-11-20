@@ -18,7 +18,7 @@ export async function addPasskey() {
   const credential = await startRegistration({ optionsJSON });
   await post('/auth/passkeys/register/verify', { challenge: optionsJSON.challenge, credential });
 }
-export async function signInWithPasskey() {
+export async function signInWithPasskey(rememberMe: boolean) {
   const optionsJSON = await post<PublicKeyCredentialRequestOptionsJSON>(
     '/auth/passkeys/sign-in/options',
     {},
@@ -26,6 +26,7 @@ export async function signInWithPasskey() {
   const credential = await startAuthentication({ optionsJSON });
   return post<Session>('/auth/passkeys/sign-in/verify', {
     challenge: optionsJSON.challenge,
+    rememberMe,
     credential,
   });
 }

@@ -340,7 +340,7 @@ struct InspectionView: View {
         } else {
           types.pickerStyle(.segmented)
         }
-        Text("Tap the vehicle exactly where the damage is.").font(.footnote)
+        Text(store.workspaceContent.damageInstructions).font(.footnote)
         DamageDiagram(
           marks: $marks, previous: trip?.checkoutInspection.damage ?? [], selectedArea: area,
           selectedType: damageType, currentPrefix: returning ? "N" : "D"
@@ -396,10 +396,8 @@ struct InspectionView: View {
               receiptScanner = true
             }
           }.disabled(busy || loadingPhoto || photos.count >= 30 || !queued.isEmpty)
-          Text(
-            "Use Apple's scanner to crop and capture each receipt page. Saved scans attach to this return and its emailed form package."
-          )
-          .font(.footnote).foregroundStyle(.secondary)
+          Text(store.workspaceContent.receiptInstructions)
+            .font(.footnote).foregroundStyle(.secondary)
         } else {
           Text(
             "Receipt scanning requires a supported iPhone or iPad camera. You can also select Receipt and take a photo, or choose a photo when imports are allowed."

@@ -33,6 +33,7 @@ struct ReviewWorkspaceView: View {
 struct ReviewSignInView: View {
   @EnvironmentObject var store: FleetStore
   @State private var email = ""
+  @State private var rememberMe = false
   @State private var password = ""
   @State private var busy = false
   @State private var error = ""
@@ -42,13 +43,14 @@ struct ReviewSignInView: View {
         Text(
           "For Apple reviewers. This workspace contains synthetic vehicles and accounts, separate from staff records. Use the credentials in App Review Information. Do not upload personal information here."
         )
+        RememberDeviceToggle(enabled: $rememberMe).disabled(busy)
         Button("Sign in with a review passkey") {
           Task {
             busy = true
             error = ""
             defer { busy = false }
             do {
-              let session = try await store.api.passkeySession()
+              let session = try await store.api.passkeySession(rememberMe: rememberMe)
               store.accept(session)
               await store.refresh()
             } catch { self.error = error.localizedDescription }
@@ -66,7 +68,8 @@ struct ReviewSignInView: View {
             error = ""
             do {
               let result: FleetSession = try await store.api.request(
-                "/api/auth/login", method: "POST", body: ["email": email, "password": password])
+                "/api/auth/login", method: "POST",
+                body: ["email": email, "password": password, "rememberMe": rememberMe])
               password = ""
               store.accept(result)
               await store.refresh()

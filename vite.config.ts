@@ -8,6 +8,19 @@ const release = process.env.VERCEL_DEPLOYMENT_ID || process.env.VERCEL_URL || ra
 const project = readFileSync(new URL('./ios/project.yml', import.meta.url), 'utf8');
 const betaBuild = Number(project.match(/^\s*CURRENT_PROJECT_VERSION:\s*['"]?(\d+)['"]?\s*$/m)?.[1]);
 if (!Number.isSafeInteger(betaBuild) || betaBuild < 1) throw Error('Missing iOS build number');
+const workspaceContent = JSON.parse(
+  readFileSync(new URL('./ios/FleetCheckout/WorkspaceContent.json', import.meta.url), 'utf8'),
+);
+if (
+  workspaceContent.schema !== 1 ||
+  ['fleetReminder', 'damageInstructions', 'receiptInstructions'].some(
+    (key) =>
+      typeof workspaceContent[key] !== 'string' ||
+      !workspaceContent[key].trim() ||
+      workspaceContent[key].length > 500,
+  )
+)
+  throw Error('Invalid native workspace content');
 export default defineConfig({
   define: { __FLEET_RELEASE__: JSON.stringify(release) },
   plugins: [
@@ -18,7 +31,7 @@ export default defineConfig({
         this.emitFile({
           type: 'asset',
           fileName: 'release.json',
-          source: JSON.stringify({ release, betaBuild }),
+          source: JSON.stringify({ release, betaBuild, workspaceContent }),
         });
       },
     },

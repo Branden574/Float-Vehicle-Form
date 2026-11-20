@@ -44,6 +44,7 @@ struct FleetSettings: Codable {
   var requiredPhotoViews: [String]?
 }
 struct FleetSession: Codable {
+  var rememberedUntil: String?
   var user: FleetUser
   var csrfToken: String
   var settings: FleetSettings

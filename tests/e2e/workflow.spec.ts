@@ -836,7 +836,17 @@ test('a personal passkey signs its owner in without an email and can be removed'
   await expect(page.getByRole('status')).toContainText('Passkey saved');
   await page.getByRole('button', { name: 'Sign out', exact: true }).click();
   await expect(page.getByLabel('Work email')).toHaveValue('');
+  const remembered = page.getByRole('checkbox', { name: /Remember me for 60 days/ });
+  await expect(remembered).not.toBeChecked();
+  await remembered.check();
   await page.getByRole('button', { name: 'Sign in with a passkey' }).click();
+  await expect
+    .poll(
+      async () =>
+        (await page.context().cookies()).find((c) => c.name === 'fleet_session')?.expires ?? 0,
+    )
+    .toBeGreaterThan(Date.now() / 1000 + 59 * 86400);
+  await page.reload();
   await expect(page.getByRole('heading', { name: 'Find your next vehicle.' })).toBeVisible();
   await page.getByRole('button', { name: 'My profile' }).click();
   await expect(page.getByLabel('Work email')).toHaveValue('driver@example.test');

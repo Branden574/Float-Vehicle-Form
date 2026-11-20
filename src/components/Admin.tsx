@@ -792,7 +792,7 @@ export function Admin({
                   />
                 </label>
                 <label>
-                  Session inactivity limit (minutes)
+                  Standard session inactivity limit (minutes)
                   <input
                     type="number"
                     required

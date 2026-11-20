@@ -156,8 +156,9 @@ extension FleetAPI {
     let _: EmptyResponse = try await request(
       "/api/auth/passkeys/register/verify", method: "POST", body: body)
   }
-  func passkeySession() async throws -> FleetSession {
-    let body = try await passkeyResponse(registering: false)
+  func passkeySession(rememberMe: Bool = false) async throws -> FleetSession {
+    var body = try await passkeyResponse(registering: false)
+    body["rememberMe"] = rememberMe
     return try await request("/api/auth/passkeys/sign-in/verify", method: "POST", body: body)
   }
 }

@@ -224,6 +224,71 @@ final class FleetCheckoutTests: XCTestCase {
       XCTFail("External API must be rejected")
     } catch {}
   }
+  @MainActor func testWorkspaceUpdateIsAtomicSurvivesRelaunchAndIsIsolatedByHost() async throws {
+    let name = "app.fleetcheckout.tests." + UUID().uuidString
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+    defer {
+      defaults.removePersistentDomain(forName: name)
+      FixtureProtocol.handler = nil
+    }
+    let api = FleetAPI(protocolClasses: [FixtureProtocol.self], keychainService: name)
+    defer { api.clear() }
+    let store = FleetStore(api: api, defaults: defaults)
+    let user = FleetUser(
+      id: "driver", email: "driver@example.test", name: "Test Driver", department: "", charter: "",
+      manager: "", role: "staff", authorizedDriver: true, active: true)
+    let session = FleetSession(
+      user: user, csrfToken: "new-token",
+      settings:
+        FleetSettings(
+          appName: "Refreshed", organizationName: "Fleet", site: "Site",
+          timezone: "America/Los_Angeles",
+          employeeCopy: false, reviewMode: "self_service", allowPhotoImports: true,
+          sessionMinutes: 15))
+    var previous = session
+    previous.settings.appName = "Earlier"
+    store.accept(previous)
+    let copy = WorkspaceContent(
+      schema: 1, fleetReminder: "Look for the fleet number by the door.",
+      damageInstructions: "Mark each dent.", receiptInstructions: "Scan all receipt pages.")
+    let sessionData = try JSONEncoder().encode(session)
+    var failTrips = true
+    FixtureProtocol.handler = { request in
+      switch request.url?.path {
+      case "/api/auth/me": return (200, [:], sessionData)
+      case "/api/vehicles": return (200, [:], Data("{\"vehicles\":[]}".utf8))
+      case "/api/trips": return (failTrips ? 503 : 200, [:], Data("{\"trips\":[]}".utf8))
+      default:
+        XCTFail("Unexpected URL")
+        return (404, [:], Data())
+      }
+    }
+    do {
+      try await store.applyWorkspaceUpdate(copy)
+      XCTFail("Expected refresh failure")
+    } catch {}
+    XCTAssertEqual(store.session?.settings.appName, "Earlier")
+    XCTAssertEqual(store.workspaceContent, WorkspaceContent.bundled)
+    failTrips = false
+    try await store.applyWorkspaceUpdate(copy)
+    XCTAssertEqual(store.session?.settings.appName, "Refreshed")
+    XCTAssertEqual(store.workspaceContent, copy)
+    XCTAssertEqual(FleetStore(api: api, defaults: defaults).workspaceContent, copy)
+    XCTAssertEqual(
+      FleetStore(review: true, defaults: defaults).workspaceContent, WorkspaceContent.bundled)
+    for bad in [
+      WorkspaceContent(
+        schema: 2, fleetReminder: "a", damageInstructions: "b", receiptInstructions: "c"),
+      WorkspaceContent(
+        schema: 1, fleetReminder: " ", damageInstructions: "b", receiptInstructions: "c"),
+    ] {
+      do {
+        try await store.applyWorkspaceUpdate(bad)
+        XCTFail("Expected unsupported content")
+      } catch {}
+      XCTAssertEqual(store.workspaceContent, copy)
+    }
+  }
   static let tripJSON = """
     {"id":"trip","vehicleId":"vehicle","employeeId":"staff","status":"active","checkoutAt":"2026-11-09T12:00:00.000Z","projectedReturnAt":"2026-11-09T18:00:00.000Z","startingMileage":43000,"employeeSnapshot":{"id":"staff","email":"driver@example.test","name":"Test Driver","department":"Testing","charter":"Testing","manager":"Test Manager","role":"staff","authorizedDriver":true,"active":true},"vehicleSnapshot":{"id":"vehicle","name":"Test Vehicle","make":"Ford","model":"Escape","year":2024,"plate":"TEST-01","vinLast4":"1234","site":"Testing","currentMileage":43000,"status":"checked_out","photoUrl":"","notes":"","archived":false},"checkoutInspection":{"fuelFull":true,"interiorClean":true,"gasCard":true,"windshield":"clear","damage":[],"notes":""},"flags":[],"overdue":false}
     """

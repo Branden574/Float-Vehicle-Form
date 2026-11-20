@@ -67,6 +67,7 @@ function Login({
   const [resendAt, setResendAt] = useState(0);
   const [clockNow, setClockNow] = useState(Date.now());
   const [requestedEmail, setRequestedEmail] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [codeNotice, setCodeNotice] = useState('');
   const resendSeconds =
     requestedEmail === email.trim().toLowerCase()
@@ -143,8 +144,8 @@ function Login({
         setError('Account activated. Sign in with your invited email and new password.');
       } else {
         const session = legacy
-          ? await post<Session>('/auth/login', { email, password })
-          : await post<Session>('/auth/verify-code', { challengeId: challenge, code });
+          ? await post<Session>('/auth/login', { email, password, rememberMe })
+          : await post<Session>('/auth/verify-code', { challengeId: challenge, code, rememberMe });
         localStorage.removeItem('fleet-signout-pending');
         onSession(session);
       }
@@ -213,6 +214,19 @@ function Login({
               {codeNotice}
             </p>
           )}
+          {!token && (
+            <label className="remember-device">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                disabled={busy || signingOut}
+                onChange={(event) => setRememberMe(event.target.checked)}
+              />
+              <span>
+                Remember me for 60 days<small>Use on your personal device.</small>
+              </span>
+            </label>
+          )}
           {!token && !challenge && supportsPasskeys() && (
             <>
               <button
@@ -222,7 +236,7 @@ function Login({
                   setBusy(true);
                   setError('');
                   try {
-                    const result = await signInWithPasskey();
+                    const result = await signInWithPasskey(rememberMe);
                     localStorage.removeItem('fleet-signout-pending');
                     onSession(result);
                   } catch (e) {
@@ -486,6 +500,11 @@ export default function App() {
       activity.current = Date.now();
     };
     const check = () => {
+      if (session.rememberedUntil) {
+        if (Date.now() >= Date.parse(session.rememberedUntil))
+          void signOut('Your 60 days have ended. Please sign in again.');
+        return;
+      }
       if (Date.now() - activity.current > session.settings.sessionMinutes * 60000)
         void signOut('Your session ended after inactivity. Please sign in again.');
     };

@@ -15,6 +15,18 @@ struct WorkspaceView: View {
         }
       }
     }
+    .task(id: store.session?.rememberedUntil) {
+      guard let value = store.session?.rememberedUntil,
+        let expiry = try? Date(
+          value,
+          strategy: .iso8601.year().month().day().time(includingFractionalSeconds: true).timeZone(
+            separator: .colon))
+      else { return }
+      do { try await Task.sleep(for: .seconds(max(0, expiry.timeIntervalSinceNow))) } catch {
+        return
+      }
+      if store.session?.rememberedUntil == value { await store.logout() }
+    }
   }
 }
 struct FleetView: View {
@@ -89,7 +101,7 @@ struct FleetView: View {
       } header: {
         Text("Find your next vehicle")
       } footer: {
-        Text("Verify the plate and VIN before checkout.")
+        Text(store.workspaceContent.fleetReminder)
       }
     }.navigationTitle("Learn4Life Fleet").searchable(
       text: $search, prompt: "Vehicle, plate or site"
