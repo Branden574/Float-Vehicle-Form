@@ -26,6 +26,8 @@ struct FleetReleaseNotice: ViewModifier {
   @Environment(\.openURL) private var openURL
   @State private var visible = false
   @State private var prompt: UpdatePrompt?
+  @State private var retry: UpdatePrompt?
+  @State private var refreshError = ""
   @State private var refreshing = false
   @State private var refreshed = false
   private var key: String { "workspace-release." + (store.api.baseURL.host ?? "fleet") }
@@ -40,6 +42,18 @@ struct FleetReleaseNotice: ViewModifier {
       .safeAreaInset(edge: .top, spacing: 0) {
         if refreshing {
           ProgressView("Refreshing workspace…").padding(8)
+        } else if let retry {
+          VStack(alignment: .leading, spacing: 8) {
+            Text("Couldn’t refresh the workspace").font(.headline)
+            Text(refreshError).font(.callout)
+            HStack {
+              Button("Try again") { Task { await perform(retry) } }.buttonStyle(.borderedProminent)
+              Button("Later") {
+                postpone(retry.id)
+                self.retry = nil
+              }.buttonStyle(.bordered)
+            }
+          }.frame(maxWidth: .infinity, alignment: .leading).padding().background(.regularMaterial)
         } else if refreshed {
           Label("Workspace refreshed", systemImage: "checkmark.circle").padding(8)
         }
@@ -54,14 +68,13 @@ struct FleetReleaseNotice: ViewModifier {
           title: Text(item.title), message: Text(item.message),
           primaryButton: .default(Text(item.button)) { Task { await perform(item) } },
           secondaryButton: .cancel(Text("Later")) {
-            UserDefaults.standard.set(item.id, forKey: key + ".deferred")
-            UserDefaults.standard.set(Date().addingTimeInterval(86400), forKey: key + ".until")
+            postpone(item.id)
           })
       }
       .task(id: active) {
         guard active else { return }
         while !Task.isCancelled {
-          if !refreshing && prompt == nil { await check() }
+          if !refreshing && retry == nil && prompt == nil { await check() }
           do { try await Task.sleep(for: .seconds(60)) } catch { return }
         }
       }
@@ -72,6 +85,11 @@ struct FleetReleaseNotice: ViewModifier {
           refreshed = false
         } catch {}
       }
+  }
+
+  private func postpone(_ id: String) {
+    UserDefaults.standard.set(id, forKey: key + ".deferred")
+    UserDefaults.standard.set(Date().addingTimeInterval(86400), forKey: key + ".until")
   }
 
   private func deferred(_ id: String) -> Bool {
@@ -92,6 +110,7 @@ struct FleetReleaseNotice: ViewModifier {
       }
     case .workspace:
       guard !refreshing else { return }
+      retry = nil
       refreshing = true
       refreshed = false
       defer { refreshing = false }
@@ -108,9 +127,8 @@ struct FleetReleaseNotice: ViewModifier {
         UIAccessibility.post(notification: .announcement, argument: "Workspace refreshed")
       } catch {
         guard active, store.session != nil else { return }
-        prompt = UpdatePrompt(
-          id: item.id, title: "Couldn’t refresh the workspace",
-          message: error.localizedDescription, button: "Try again", action: item.action)
+        refreshError = error.localizedDescription
+        retry = item
       }
     }
   }

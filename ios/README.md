@@ -48,7 +48,7 @@ Apple references: [TestFlight](https://developer.apple.com/testflight/), [upload
 
 Edit the plain-text fleet reminder, damage instructions, or receipt instructions in
 `FleetCheckout/WorkspaceContent.json` and deploy the web project to production.
-Vite validates the copy and includes it in `/release.json`. Build 22 and later check
+Vite validates the copy and includes it in `/release.json`. Build 23 and later check
 on the visible Fleet tab and approximately once a minute while it stays open.
 **Refresh now** fetches the deployed copy, session, vehicles and trips. The app keeps
 the last successful copy across launches. A failed refresh can be retried. **Later**
