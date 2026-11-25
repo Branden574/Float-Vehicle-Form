@@ -1,0 +1,8 @@
+CREATE TABLE IF NOT EXISTS vehicle_inspections (
+  id TEXT PRIMARY KEY,
+  vehicle_id TEXT NOT NULL UNIQUE REFERENCES vehicles(id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS inspection_exclusions (
+  lookup TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE
+);

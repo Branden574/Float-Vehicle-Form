@@ -1,5 +1,7 @@
 import { randomBytes, randomUUID } from 'node:crypto';
-import { hash, now } from './store.js';
+import { hash } from './store.js';
+import { recordStagingObjects } from './deletion.js';
+import { preserveVehicleInspection } from './vehicle-inspections.js';
 
 /** Expired closed trips use the same durable erasure queue as account deletion. */
 export async function expireRecords(store, { time = Date.now() } = {}) {
@@ -23,6 +25,8 @@ export async function expireRecords(store, { time = Date.now() } = {}) {
     const objects = new Set(photos.flatMap((p) => [p.original_path, p.display_path]));
     for (const id of tripIDs)
       for (const key of await store.evidence.list(`reports/${id}-`)) objects.add(key);
+    await recordStagingObjects(db, photos, objects);
+    for (const id of tripIDs) await preserveVehicleInspection(store, id, true);
     const plan = { objects: [...objects], tripIDs: [...tripIDs] };
     await db
       .prepare('INSERT INTO deletion_jobs(id,token_hash,requested_at,plan_json) VALUES(?,?,?,?)')
@@ -33,8 +37,6 @@ export async function expireRecords(store, { time = Date.now() } = {}) {
         store.encodeJSON(plan),
       );
     for (const photo of photos) {
-      if (db.kind === 'postgres')
-        await db.prepare('DELETE FROM upload_tickets WHERE photo_id=?').run(photo.id);
       await db
         .prepare('UPDATE vehicles SET photo_url=? WHERE photo_url=? OR photo_url=?')
         .run('', `/api/photos/${photo.id}`, `/api/photos/${photo.id}/display`);

@@ -4,10 +4,8 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 const release = process.env.VERCEL_DEPLOYMENT_ID || process.env.VERCEL_URL || randomUUID();
-// Publish the web release after the matching beta is available to testers.
-const project = readFileSync(new URL('./ios/project.yml', import.meta.url), 'utf8');
-const betaBuild = Number(project.match(/^\s*CURRENT_PROJECT_VERSION:\s*['"]?(\d+)['"]?\s*$/m)?.[1]);
-if (!Number.isSafeInteger(betaBuild) || betaBuild < 1) throw Error('Missing iOS build number');
+// Advertise a build only after Apple has made it available to staff testers.
+const betaBuild = 23;
 const workspaceContent = JSON.parse(
   readFileSync(new URL('./ios/FleetCheckout/WorkspaceContent.json', import.meta.url), 'utf8'),
 );

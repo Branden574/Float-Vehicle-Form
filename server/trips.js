@@ -1,4 +1,5 @@
 import { checkReservedPickup } from './reservations.js';
+import { installVehicleInspections, listVehicleInspections } from './vehicle-inspections.js';
 import { mayReviewReturns } from './reviewers.js';
 import { randomUUID } from 'node:crypto';
 import { reportFilename } from './report-filename.js';
@@ -44,6 +45,7 @@ async function idempotency(store, req, operation) {
 const flagUnion = (...arrays) => [...new Set(arrays.flat())];
 export function installTrips(app, store, { reportService } = {}) {
   const { db } = store;
+  installVehicleInspections(app, store);
   const kitAnswer = z.boolean({
     error:
       'Answer the emergency service kit question. If you cannot see it, refresh fleetcheckout.app or use the latest TestFlight build.',
@@ -109,12 +111,13 @@ export function installTrips(app, store, { reportService } = {}) {
     const pending = canReviewReturns
       ? await db
           .prepare(
-            "SELECT t.* FROM trips t JOIN vehicles v ON v.id=t.vehicle_id WHERE t.status='returned' AND v.status='pending_review' AND t.employee_id<>? AND NOT EXISTS (SELECT 1 FROM reviews r WHERE r.trip_id=t.id AND r.stage='return') AND NOT EXISTS (SELECT 1 FROM trips newer WHERE newer.vehicle_id=t.vehicle_id AND newer.vehicle_mileage_version>t.vehicle_mileage_version) ORDER BY t.returned_at ASC",
+            "SELECT t.* FROM trips t JOIN vehicles v ON v.id=t.vehicle_id WHERE t.status='returned' AND v.status='pending_review' AND t.employee_id<>? AND (t.return_mileage_version IS NULL OR t.return_mileage_version=v.mileage_version) AND NOT EXISTS (SELECT 1 FROM vehicle_inspections i WHERE i.vehicle_id=v.id) AND NOT EXISTS (SELECT 1 FROM reviews r WHERE r.trip_id=t.id AND r.stage='return') AND NOT EXISTS (SELECT 1 FROM trips newer WHERE newer.vehicle_id=t.vehicle_id AND newer.vehicle_mileage_version>t.vehicle_mileage_version) ORDER BY t.returned_at ASC",
           )
           .all(req.user.id)
       : [];
     res.json({
       trips: await Promise.all(rows.map(store.mapTrip)),
+      vehicleInspections: canReviewReturns ? await listVehicleInspections(store, req.user.id) : [],
       pendingReturns: await Promise.all(pending.map(store.mapTrip)),
       canReviewReturns,
     });
@@ -494,8 +497,16 @@ export function installTrips(app, store, { reportService } = {}) {
             .get(trip.vehicleId);
           if (latest.id === trip.id)
             await db
-              .prepare('UPDATE vehicles SET status=?,updated_at=? WHERE id=?')
-              .run(b.decision === 'approve' ? 'available' : 'out_of_service', time, trip.vehicleId);
+              .prepare(
+                'UPDATE vehicles SET status=?,updated_at=? WHERE id=? AND NOT EXISTS (SELECT 1 FROM vehicle_inspections WHERE vehicle_id=?) AND EXISTS (SELECT 1 FROM trips t WHERE t.id=? AND (t.return_mileage_version IS NULL OR t.return_mileage_version=vehicles.mileage_version))',
+              )
+              .run(
+                b.decision === 'approve' ? 'available' : 'out_of_service',
+                time,
+                trip.vehicleId,
+                trip.vehicleId,
+                trip.id,
+              );
         }
         await store.audit(
           req.user.id,

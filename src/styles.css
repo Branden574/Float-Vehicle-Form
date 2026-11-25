@@ -2503,6 +2503,23 @@ figcaption {
 .login-actions:not(:empty) {
   margin-bottom: 20px;
 }
+.vehicle-inspection {
+  max-width: 40rem;
+  border-bottom: 1px solid var(--line);
+}
+.vehicle-inspection summary {
+  cursor: pointer;
+  padding: 0.85rem 0;
+  font-weight: 600;
+}
+.vehicle-inspection form {
+  display: grid;
+  gap: 0.75rem;
+  padding-bottom: 1rem;
+}
+.vehicle-inspection .button {
+  justify-self: start;
+}
 .my-checkouts {
   margin-bottom: 28px;
 }

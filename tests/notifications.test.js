@@ -350,3 +350,215 @@ test('a delayed or retried checkout cannot send a blank check-in after return', 
   assert.match(message.subject, /COMPLETED CHECK-IN - print this copy/);
   assert.match(message.text, /both completed forms/);
 });
+
+test('a signed check-in goes only to queued recipients still eligible at dispatch', async (t) => {
+  const f = await fixture(t);
+  const retained = 'assistant.one@example.test';
+  const removed = 'assistant.two@example.test';
+  const newlyAdded = 'new-assistant@example.test';
+  const configure = async (changes) => {
+    const result = await f.a.request('/admin/settings', {
+      method: 'PATCH',
+      body: { ...changes, reason: 'Update assistant form copies' },
+    });
+    assert.equal(result.status, 200);
+  };
+  await configure({
+    notificationRecipients: [retained, removed],
+    returnReviewerEmails: [f.other.email],
+    employeeCopy: true,
+  });
+  const checkout = await f.checkout(f.s, await f.addVehicle());
+  const trip = checkout.data.trip;
+  await f.returnTrip(f.s, trip);
+  const notice = (await f.store.listNotifications(trip.id)).find((n) => n.stage === 'return');
+  assert.equal(notice.status, 'awaiting_review');
+  await configure({ notificationRecipients: [retained, newlyAdded] });
+  const review = await f.o.request(`/trips/${trip.id}/review`, {
+    method: 'POST',
+    body: {
+      stage: 'return',
+      decision: 'approve',
+      initials: 'OD',
+      signature: await signature(),
+      reason: 'Physical check-in complete',
+    },
+  });
+  assert.ok(review.status < 300, JSON.stringify(review.data));
+  const sent = [];
+  const result = await processNotification({
+    store: f.store,
+    notificationId: notice.id,
+    report: async () => Buffer.from('%PDF'),
+    send: async (message) => {
+      sent.push(...message.to);
+      await configure({ employeeCopy: false });
+      return { accepted: true, id: 'local-approved' };
+    },
+  });
+  assert.equal(result.status, 'accepted');
+  assert.deepEqual(sent, [retained]);
+  const record = (await f.a.request('/admin/overview')).data.notifications.find(
+    (n) => n.id === notice.id,
+  );
+  assert.deepEqual(Object.fromEntries(record.deliveries.map((d) => [d.email, d.status])), {
+    [retained]: 'accepted',
+    [removed]: 'skipped',
+    [f.staff.email]: 'skipped',
+  });
+});
+
+test('removing a recipient after queueing a retry skips the delivery and issues no private link', async (t) => {
+  const f = await fixture(t);
+  const recipient = 'assistant@example.test';
+  const configure = async (recipients) =>
+    assert.equal(
+      (
+        await f.a.request('/admin/settings', {
+          method: 'PATCH',
+          body: { notificationRecipients: recipients, reason: 'Update assistant addresses' },
+        })
+      ).status,
+      200,
+    );
+  await configure([recipient]);
+  const trip = (await f.checkout(f.s, await f.addVehicle())).data.trip;
+  const [notice] = await f.store.listNotifications(trip.id);
+  let sends = 0;
+  const send = async () => {
+    sends++;
+    throw Object.assign(new Error('Test rejection'), { definiteFailure: true });
+  };
+  const run = () =>
+    processNotification({
+      store: f.store,
+      notificationId: notice.id,
+      send,
+      report: async () => Buffer.alloc(21 * 1024 * 1024),
+    });
+  assert.equal((await run()).status, 'failed');
+  assert.equal(
+    (
+      await f.a.request(`/admin/notifications/${notice.id}/retry`, {
+        method: 'POST',
+        body: { recipient },
+      })
+    ).status,
+    200,
+  );
+  await configure([]);
+  const skipped = await run();
+  assert.equal(skipped.status, 'skipped');
+  assert.equal(skipped.acceptedAt, null);
+  assert.equal(sends, 1);
+  const record = (await f.a.request('/admin/overview')).data.notifications.find(
+    (n) => n.id === notice.id,
+  );
+  assert.equal(record.deliveries[0].status, 'skipped');
+  assert.equal(record.deliveries[0].viaLink, false);
+});
+
+test('unavailable receipt withholds check-in PDF until it can be included and cached', async (t) => {
+  const f = await fixture(t);
+  assert.equal(
+    (
+      await f.a.request('/admin/settings', {
+        method: 'PATCH',
+        body: {
+          notificationRecipients: ['assistant@example.test'],
+          reason: 'Receive completed forms',
+        },
+      })
+    ).status,
+    200,
+  );
+  const vehicle = await f.addVehicle(),
+    trip = (await f.checkout(f.s, vehicle)).data.trip;
+  const draft = await f.draft(f.s, vehicle, { stage: 'return', tripId: trip.id });
+  const receipt = await f.upload(f.s, vehicle.id, {
+    stage: 'return',
+    tripId: trip.id,
+    draftId: draft.draftId,
+    view: 'receipt',
+  });
+  assert.equal(receipt.status, 201);
+  draft.photoIds.push(receipt.data.photo.id);
+  assert.equal((await f.returnTrip(f.s, trip, draft)).status, 201);
+  const notice = (await f.store.listNotifications(trip.id)).find((n) => n.stage === 'return');
+  const originalRead = f.store.evidence.read;
+  const path = (await f.store.getPhoto(receipt.data.photo.id)).displayPath;
+  const expectedImage = await originalRead(path);
+  let available = false;
+  f.store.evidence.read = async (key) => {
+    if (key === path && !available) throw new Error('Test storage temporarily offline');
+    return originalRead(key);
+  };
+  const messages = [];
+  const run = () =>
+    processNotification({
+      store: f.store,
+      notificationId: notice.id,
+      send: async (message) => {
+        messages.push(message);
+        return { accepted: true, id: 'local-report' };
+      },
+    });
+  const delayed = await run();
+  assert.equal(delayed.status, 'pending');
+  assert.match(delayed.error, /receipt/i);
+  assert.equal(messages.length, 0);
+  assert.deepEqual(await f.store.evidence.list(`reports/${trip.id}-return-`), []);
+  available = true;
+  assert.equal((await run()).status, 'accepted');
+  const attached = messages[0].attachments[0].content;
+  assert.ok(
+    attached.includes(expectedImage),
+    'recovered receipt JPEG is embedded in the official PDF',
+  );
+  assert.deepEqual(
+    await createReport({ store: f.store, tripId: trip.id, stage: 'return' }),
+    attached,
+  );
+});
+
+test('a skipped retry preserves the prior delivery confirmation requirement', async (t) => {
+  const f = await fixture(t);
+  const recipient = 'assistant@example.test';
+  const set = async (recipients) =>
+    assert.equal(
+      (
+        await f.a.request('/admin/settings', {
+          method: 'PATCH',
+          body: { notificationRecipients: recipients, reason: 'Change authorized assistants' },
+        })
+      ).status,
+      200,
+    );
+  await set([recipient]);
+  const trip = (await f.checkout(f.s, await f.addVehicle())).data.trip;
+  const [notice] = await f.store.listNotifications(trip.id);
+  const run = () =>
+    processNotification({
+      store: f.store,
+      notificationId: notice.id,
+      report: async () => Buffer.from('%PDF'),
+      send: async () => ({ accepted: true, id: 'first-delivery' }),
+    });
+  const retry = (body) =>
+    f.a.request(`/admin/notifications/${notice.id}/retry`, { method: 'POST', body });
+  assert.equal((await run()).status, 'accepted');
+  assert.equal(
+    (await retry({ resend: true, reason: 'Authorized duplicate form copy' })).status,
+    200,
+  );
+  await set([]);
+  assert.equal((await run()).status, 'skipped');
+  await set([recipient]);
+  const record = (await f.a.request('/admin/overview')).data.notifications.find(
+    (n) => n.id === notice.id,
+  );
+  assert.equal(record.requiresResendConfirmation, true);
+  assert.equal(record.deliveries[0].status, 'skipped');
+  assert.equal((await retry({})).status, 400);
+  assert.equal((await retry({ recipient })).status, 400);
+});

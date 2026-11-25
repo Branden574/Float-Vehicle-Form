@@ -129,6 +129,48 @@ final class FleetCheckoutTests: XCTestCase {
     XCTAssertEqual(decoded.damage[0].position?.x, 0.25)
     XCTAssertEqual(decoded.damage[0].position?.y, 0.4)
   }
+  @MainActor func testProtectedPreviewSizeAndCleanup() async throws {
+    let api = FleetAPI(protocolClasses: [FixtureProtocol.self], keychainService: UUID().uuidString)
+    defer { FixtureProtocol.handler = nil }
+    let bytes = Data(repeating: 97, count: 64)
+    FixtureProtocol.handler = { _ in (200, [:], bytes) }
+    var document: FleetDocument? = try await api.file(
+      "/api/test-file", name: "trip.pdf", title: "Trip", maximumBytes: bytes.count)
+    let path = try XCTUnwrap(document?.url)
+    XCTAssertEqual(try Data(contentsOf: path), bytes)
+    XCTAssertEqual(path.lastPathComponent, "trip.pdf")
+    let folder = path.deletingLastPathComponent()
+    var share = document
+    document = nil
+    XCTAssertNotNil(share)
+    XCTAssertTrue(FileManager.default.fileExists(atPath: path.path))
+    share = nil
+    XCTAssertFalse(FileManager.default.fileExists(atPath: folder.path))
+
+    func previewFolders() throws -> Set<String> {
+      Set(try FileManager.default.contentsOfDirectory(atPath: FleetDocument.directory.path))
+    }
+    let before = try previewFolders()
+    for headers in [[:], ["Content-Length": "1000"]] {
+      FixtureProtocol.handler = { _ in (200, headers, bytes) }
+      do {
+        _ = try await api.file("/api/test-file", name: "trip.pdf", title: "Trip", maximumBytes: 63)
+        XCTFail("An oversized file must be rejected")
+      } catch let error as FleetError {
+        XCTAssertTrue(error.message.contains("too large"))
+      }
+      XCTAssertEqual(try previewFolders(), before)
+    }
+    FixtureProtocol.handler = { _ in (403, [:], Data("Denied".utf8)) }
+    do {
+      _ = try await api.file("/api/test-file", name: "trip.pdf", title: "Trip")
+      XCTFail("An HTTP error must not become a preview")
+    } catch let error as FleetError {
+      XCTAssertEqual(error.status, 403)
+    }
+    XCTAssertEqual(try previewFolders(), before)
+  }
+
   func testRedirectStripsCredentialsForStorageHost() {
     let delegate = FleetRedirectGuard()
     let session = URLSession(configuration: .ephemeral)
@@ -176,7 +218,7 @@ final class FleetCheckoutTests: XCTestCase {
           [
             "Set-Cookie":
               "fleet_session=synthetic-session; Path=/; Secure; HttpOnly; SameSite=Strict"
-          ], Data("{}".utf8)
+          ], Data(#"{"csrfToken":"synthetic-csrf"}"#.utf8)
         )
       }
       XCTAssertEqual(request.value(forHTTPHeaderField: "Cookie"), "fleet_session=synthetic-session")
@@ -210,7 +252,7 @@ final class FleetCheckoutTests: XCTestCase {
     FixtureProtocol.handler = { request in
       if request.url?.host == "fleetcheckout.app" {
         return (
-          200, ["Set-Cookie": "fleet_session=staff-only; Path=/; Secure; HttpOnly"], Data("{}".utf8)
+          200, ["Set-Cookie": "fleet_session=staff-only; Path=/; Secure; HttpOnly"], Data(#"{"csrfToken":"staff-csrf"}"#.utf8)
         )
       }
       XCTAssertEqual(request.url?.host, "fleet-checkout-review.vercel.app")
@@ -224,6 +266,122 @@ final class FleetCheckoutTests: XCTestCase {
       XCTFail("External API must be rejected")
     } catch {}
   }
+  @MainActor func testOfflineSignOutRetriesAfterRelaunchWithoutSendingNextLoginCookie() async throws
+  {
+    let namespace = "app.fleetcheckout.tests." + UUID().uuidString
+    let client = { FleetAPI(protocolClasses: [FixtureProtocol.self], keychainService: namespace) }
+    var first: FleetStore? = FleetStore(api: client())
+    let attemptedOffline = expectation(description: "Sign-out attempted without connectivity")
+    let sessionResponse = Data(#"{"csrfToken":"private-test-csrf"}"#.utf8)
+    var issuing = "first-session"
+    var reachable = false
+    var received = 0
+    var expectedCookie: String?
+    FixtureProtocol.handler = { request in
+      switch request.url?.path {
+      case "/api/auth/login":
+        return (
+          200, ["Set-Cookie": "fleet_session=\(issuing); Path=/; Secure; HttpOnly"], sessionResponse
+        )
+      case "/api/auth/revoke-session":
+        XCTAssertNil(request.value(forHTTPHeaderField: "Cookie"))
+        XCTAssertNil(request.value(forHTTPHeaderField: "X-CSRF-Token"))
+        received += 1
+        // The first two deliveries represent the old device session across a failed
+        // connection and relaunch. This vector also checks the server proof format.
+        if received <= 2 {
+          var body = request.httpBody ?? Data()
+          if body.isEmpty, let stream = request.httpBodyStream {
+            stream.open()
+            defer { stream.close() }
+            var chunk = [UInt8](repeating: 0, count: 512)
+            var n = stream.read(&chunk, maxLength: chunk.count)
+            while n > 0 {
+              body.append(contentsOf: chunk.prefix(n))
+              n = stream.read(&chunk, maxLength: chunk.count)
+            }
+          }
+          let payload = try? JSONDecoder().decode([String: String].self, from: body)
+          XCTAssertEqual(
+            payload,
+            [
+              "sessionId": "bb0beffaf301dc83600a5b32b8267ee129a144aaf645bd2c2e5ec2ab9d949efa",
+              "proof": "838e54e050fc59f64ae7a9eba8cc4a5ff6a2ca7498cf60f29cff64da2fb828ad",
+            ])
+        }
+        if !reachable { attemptedOffline.fulfill() }
+        return (reachable ? 204 : 0, [:], Data())
+      default:
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Cookie"), expectedCookie)
+        return (200, [:], Data("{}".utf8))
+      }
+    }
+    defer { FixtureProtocol.handler = nil }
+    let _: EmptyResponse = try await first!.api.request(
+      "/api/auth/login", method: "POST", body: [:])
+    await first!.logout()
+    await fulfillment(of: [attemptedOffline], timeout: 3)
+    first = nil
+    XCTAssertEqual(received, 1)
+
+    let relaunched = client()
+    let _: EmptyResponse = try await relaunched.request("/api/public-settings")
+    issuing = "next-session"
+    let _: EmptyResponse = try await relaunched.request(
+      "/api/auth/login", method: "POST", body: [:])
+    reachable = true
+    let retried = await relaunched.retryPendingSignOuts()
+    XCTAssertTrue(retried)
+    XCTAssertEqual(received, 2)
+    expectedCookie = "fleet_session=next-session"
+    let _: EmptyResponse = try await relaunched.request("/api/public-settings")
+    let drained = await relaunched.retryPendingSignOuts()
+    XCTAssertTrue(drained)
+    XCTAssertEqual(received, 2)
+    relaunched.clear()
+    let cleanup = await relaunched.retryPendingSignOuts()
+    XCTAssertTrue(cleanup)
+    XCTAssertEqual(received, 3)
+  }
+
+  @MainActor func testSharedSessionLocksAfterActualInactivityButRememberedSessionStaysSignedIn()
+    async throws
+  {
+    let store = FleetStore(
+      api: FleetAPI(
+        protocolClasses: [FixtureProtocol.self],
+        keychainService: "app.fleetcheckout.tests." + UUID().uuidString))
+    let user = FleetUser(
+      id: "driver", email: "driver@example.test", name: "Driver", department: "", charter: "",
+      manager: "", role: "staff", authorizedDriver: true, active: true)
+    var session = FleetSession(
+      user: user, csrfToken: "test",
+      settings: FleetSettings(
+        appName: "Fleet", organizationName: "Fleet", site: "", timezone: "UTC", employeeCopy: false,
+        reviewMode: "self_service", allowPhotoImports: true, sessionMinutes: 15))
+    store.accept(session)
+    let opened = store.lastActive
+    store.recordInteraction(at: opened.addingTimeInterval(600))
+    store.accept(session)
+    XCTAssertFalse(store.expireIdleSession(at: opened.addingTimeInterval(1000)))
+    // A late tap cannot unlock a screen whose configured idle interval elapsed.
+    store.recordInteraction(at: opened.addingTimeInterval(1500))
+    XCTAssertNil(store.session)
+    session.rememberedUntil = "2099-01-01T00:00:00.000Z"
+    store.accept(session)
+    XCTAssertFalse(store.expireIdleSession(at: opened.addingTimeInterval(3600)))
+    XCTAssertNotNil(store.session)
+    session.rememberedUntil = nil
+    session.settings.sessionMinutes = 0
+    store.accept(session)
+    let limit = ContinuousClock.now.advanced(by: .seconds(2))
+    while store.session != nil && ContinuousClock.now < limit {
+      try await Task.sleep(for: .milliseconds(10))
+    }
+    XCTAssertNil(
+      store.session, "The foreground idle timer locks without a scene transition or further input.")
+  }
+
   @MainActor func testWorkspaceUpdateIsAtomicSurvivesRelaunchAndIsIsolatedByHost() async throws {
     let name = "app.fleetcheckout.tests." + UUID().uuidString
     let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
@@ -303,6 +461,10 @@ final class FixtureProtocol: URLProtocol {
       return
     }
     let (status, headers, data) = handler(request)
+    if status == 0 {
+      client?.urlProtocol(self, didFailWithError: URLError(.notConnectedToInternet))
+      return
+    }
     let response = HTTPURLResponse(
       url: request.url!, statusCode: status, httpVersion: "HTTP/1.1", headerFields: headers)!
     client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)

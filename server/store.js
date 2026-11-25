@@ -56,6 +56,9 @@ export async function openStore(dataDir = process.env.DATA_DIR || './data') {
     );
     await db.pragma('secure_delete = ON');
     await db.exec(deletionSchema);
+    await db.exec(
+      readFileSync(new URL('./migrations/vehicle-inspections.sql', import.meta.url), 'utf8'),
+    );
     await db.exec(readFileSync(new URL('./migrations/reservations.sql', import.meta.url), 'utf8'));
     await db.exec(readFileSync(new URL('./migrations/passkeys.sql', import.meta.url), 'utf8'));
     await db.exec(
@@ -411,18 +414,24 @@ export async function openStore(dataDir = process.env.DATA_DIR || './data') {
       );
     return await getUser(id);
   };
+  const getNotificationRecipients = async (trip, stage) => {
+    const settings = await getSettings();
+    const recipients = new Set(
+      (stage === 'return_review'
+        ? settings.returnReviewerEmails
+        : settings.notificationRecipients
+      ).map((email) => email.trim().toLowerCase()),
+    );
+    if (stage === 'return_review') {
+      const employee = await getUser(trip.employeeId);
+      recipients.delete(employee?.email?.toLowerCase());
+    } else if (settings.employeeCopy && trip.employeeSnapshot.email) {
+      recipients.add(trip.employeeSnapshot.email.trim().toLowerCase());
+    }
+    return [...recipients];
+  };
   const enqueueNotification = async (tripId, stage) => {
-    const settings = await getSettings(),
-      trip = await getTrip(tripId),
-      employee = trip ? await getUser(trip.employeeId) : null,
-      recipients =
-        stage === 'return_review'
-          ? [...settings.returnReviewerEmails].filter(
-              (email) => email !== employee?.email?.toLowerCase(),
-            )
-          : [...settings.notificationRecipients];
-    if (stage !== 'return_review' && settings.employeeCopy && trip?.employeeSnapshot.email)
-      recipients.push(trip.employeeSnapshot.email);
+    const recipients = await getNotificationRecipients(await getTrip(tripId), stage);
     const id = randomUUID(),
       time = now();
     await db
@@ -436,7 +445,7 @@ export async function openStore(dataDir = process.env.DATA_DIR || './data') {
         recipients.length ? 'pending' : 'failed',
         time,
         time,
-        privacy.encode([...new Set(recipients)]),
+        privacy.encode(recipients),
         `<fleet-${tripId}-${stage}@fleet.local>`,
       );
     if (!recipients.length)
@@ -477,6 +486,7 @@ export async function openStore(dataDir = process.env.DATA_DIR || './data') {
     decodeJSON: privacy.decode,
     emailLookup: privacy.lookup,
     draftKey: privacy.draftKey,
+    getNotificationRecipients,
     enqueueNotification,
     close: async () => await db.close(),
   };

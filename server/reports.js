@@ -2,7 +2,7 @@ import PDFDocument from 'pdfkit';
 import { drawPrintablePhoto } from './photo-layout.js';
 import { originalForms, templateHash } from './original-forms.js';
 import { createHash } from 'node:crypto';
-import { inspectionFlags } from './validation.js';
+import { HttpError, inspectionFlags, requiredVehicleViews } from './validation.js';
 import { reportFilename } from './report-filename.js';
 
 const INK = '#1e302c';
@@ -36,6 +36,12 @@ function timestamp(value, timezone) {
   }
 }
 
+export class ReportEvidenceError extends HttpError {
+  constructor(message) {
+    super(503, message);
+  }
+}
+
 /** An immutable content-addressed copy is retained for each report revision. */
 export async function createReport({ store, tripId, stage = 'return', download = false }) {
   const bundle = await store.getTripBundle(tripId);
@@ -45,15 +51,14 @@ export async function createReport({ store, tripId, stage = 'return', download =
     throw new Error('Return has not been completed');
   const { trip, photos, reviews, revisions } = bundle;
   const settings = trip.checkoutSettings || bundle.settings;
+  const relevantPhotos = photos.filter((p) => stage === 'return' || p.stage === 'checkout');
   const reportData = {
-    version: 10,
+    version: 11,
     templateHash,
     stage,
     trip,
     settings,
-    photos: photos
-      .filter((p) => stage === 'return' || p.stage === 'checkout')
-      .map(({ originalPath, displayPath, ...photo }) => photo),
+    photos: relevantPhotos.map(({ originalPath, displayPath, ...photo }) => photo),
     reviews: reviews.filter((r) => stage === 'return' || r.stage === 'checkout'),
     revisions,
   };
@@ -67,6 +72,17 @@ export async function createReport({ store, tripId, stage = 'return', download =
     return await resultFor(await store.evidence.read(filename));
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
+  }
+
+  const stages = stage === 'return' ? ['checkout', 'return'] : ['checkout'];
+  for (const inspectionStage of stages) {
+    const views = new Set(
+      relevantPhotos.filter((p) => p.stage === inspectionStage).map((p) => p.view),
+    );
+    if (requiredVehicleViews.some((view) => !views.has(view)))
+      throw new ReportEvidenceError(
+        `The report is missing a required ${inspectionStage} photo. Ask an administrator to check the evidence before retrying.`,
+      );
   }
 
   const doc = new PDFDocument({
@@ -312,7 +328,6 @@ export async function createReport({ store, tripId, stage = 'return', download =
     }
   }
 
-  const relevantPhotos = photos.filter((p) => stage === 'return' || p.stage === 'checkout');
   let photoSlots = 0;
   for (let index = 0; index < relevantPhotos.length; index++) {
     const photo = relevantPhotos[index];
@@ -345,16 +360,13 @@ export async function createReport({ store, tripId, stage = 'return', download =
       );
       y += imageHeight + 6;
     } catch {
-      text(
-        'Photo viewing copy is unavailable. Contact an administrator; the record references the original photo below.',
+      doc.destroy();
+      throw new ReportEvidenceError(
+        `Could not include the ${photo.stage} ${names[photo.view] || photo.view} image in the PDF. Retry once the image is available.`,
       );
     }
     photoSlots = receipt ? 0 : photoSlots + 1;
     text(caption, { size: 8, color: MUTED });
-  }
-  if (!relevantPhotos.length) {
-    heading('Photo evidence');
-    text('No finalized photos found. This report requires administrator attention.');
   }
 
   const pages = doc.bufferedPageRange();

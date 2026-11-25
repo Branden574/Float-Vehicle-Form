@@ -54,4 +54,5 @@ on the visible Fleet tab and approximately once a minute while it stays open.
 the last successful copy across launches. A failed refresh can be retried. **Later**
 defers that deployment for a day. To roll back, redeploy a previous copy.
 New native controls, workflows, and changes to the supported content fields ship in
-a signed binary through App Review. TestFlight and App Store updates open their respective apps.
+a signed binary through App Review. TestFlight and App Store updates open their respective apps. Update `betaBuild` in
+`vite.config.ts` after confirming the build is available to the staff TestFlight group.

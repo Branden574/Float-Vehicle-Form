@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import sharp from 'sharp';
 
+export const requiredVehicleViews = ['front', 'rear', 'driver', 'passenger'];
+
 export class HttpError extends Error {
   constructor(status, message) {
     super(message);

@@ -1,3 +1,4 @@
+import { createHash, createHmac } from 'node:crypto';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, writeFile } from 'node:fs/promises';
@@ -429,4 +430,30 @@ test('remembered email sessions have a fixed 60-day lifetime, require fresh auth
     .prepare('UPDATE sessions SET expires_at=? WHERE user_id=?')
     .run(new Date(Date.now() - 1).toISOString(), f.staff.id);
   assert.equal((await call('me', 'GET', other.cookie)).status, 401);
+});
+
+test('offline sign-out proof revokes exactly one session and remains idempotent', async (t) => {
+  const f = await fixture(t);
+  const second = await post(f, 'login', { email: f.staff.email, password, rememberMe: true });
+  const sessionId = createHash('sha256')
+    .update(f.s.cookie.slice('fleet_session='.length))
+    .digest('hex');
+  const proof = createHmac('sha256', f.s.csrf)
+    .update('fleet.revoke.v1:' + sessionId)
+    .digest('hex');
+  const revoke = (proof) =>
+    fetch(f.url + '/api/auth/revoke-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId, proof }),
+    });
+  assert.equal((await revoke('0'.repeat(64))).status, 403);
+  assert.equal((await f.s.request('/auth/me')).status, 200);
+  assert.equal((await revoke(proof)).status, 204);
+  assert.equal((await revoke(proof)).status, 204);
+  assert.equal((await f.s.request('/auth/me')).status, 401);
+  assert.equal(
+    (await fetch(f.url + '/api/auth/me', { headers: { Cookie: second.cookie } })).status,
+    200,
+  );
 });

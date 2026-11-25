@@ -151,7 +151,7 @@ test('removing a reviewer immediately revokes an existing session and queued req
       assert.fail('Removed reviewer must not receive mail');
     },
   });
-  assert.equal(result.status, 'failed');
+  assert.equal(result.status, 'skipped');
   assert.equal(
     (await f.a.request(`/trips/${id}/review`, { method: 'POST', body: await approval('return') }))
       .status,

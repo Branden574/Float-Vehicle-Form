@@ -37,6 +37,20 @@ struct FleetView: View {
     List {
       Section { NavigationLink("Vehicle calendar & availability") { ReservationCalendar() } }
       if !store.error.isEmpty { Text(store.error).foregroundStyle(Color("FleetError")) }
+      if !store.vehicleInspections.isEmpty {
+        Section("Vehicles needing a physical inspection") {
+          ForEach(store.vehicleInspections) { task in
+            NavigationLink {
+              VehicleInspectionView(task: task)
+            } label: {
+              VStack(alignment: .leading) {
+                Text(task.name).font(.headline)
+                Text("\(task.plate) · \(task.site)").font(.subheadline)
+              }
+            }
+          }
+        }
+      }
       if !store.pendingReturns.isEmpty {
         Section("Returns awaiting your review") {
           ForEach(store.pendingReturns) { trip in
@@ -115,6 +129,48 @@ struct FleetView: View {
         Label("Refresh", systemImage: "arrow.clockwise")
       }
     }
+  }
+}
+private struct VehicleInspectionView: View {
+  @EnvironmentObject var store: FleetStore
+  @Environment(\.dismiss) private var dismiss
+  let task: VehicleInspection
+  @State private var inspected = false
+  @State private var decision = ""
+  @State private var reason = ""
+  @State private var busy = false
+  @State private var error = ""
+
+  var body: some View {
+    Form {
+      Section(task.name) {
+        Text("\(task.plate) · \(task.site)")
+        Text("There is no current return form for this inspection. Inspect the vehicle, emergency kits, keys, and odometer in person before deciding whether it can return to service.")
+      }
+      Section {
+        Toggle("I physically inspected this vehicle and was not the driver for this return", isOn: $inspected)
+        Picker("Inspection decision", selection: $decision) {
+          Text("Choose a decision").tag("")
+          Text("Make available for checkout").tag("approve")
+          Text("Take out of service").tag("hold")
+        }
+        FleetTextField("Inspection notes", text: $reason, axis: .vertical)
+        if !error.isEmpty { Text(error).foregroundStyle(Color("FleetError")) }
+        Button(busy ? "Saving…" : "Complete inspection") {
+          Task {
+            busy = true
+            defer { busy = false }
+            do {
+              let _: EmptyResponse = try await store.api.request(
+                "/api/vehicle-inspections/\(task.id)/resolve", method: "POST",
+                body: ["inspected": inspected, "decision": decision, "reason": reason])
+              await store.refresh()
+              dismiss()
+            } catch { self.error = error.localizedDescription }
+          }
+        }.disabled(busy || !inspected || decision.isEmpty || reason.trimmingCharacters(in: .whitespacesAndNewlines).count < 5)
+      }
+    }.navigationTitle("Physical inspection")
   }
 }
 struct VehicleView: View {
@@ -364,19 +420,18 @@ struct TripView: View {
     busy = true
     defer { busy = false }
     do {
-      let url = try await store.api.file(
+      preview = try await store.api.file(
         "/api/trips/\(tripID)/report?stage=\(stage)",
-        name: detail?.reportFilenames?[stage] ?? "fleet-\(tripID)-\(stage).pdf")
-      preview = FleetDocument(
-        url: url, title: stage == "checkout" ? "Checkout form" : "Checkout and check-in forms")
+        name: detail?.reportFilenames?[stage] ?? "fleet-\(tripID)-\(stage).pdf",
+        title: stage == "checkout" ? "Checkout form" : "Checkout and check-in forms")
     } catch { self.error = error.localizedDescription }
   }
   func photoFile(_ photo: FleetPhoto) async {
     busy = true
     defer { busy = false }
     do {
-      let url = try await store.api.file(photo.url, name: "\(photo.id).jpg")
-      preview = FleetDocument(url: url, title: "\(humanize(photo.view)) photo")
+      preview = try await store.api.file(
+        photo.url, name: "\(photo.id).jpg", title: "\(humanize(photo.view)) photo")
     } catch {
       self.error = error.localizedDescription
     }

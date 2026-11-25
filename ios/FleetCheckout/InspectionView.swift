@@ -525,8 +525,8 @@ struct InspectionView: View {
         busy = true
         defer { busy = false }
         do {
-          let url = try await store.api.file(photo.url, name: "\(photo.id).jpg")
-          preview = FleetDocument(url: url, title: "\(humanize(photo.view)) photo")
+          preview = try await store.api.file(
+            photo.url, name: "\(photo.id).jpg", title: "\(humanize(photo.view)) photo")
         } catch {
           self.error = error.localizedDescription
         }

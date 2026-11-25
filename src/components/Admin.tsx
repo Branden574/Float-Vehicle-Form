@@ -404,6 +404,26 @@ export function Admin({
                         />
                         This correction documents an odometer replacement
                       </label>
+                      {overview.inspectionReferralVehicleIds?.includes(vehicle.id) && (
+                        <button
+                          className="button secondary"
+                          type="button"
+                          disabled={busy || reason.trim().length < 5}
+                          onClick={() =>
+                            void perform(async () => {
+                              await post(`/admin/vehicles/${vehicle.id}/physical-inspection`, {
+                                reason,
+                              });
+                              setVehicle(null);
+                              setNotice(
+                                'Physical inspection requested. The vehicle remains on hold for a reviewer.',
+                              );
+                            })
+                          }
+                        >
+                          Request a physical inspection
+                        </button>
+                      )}
                       <label>
                         Reason for changes
                         <textarea
@@ -1052,10 +1072,7 @@ export function Admin({
                       disabled={busy}
                       onClick={() => {
                         const resend =
-                          n.status !== 'failed' ||
-                          n.deliveries?.some(
-                            (d) => !['failed', 'bounced', 'suppressed'].includes(d.status),
-                          );
+                          !['failed', 'skipped'].includes(n.status) || n.requiresResendConfirmation;
                         let reason = '';
                         if (resend) {
                           reason =
@@ -1073,8 +1090,8 @@ export function Admin({
                         });
                       }}
                     >
-                      {n.status === 'failed'
-                        ? 'Retry failed notification'
+                      {['failed', 'skipped'].includes(n.status)
+                        ? 'Retry notification'
                         : 'Explicitly resend report'}
                     </button>
                   )}

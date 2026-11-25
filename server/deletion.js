@@ -2,6 +2,7 @@ import { rateLimit } from 'express-rate-limit';
 import { rateLimitStore } from './rate-limits.js';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { z } from 'zod';
+import { preserveVehicleInspection } from './vehicle-inspections.js';
 import { fail, validate } from './validation.js';
 import { hash, now } from './store.js';
 
@@ -107,6 +108,18 @@ async function ensureErasedActor(store) {
     .run(erasedActor, 'deleted-system-actor', now(), store.encodeJSON(emptyActor));
 }
 
+// Removing a finalized photo's ticket also erases its staging location. Include
+// that object in the same transaction's durable plan before removing the ticket.
+export async function recordStagingObjects(db, photos, objects) {
+  if (db.kind !== 'postgres') return;
+  for (const photo of photos) {
+    const tickets = await db
+      .prepare('DELETE FROM upload_tickets WHERE photo_id=? RETURNING object_path')
+      .all(photo.id);
+    for (const ticket of tickets) objects.add(ticket.object_path);
+  }
+}
+
 /** Durable plan is committed before deleting any object; failures retain all retry keys. */
 async function prepareDeletion(store, job) {
   const db = store.db;
@@ -142,8 +155,10 @@ async function prepareDeletion(store, job) {
         .prepare('SELECT object_path FROM upload_tickets WHERE employee_id=?')
         .all(user.id))
         objects.add(ticket.object_path);
+    await recordStagingObjects(db, photos, objects);
     const plan = { objects: [...objects], tripIDs: [...tripIDs] };
     await ensureErasedActor(store);
+    for (const id of tripIDs) await preserveVehicleInspection(store, id, false);
     for (const trip of trips) {
       if (['active', 'pending_checkout'].includes(trip.status))
         await db
@@ -154,8 +169,6 @@ async function prepareDeletion(store, job) {
       await db.prepare('DELETE FROM audit WHERE entity_id=?').run(trip.id);
     }
     for (const photo of photos) {
-      if (db.kind === 'postgres')
-        await db.prepare('DELETE FROM upload_tickets WHERE photo_id=?').run(photo.id);
       await db
         .prepare('UPDATE vehicles SET photo_url=? WHERE photo_url=? OR photo_url=?')
         .run('', `/api/photos/${photo.id}`, `/api/photos/${photo.id}/display`);

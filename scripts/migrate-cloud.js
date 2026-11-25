@@ -28,6 +28,9 @@ const tables = [
   'audit',
   'notifications',
   'idempotency',
+  ...['vehicle_inspections', 'inspection_exclusions'].filter((name) =>
+    sourceDB.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(name),
+  ),
 ];
 try {
   if (

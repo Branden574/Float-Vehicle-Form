@@ -59,10 +59,42 @@ private enum SignInNotice {
   @Published var vehicles: [Vehicle] = []
   @Published var trips: [Trip] = []
   @Published var pendingReturns: [Trip] = []
+  @Published var vehicleInspections: [VehicleInspection] = []
   @Published var error = ""
   @Published var restoring = true
   @Published var revision = UUID()
-  var lastActive = Date()
+  private(set) var lastActive = Date()
+  private var idleTask: Task<Void, Never>?
+
+  private var idleDeadline: Date? {
+    guard let session, session.rememberedUntil == nil else { return nil }
+    return lastActive.addingTimeInterval(Double(session.settings.sessionMinutes * 60))
+  }
+
+  @discardableResult
+  func expireIdleSession(at time: Date = Date()) -> Bool {
+    guard let deadline = idleDeadline, time >= deadline else { return false }
+    endSession()
+    return true
+  }
+
+  func recordInteraction(at time: Date = Date()) {
+    guard idleDeadline != nil, !expireIdleSession(at: time) else { return }
+    lastActive = time
+  }
+
+  private func scheduleIdleLock() {
+    idleTask?.cancel()
+    guard idleDeadline != nil else { return }
+    idleTask = Task { [weak self] in
+      while let deadline = self?.idleDeadline {
+        do { try await Task.sleep(for: .seconds(max(0, deadline.timeIntervalSinceNow))) } catch {
+          return
+        }
+        if self?.expireIdleSession() != false { return }
+      }
+    }
+  }
   func restore() async {
     let started = revision
     defer { restoring = false }
@@ -72,20 +104,22 @@ private enum SignInNotice {
       accept(result)
       await refresh()
     } catch let failure as FleetError {
+      guard started == revision else { return }
       if failure.status == 401 { clear() } else { error = failure.localizedDescription }
-    } catch { self.error = error.localizedDescription }
+    } catch { if started == revision { self.error = error.localizedDescription } }
   }
   func accept(_ result: FleetSession) {
+    if session?.csrfToken != result.csrfToken { lastActive = Date() }
     session = result
     api.csrf = result.csrfToken
-    lastActive = Date()
+    scheduleIdleLock()
   }
-  private func schedule(for session: FleetSession) async throws -> ([Vehicle], [Trip], [Trip]) {
-    guard session.user.canAccessFleet != false else { return ([], [], []) }
+  private func schedule(for session: FleetSession) async throws -> ([Vehicle], [Trip], [Trip], [VehicleInspection]) {
+    guard session.user.canAccessFleet != false else { return ([], [], [], []) }
     async let fleet: VehicleList = api.request("/api/vehicles")
     async let history: TripList = api.request("/api/trips")
     let (vehicles, records) = try await (fleet.vehicles, history)
-    return (vehicles, records.trips, records.pendingReturns ?? [])
+    return (vehicles, records.trips, records.pendingReturns ?? [], records.vehicleInspections ?? [])
   }
   func refresh() async {
     guard let session else { return }
@@ -93,7 +127,7 @@ private enum SignInNotice {
     do {
       let snapshot = try await schedule(for: session)
       guard started == revision else { return }
-      (vehicles, trips, pendingReturns) = snapshot
+      (vehicles, trips, pendingReturns, vehicleInspections) = snapshot
       error = ""
     } catch { if started == revision { self.error = error.localizedDescription } }
   }
@@ -109,38 +143,132 @@ private enum SignInNotice {
     guard started == revision, session?.user.id == user else { throw CancellationError() }
     try content.persist(for: api.baseURL.absoluteString, defaults: defaults)
     accept(latest)
-    (vehicles, trips, pendingReturns) = snapshot
+    (vehicles, trips, pendingReturns, vehicleInspections) = snapshot
     workspaceContent = content
     error = ""
   }
-  func logout() async {
-    api.signOut()
+  func logout() async { endSession() }
+  private func endSession() {
     clear()
+    api.scheduleSignOutRetry()
   }
   func clear() {
+    idleTask?.cancel()
+    idleTask = nil
     api.clear()
     session = nil
     vehicles = []
     trips = []
     pendingReturns = []
+    vehicleInspections = []
     error = ""
     revision = UUID()
   }
   func resume() async {
-    guard let session else { return }
-    if session.rememberedUntil == nil
-      && Date().timeIntervalSince(lastActive) >= Double(session.settings.sessionMinutes * 60)
-    {
-      await logout()
-    } else {
-      await restore()
+    guard session != nil, !expireIdleSession() else { return }
+    await restore()
+  }
+}
+
+/// A passive observer on the window also sees touches in sheets and UIKit controls.
+/// It never recognizes a gesture or delays the underlying control.
+private final class FleetInteractionObserver: UIGestureRecognizer {
+  let interaction: () -> Void
+  init(interaction: @escaping () -> Void) {
+    self.interaction = interaction
+    super.init(target: nil, action: nil)
+    cancelsTouchesInView = false
+    delaysTouchesBegan = false
+    delaysTouchesEnded = false
+  }
+  override func canPrevent(_ other: UIGestureRecognizer) -> Bool { false }
+  override func canBePrevented(by other: UIGestureRecognizer) -> Bool { false }
+  override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) { interaction() }
+  override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) { interaction() }
+  override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) { state = .failed }
+  override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent) { interaction() }
+  override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent) {
+    state = .failed
+  }
+}
+
+private struct FleetActivityWindow: UIViewRepresentable {
+  let interaction: () -> Void
+  final class Anchor: UIView {
+    var observer: FleetInteractionObserver?
+    override func didMoveToWindow() {
+      super.didMoveToWindow()
+      if let observer {
+        observer.view?.removeGestureRecognizer(observer)
+        window?.addGestureRecognizer(observer)
+      }
     }
+  }
+  func makeUIView(context: Context) -> Anchor {
+    let anchor = Anchor()
+    anchor.isUserInteractionEnabled = false
+    anchor.observer = FleetInteractionObserver(interaction: interaction)
+    return anchor
+  }
+  func updateUIView(_ view: Anchor, context: Context) {}
+  static func dismantleUIView(_ view: Anchor, coordinator: ()) {
+    guard let observer = view.observer else { return }
+    observer.view?.removeGestureRecognizer(observer)
+    view.observer = nil
+  }
+}
+
+struct FleetSessionLifecycle: ViewModifier {
+  @ObservedObject var store: FleetStore
+  @Environment(\.scenePhase) private var phase
+
+  func body(content: Content) -> some View {
+    content
+      .background {
+        if store.session != nil && store.session?.rememberedUntil == nil {
+          FleetActivityWindow { store.recordInteraction() }.frame(width: 0, height: 0)
+            .accessibilityHidden(true)
+        }
+      }
+      .onReceive(NotificationCenter.default.publisher(for: UITextField.textDidChangeNotification)) {
+        _ in
+        store.recordInteraction()
+      }
+      .onReceive(NotificationCenter.default.publisher(for: UITextView.textDidChangeNotification)) {
+        _ in
+        store.recordInteraction()
+      }
+      .onReceive(
+        NotificationCenter.default.publisher(for: UIAccessibility.elementFocusedNotification)
+      ) { _ in
+        if UIAccessibility.isVoiceOverRunning || UIAccessibility.isSwitchControlRunning {
+          store.recordInteraction()
+        }
+      }
+      .onReceive(NotificationCenter.default.publisher(for: .fleetSessionExpired)) { notice in
+        if notice.object as? FleetAPI === store.api { store.clear() }
+      }
+      .overlay {
+        if phase != .active {
+          Color(.systemBackground).ignoresSafeArea().overlay(
+            Label("Fleet Checkout", systemImage: "lock.shield").font(.title2))
+        }
+      }
+      .onChange(of: phase) { _, value in
+        if value == .active {
+          store.api.scheduleSignOutRetry()
+          if !store.expireIdleSession() { Task { await store.resume() } }
+        }
+      }
+      .task {
+        store.api.scheduleSignOutRetry()
+        await store.restore()
+      }
   }
 }
 @main struct FleetCheckoutApp: App {
   @UIApplicationDelegateAdaptor(FleetNotificationDelegate.self) private var notificationDelegate
   @StateObject private var store = FleetStore()
-  @Environment(\.scenePhase) private var phase
   var body: some Scene {
     WindowGroup {
       Group {
@@ -168,20 +296,7 @@ private enum SignInNotice {
         }
       }
       .environmentObject(store).tint(Color("FleetAccent"))
-      .task { await store.restore() }
-      .onReceive(NotificationCenter.default.publisher(for: .fleetSessionExpired)) { _ in
-        store.clear()
-      }
-      .overlay {
-        if phase != .active {
-          Color(.systemBackground).ignoresSafeArea().overlay(
-            Label("Fleet Checkout", systemImage: "lock.shield").font(.title2))
-        }
-      }
-      .onChange(of: phase) { old, value in
-        if old == .active { store.lastActive = Date() }
-        if value == .active { Task { await store.resume() } }
-      }
+      .modifier(FleetSessionLifecycle(store: store))
     }
   }
 }

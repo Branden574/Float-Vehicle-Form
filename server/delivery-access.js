@@ -120,10 +120,17 @@ export async function deliveryHistory(store) {
     .prepare('SELECT * FROM notification_deliveries ORDER BY attempt DESC')
     .all();
   const seen = new Set();
+  const lastDispatch = new Set();
   for (const row of rows) {
     const key = row.notification_id + ':' + row.recipient_key;
     const notice = byId.get(row.notification_id);
-    if (!notice || seen.has(key)) continue;
+    if (!notice) continue;
+    if (row.status !== 'skipped' && !lastDispatch.has(key)) {
+      lastDispatch.add(key);
+      if (!['failed', 'bounced', 'suppressed'].includes(row.status))
+        notice.requiresResendConfirmation = true;
+    }
+    if (seen.has(key)) continue;
     seen.add(key);
     (notice.deliveries ||= []).push({
       email: store.decodeJSON(row.recipient_json),
@@ -169,10 +176,7 @@ export function installReportCopies(app, store, options) {
       (notice.stage === 'checkout' && trip.returnedAt)
     )
       invalid();
-    const settings = await store.getSettings();
-    const allowed = [...settings.notificationRecipients];
-    if (settings.employeeCopy && trip.employeeSnapshot.email)
-      allowed.push(trip.employeeSnapshot.email);
+    const allowed = await store.getNotificationRecipients(trip, notice.stage);
     if (!allowed.some((email) => store.emailLookup(email) === grant.recipient_key)) invalid();
     return { grant, trip, notice };
   }

@@ -1,7 +1,7 @@
 import { deliverReservationNotices } from './reservations.js';
 import nodemailer from 'nodemailer';
 import { createHash, randomUUID } from 'node:crypto';
-import { createReport } from './reports.js';
+import { createReport, ReportEvidenceError } from './reports.js';
 import { reportFilename } from './report-filename.js';
 
 const time = () => new Date().toISOString();
@@ -112,7 +112,6 @@ export async function processNotification({ store, notificationId, send, report 
   try {
     const row = await db.prepare('SELECT * FROM notifications WHERE id=?').get(notificationId);
     const reviewRequest = row.stage === 'return_review';
-    const currentSettings = await store.getSettings();
     const trip = await store.getTrip(row.trip_id);
     const rejectObsoleteCheckout = (currentTrip) => {
       if (row.stage === 'checkout' && currentTrip.returnedAt)
@@ -124,16 +123,7 @@ export async function processNotification({ store, notificationId, send, report 
         );
     };
     rejectObsoleteCheckout(trip);
-    const employee = reviewRequest ? await store.getUser(trip.employeeId) : null;
-    const recipients = reviewRequest
-      ? store
-          .decodeJSON(row.recipients_json)
-          .filter(
-            (email) =>
-              currentSettings.returnReviewerEmails.includes(email) &&
-              email !== employee?.email?.toLowerCase(),
-          )
-      : store.decodeJSON(row.recipients_json);
+    const recipients = store.decodeJSON(row.recipients_json);
     if (
       reviewRequest &&
       (trip.status !== 'returned' ||
@@ -177,30 +167,12 @@ export async function processNotification({ store, notificationId, send, report 
             },
           ],
         };
-    // Rendering can take time; a return may have completed while the PDF was built.
-    if (row.stage === 'checkout') rejectObsoleteCheckout(await store.getTrip(row.trip_id));
     const failures = [];
     let accepted = 0;
     let lastProviderId = null;
     for (const recipient of new Set(recipients.map((email) => email.trim().toLowerCase()))) {
-      if (row.stage === 'checkout') rejectObsoleteCheckout(await store.getTrip(row.trip_id));
       const deliveryId = randomUUID();
       const expiresAt = useLink ? new Date(Date.now() + 7 * 86400000).toISOString() : null;
-      await db
-        .prepare(
-          `INSERT INTO notification_deliveries
-        (id,notification_id,recipient_key,recipient_json,attempt,status,updated_at,link_expires_at)
-        VALUES(?,?,?,?,?,'sending',?,?)`,
-        )
-        .run(
-          deliveryId,
-          row.id,
-          store.emailLookup(recipient),
-          store.encodeJSON(recipient),
-          row.attempts,
-          time(),
-          expiresAt,
-        );
       const outgoing = {
         ...message,
         to: [recipient],
@@ -217,6 +189,34 @@ export async function processNotification({ store, notificationId, send, report 
         outgoing.text = `${label}\n\nThis report exceeds the attachment limit. Open your private link within seven days and request a verification code at this email address to download the PDF.\n\n${link.href}`;
         outgoing.attachments = [];
       }
+      // Claim the delivery against current settings, including changes while rendering
+      // or sending an earlier recipient's copy. Never hold a DB lock during email I/O.
+      const allowed = await db.transaction(async () => {
+        const currentTrip = await store.getTrip(row.trip_id);
+        if (!currentTrip) throw new Error('This trip is no longer available.');
+        rejectObsoleteCheckout(currentTrip);
+        const eligible = (await store.getNotificationRecipients(currentTrip, row.stage)).includes(
+          recipient,
+        );
+        await db
+          .prepare(
+            `INSERT INTO notification_deliveries
+          (id,notification_id,recipient_key,recipient_json,attempt,status,updated_at,link_expires_at)
+          VALUES(?,?,?,?,?,?,?,?)`,
+          )
+          .run(
+            deliveryId,
+            row.id,
+            store.emailLookup(recipient),
+            store.encodeJSON(recipient),
+            row.attempts,
+            eligible ? 'sending' : 'skipped',
+            time(),
+            eligible ? expiresAt : null,
+          );
+        return eligible;
+      })();
+      if (!allowed) continue;
       attemptingDelivery = true;
       try {
         const result = await send(outgoing);
@@ -247,14 +247,32 @@ export async function processNotification({ store, notificationId, send, report 
     }
     await db
       .prepare(
-        "UPDATE notifications SET status='accepted',provider_id=?,accepted_at=?,updated_at=?,error=NULL WHERE id=?",
+        'UPDATE notifications SET status=?,provider_id=?,accepted_at=?,updated_at=?,error=? WHERE id=?',
       )
-      .run(lastProviderId, time(), time(), row.id);
+      .run(
+        accepted ? 'accepted' : 'skipped',
+        lastProviderId,
+        accepted ? time() : null,
+        time(),
+        accepted
+          ? null
+          : 'Delivery skipped because the queued recipients are no longer configured.',
+        row.id,
+      );
   } catch (error) {
-    const status = !attemptingDelivery || error.definiteFailure ? 'failed' : 'unknown';
-    await db
-      .prepare('UPDATE notifications SET status=?,error=?,updated_at=? WHERE id=?')
-      .run(status, safeError(error), time(), notificationId);
+    if (!attemptingDelivery && error instanceof ReportEvidenceError) {
+      // These attempts have not reached a provider and are safe for the worker to retry.
+      await db
+        .prepare(
+          "UPDATE notifications SET status=CASE WHEN attempts<3 THEN 'pending' ELSE 'failed' END,error=?,updated_at=? WHERE id=?",
+        )
+        .run(safeError(error), time(), notificationId);
+    } else {
+      const status = !attemptingDelivery || error.definiteFailure ? 'failed' : 'unknown';
+      await db
+        .prepare('UPDATE notifications SET status=?,error=?,updated_at=? WHERE id=?')
+        .run(status, safeError(error), time(), notificationId);
+    }
   }
   return store.mapNotification(
     await db.prepare('SELECT * FROM notifications WHERE id=?').get(notificationId),

@@ -145,6 +145,7 @@ export type Notification = {
   attempts: number;
   createdAt: string;
   recipients?: string[];
+  requiresResendConfirmation?: boolean;
   deliveries?: { email: string; status: string; updatedAt: string; viaLink: boolean }[];
   acceptedAt?: string;
 };
@@ -170,6 +171,7 @@ export type TripDetail = {
 export type Overview = {
   users: User[];
   vehicles: Vehicle[];
+  inspectionReferralVehicleIds?: string[];
   notifications: Notification[];
   audit: Audit[];
   storage: { bytes: number; limitBytes: number };

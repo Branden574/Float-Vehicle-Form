@@ -24,10 +24,7 @@ struct ReviewWorkspaceView: View {
             .background(.regularMaterial)
         }
       }
-      .task { await store.restore() }
-      .onReceive(NotificationCenter.default.publisher(for: .fleetSessionExpired)) { _ in
-        store.clear()
-      }
+      .modifier(FleetSessionLifecycle(store: store))
   }
 }
 struct ReviewSignInView: View {

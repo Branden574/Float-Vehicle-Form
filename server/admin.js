@@ -12,6 +12,7 @@ import {
   settingsSchema,
   reasonSchema,
 } from './validation.js';
+import { inspectionReferralIds } from './vehicle-inspections.js';
 import { hash, now } from './store.js';
 
 function diskUsage(directory) {
@@ -44,6 +45,7 @@ export function installAdmin(app, store, { notificationService } = {}) {
       vehicles: (await db.prepare('SELECT * FROM vehicles ORDER BY archived,name').all()).map(
         store.mapVehicle,
       ),
+      inspectionReferralVehicleIds: await inspectionReferralIds(db),
       notifications: await deliveryHistory(store),
       settings: await store.getSettings(),
       storage: {
@@ -110,6 +112,30 @@ export function installAdmin(app, store, { notificationService } = {}) {
       .immediate();
     res.status(201).json({ vehicle: await store.getVehicle(id) });
   });
+  app.post('/api/admin/vehicles/:id/physical-inspection', async (req, res) => {
+    const { reason } = validate(z.object({ reason: reasonSchema }).strict(), req.body);
+    await db.transaction(async () => {
+      const vehicleId = req.params.id;
+      if (!(await inspectionReferralIds(db)).includes(vehicleId))
+        fail(
+          409,
+          'This vehicle has an existing review, an active trip, or no eligible hold. Refresh the fleet.',
+        );
+      await db
+        .prepare('INSERT INTO vehicle_inspections(id,vehicle_id) VALUES(?,?)')
+        .run(randomUUID(), vehicleId);
+      await store.audit(
+        req.user.id,
+        'request_physical_vehicle_inspection',
+        'vehicle',
+        vehicleId,
+        null,
+        { status: 'pending_review' },
+        reason,
+      );
+    })();
+    res.status(201).json({ ok: true });
+  });
   app.patch('/api/admin/vehicles/:id', async (req, res) => {
     const reason = validate(reasonSchema, req.body.reason);
     const result = await db
@@ -146,6 +172,14 @@ export function installAdmin(app, store, { notificationService } = {}) {
           fail(
             409,
             'Complete or review the open trip before changing mileage, availability, or archiving.',
+          );
+        if (
+          (data.status !== before.status || (data.archived && !before.archived)) &&
+          (await db.prepare('SELECT 1 FROM vehicle_inspections WHERE vehicle_id=?').get(before.id))
+        )
+          fail(
+            409,
+            'An assigned reviewer must complete the physical inspection before changing availability or archiving.',
           );
         const latestTrip = await store.mapTrip(
           await db
@@ -422,18 +456,20 @@ export function installAdmin(app, store, { notificationService } = {}) {
           target &&
           (await db
             .prepare(
-              'SELECT status FROM notification_deliveries WHERE notification_id=? AND recipient_key=? ORDER BY attempt DESC LIMIT 1',
+              `SELECT status FROM notification_deliveries WHERE notification_id=? AND recipient_key=?
+               ORDER BY CASE WHEN status='skipped' THEN 1 ELSE 0 END, attempt DESC LIMIT 1`,
             )
             .get(row.id, store.emailLookup(target)));
         if (target && !delivery) fail(404, 'Recipient delivery not found.');
         const possiblePriorSend = target
-          ? !['bounced', 'failed', 'suppressed'].includes(delivery.status)
+          ? !['bounced', 'failed', 'suppressed', 'skipped'].includes(delivery.status)
           : await db
               .prepare(
                 `SELECT 1 FROM notification_deliveries d WHERE notification_id=?
-            AND status NOT IN ('bounced','failed','suppressed')
+            AND status NOT IN ('bounced','failed','suppressed','skipped')
             AND NOT EXISTS (SELECT 1 FROM notification_deliveries newer
-              WHERE newer.notification_id=d.notification_id AND newer.recipient_key=d.recipient_key AND newer.attempt>d.attempt)
+              WHERE newer.notification_id=d.notification_id AND newer.recipient_key=d.recipient_key
+                AND newer.status<>'skipped' AND newer.attempt>d.attempt)
             LIMIT 1`,
               )
               .get(row.id);
@@ -445,17 +481,7 @@ export function installAdmin(app, store, { notificationService } = {}) {
         const reason = resend
           ? validate(reasonSchema, req.body.reason)
           : 'Administrator retried a failed notification';
-        const settings = await store.getSettings(),
-          trip = await store.getTrip(row.trip_id),
-          employee = await store.getUser(trip.employeeId),
-          recipients =
-            row.stage === 'return_review'
-              ? [...settings.returnReviewerEmails].filter(
-                  (email) => email !== employee?.email?.toLowerCase(),
-                )
-              : [...settings.notificationRecipients];
-        if (row.stage !== 'return_review' && settings.employeeCopy)
-          recipients.push(trip.employeeSnapshot.email);
+        const recipients = await store.getNotificationRecipients(signedTrip, row.stage);
         const sendTo = target
           ? recipients.filter((email) => email.toLowerCase() === target)
           : recipients;

@@ -92,7 +92,7 @@ struct AdminView: View {
         Section("Vehicles") {
           ForEach(overview.vehicles) { vehicle in
             NavigationLink {
-              VehicleEditor(vehicle: vehicle, onSave: { Task { await load() } })
+              VehicleEditor(vehicle: vehicle, canRefer: overview.inspectionReferralVehicleIds?.contains(vehicle.id) == true, onSave: { Task { await load() } })
             } label: {
               Text(vehicle.name)
               Spacer()
@@ -351,6 +351,7 @@ struct VehicleEditor: View {
   @EnvironmentObject var store: FleetStore
   @Environment(\.dismiss) private var dismiss
   let vehicle: Vehicle?
+  var canRefer = false
   var onSave: () -> Void
   @State private var name = ""
   @State private var make = ""
@@ -388,6 +389,21 @@ struct VehicleEditor: View {
       FleetTextField("Notes", text: $notes, axis: .vertical)
       if vehicle != nil { FleetTextField("Reason for this change", text: $reason, axis: .vertical) }
       if !error.isEmpty { Text(error).foregroundStyle(Color("FleetError")) }
+      if canRefer, let vehicle {
+        Button("Request a physical inspection") {
+          Task {
+            busy = true
+            defer { busy = false }
+            do {
+              let _: EmptyResponse = try await store.api.request(
+                "/api/admin/vehicles/\(vehicle.id)/physical-inspection", method: "POST", body: ["reason": reason])
+              await store.refresh()
+              onSave()
+              dismiss()
+            } catch { self.error = error.localizedDescription }
+          }
+        }.disabled(busy || reason.trimmingCharacters(in: .whitespacesAndNewlines).count < 5)
+      }
       Button(busy ? "Saving…" : "Save vehicle") { Task { await save() } }.disabled(
         busy || name.isEmpty || make.isEmpty || model.isEmpty || plate.isEmpty || vin.count != 4
           || site.isEmpty || (vehicle != nil && reason.count < 5))

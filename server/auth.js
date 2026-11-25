@@ -3,7 +3,7 @@ import { mayReviewReturns } from './reviewers.js';
 import { rateLimitStore } from './rate-limits.js';
 import { createEmailSender } from './notifications.js';
 import { signInEmail } from './sign-in-email.js';
-import { randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import { rateLimit, ipKeyGenerator } from 'express-rate-limit';
 import { hash, now, passwordHash, passwordMatches } from './store.js';
 import { fail, validate } from './validation.js';
@@ -329,6 +329,37 @@ export async function installAuth(
     );
     res.json({ ok: true });
   });
+  // Native clients discard the login cookie immediately, even when offline. This
+  // one-way proof only authorizes revocation of the session that produced it.
+  app.post(
+    '/api/auth/revoke-session',
+    rateLimit({
+      store: rateLimitStore(db, 'sessionRevocations'),
+      windowMs: 60000,
+      limit: 120,
+      standardHeaders: 'draft-8',
+      legacyHeaders: false,
+    }),
+    async (req, res) => {
+      const hex = z.string().regex(/^[0-9a-f]{64}$/);
+      const { sessionId, proof } = validate(
+        z.object({ sessionId: hex, proof: hex }).strict(),
+        req.body,
+      );
+      const session = await db
+        .prepare('SELECT csrf_token FROM sessions WHERE token_hash=?')
+        .get(sessionId);
+      if (session) {
+        const expected = createHmac('sha256', session.csrf_token)
+          .update('fleet.revoke.v1:' + sessionId)
+          .digest();
+        if (!timingSafeEqual(expected, Buffer.from(proof, 'hex')))
+          fail(403, 'Invalid sign-out proof.');
+        await db.prepare('DELETE FROM sessions WHERE token_hash=?').run(sessionId);
+      }
+      res.status(204).end();
+    },
+  );
   app.use('/api', async (req, res, next) => {
     const token = req.cookies.fleet_session;
     if (!token)

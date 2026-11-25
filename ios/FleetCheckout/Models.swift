@@ -160,7 +160,14 @@ struct TripDetail: Decodable {
   var revisions: [MileageRevision]
 }
 struct VehicleList: Decodable { var vehicles: [Vehicle] }
+struct VehicleInspection: Decodable, Identifiable {
+  var id: String
+  var name: String
+  var plate: String
+  var site: String
+}
 struct TripList: Decodable {
+  var vehicleInspections: [VehicleInspection]?
   var trips: [Trip]
   var pendingReturns: [Trip]?
 }
@@ -201,6 +208,7 @@ struct FormNotice: Decodable, Identifiable {
   }
 }
 struct AdminOverview: Decodable {
+  var inspectionReferralVehicleIds: [String]?
   var notifications: [FormNotice]?
   var users: [FleetUser]
   var vehicles: [Vehicle]

@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Security
 
@@ -19,10 +20,17 @@ struct FleetError: LocalizedError {
   private var session: URLSession
   private let configuration: URLSessionConfiguration
   private let service: String
+  private var retryTask: Task<Void, Never>?
+  private var signOutFence: String { service + ".signedOutSession" }
+
+  private static func sessionID(_ cookie: String) -> String {
+    SHA256.hash(data: Data(cookie.utf8)).map { String(format: "%02x", $0) }.joined()
+  }
   init(
     review: Bool = false, protocolClasses: [AnyClass]? = nil,
     keychainService: String = "app.fleetcheckout.mobile.session"
   ) {
+    _ = FleetDocument.cleanPreviousLaunch
     isReview = review
     baseURL = review ? URL(string: "https://fleet-checkout-review.vercel.app")! : Self.origin
     service = review ? keychainService + ".review" : keychainService
@@ -45,11 +53,22 @@ struct FleetError: LocalizedError {
     if SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
       let data = result as? Data
     {
-      cookie = String(data: data, encoding: .utf8)
+      if let value = String(data: data, encoding: .utf8) {
+        if UserDefaults.standard.string(forKey: signOutFence) == Self.sessionID(value) {
+          // Recover if iOS locked or terminated the app during local sign-out.
+          var key = query
+          key.removeValue(forKey: kSecReturnData as String)
+          key.removeValue(forKey: kSecMatchLimit as String)
+          SecItemDelete(key as CFDictionary)
+        } else {
+          cookie = value
+        }
+      }
     }
   }
   func clear() {
     epoch = UUID()
+    if let cookie { UserDefaults.standard.set(Self.sessionID(cookie), forKey: signOutFence) }
     cookie = nil
     csrf = ""
     session.invalidateAndCancel()
@@ -66,21 +85,94 @@ struct FleetError: LocalizedError {
       try? FileManager.default.removeItem(at: Self.privateFiles)
     }
   }
-  func signOut() {
-    var request = URLRequest(url: baseURL.appendingPathComponent("api/auth/logout"))
-    request.httpMethod = "POST"
-    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.httpBody = Data("{}".utf8)
-    if let cookie { request.setValue("fleet_session=\(cookie)", forHTTPHeaderField: "Cookie") }
-    request.setValue(csrf, forHTTPHeaderField: "X-CSRF-Token")
-    let config = URLSessionConfiguration.ephemeral
-    config.httpCookieStorage = nil
-    config.urlCache = nil
-    config.timeoutIntervalForRequest = 10
-    let revocation = URLSession(
-      configuration: config, delegate: FleetRedirectGuard(), delegateQueue: nil)
-    clear()
-    revocation.dataTask(with: request) { _, _, _ in revocation.finishTasksAndInvalidate() }.resume()
+  // Prepare the device-only, revoke-only proof before making a session usable.
+  // Removing the active cookie then makes its proof eligible for delivery even
+  // if iOS terminates the app immediately after the user taps Sign out.
+  private func prepareRevocation(cookie: String, response: Data) throws {
+    struct SessionSecurity: Decodable { let csrfToken: String }
+    let security = try JSONDecoder().decode(SessionSecurity.self, from: response)
+    guard !security.csrfToken.isEmpty else {
+      throw FleetError(message: "Invalid session response.")
+    }
+    let id = Self.sessionID(cookie)
+    let proof = HMAC<SHA256>.authenticationCode(
+      for: Data(("fleet.revoke.v1:" + id).utf8),
+      using: SymmetricKey(data: Data(security.csrfToken.utf8)))
+    let item: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: service + ".revocations",
+      kSecAttrAccount as String: id, kSecValueData as String: Data(proof),
+      kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+    ]
+    let status = SecItemAdd(item as CFDictionary, nil)
+    guard status == errSecSuccess || status == errSecDuplicateItem else {
+      throw FleetError(message: "Could not secure this session. Unlock your device and try again.")
+    }
+  }
+
+  /// Returns true only when all signed-out sessions have been acknowledged.
+  func retryPendingSignOuts() async -> Bool {
+    // An additional review window may own another API object for the same host.
+    // Consult the durable cookie, not a potentially stale in-memory snapshot.
+    var active: CFTypeRef?
+    let activeQuery: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
+      kSecAttrAccount as String: "fleet_session", kSecReturnData as String: true,
+    ]
+    let activeStatus = SecItemCopyMatching(activeQuery as CFDictionary, &active)
+    guard activeStatus == errSecSuccess || activeStatus == errSecItemNotFound else { return false }
+    let activeID = (active as? Data).flatMap { String(data: $0, encoding: .utf8) }.map(
+      Self.sessionID)
+    let revokedID = UserDefaults.standard.string(forKey: signOutFence)
+    let queue: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: service + ".revocations",
+    ]
+    var query = queue
+    query[kSecMatchLimit as String] = kSecMatchLimitAll
+    query[kSecReturnAttributes as String] = true
+    query[kSecReturnData as String] = true
+    var result: CFTypeRef?
+    let status = SecItemCopyMatching(query as CFDictionary, &result)
+    if status == errSecItemNotFound { return true }
+    guard status == errSecSuccess, let tickets = result as? [[String: Any]] else { return false }
+    var completed = true
+    for ticket in tickets {
+      guard let id = ticket[kSecAttrAccount as String] as? String,
+        let proof = ticket[kSecValueData as String] as? Data, id != activeID || id == revokedID
+      else { continue }
+      var request = URLRequest(url: baseURL.appendingPathComponent("api/auth/revoke-session"))
+      request.httpMethod = "POST"
+      request.timeoutInterval = 10
+      request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+      request.httpBody = try? JSONEncoder().encode([
+        "sessionId": id, "proof": proof.map { String(format: "%02x", $0) }.joined(),
+      ])
+      do {
+        let (_, response) = try await session.data(for: request)
+        guard (response as? HTTPURLResponse)?.statusCode == 204 else {
+          completed = false
+          continue
+        }
+        var key = queue
+        key[kSecAttrAccount as String] = id
+        let removed = SecItemDelete(key as CFDictionary)
+        if removed != errSecSuccess && removed != errSecItemNotFound { completed = false }
+      } catch { return false }
+    }
+    return completed
+  }
+
+  func scheduleSignOutRetry() {
+    retryTask?.cancel()
+    retryTask = Task { [weak self] in
+      var delay = 5
+      while !Task.isCancelled {
+        guard let finished = await self?.retryPendingSignOuts(), !finished else { return }
+        do { try await Task.sleep(for: .seconds(delay)) } catch { return }
+        delay = min(60, delay * 2)
+      }
+    }
   }
   private func saveCookie(_ value: String) throws {
     let attributes: [String: Any] = [
@@ -142,7 +234,7 @@ struct FleetError: LocalizedError {
       let error = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
       if http.statusCode == 401 && !csrf.isEmpty {
         clear()
-        NotificationCenter.default.post(name: .fleetSessionExpired, object: nil)
+        NotificationCenter.default.post(name: .fleetSessionExpired, object: self)
       }
       throw FleetError(
         message: error?["error"] as? String ?? "Request failed. Please try again.",
@@ -154,7 +246,12 @@ struct FleetError: LocalizedError {
     {
       for value in HTTPCookie.cookies(withResponseHeaderFields: headers, for: baseURL)
       where value.name == "fleet_session" && !value.value.isEmpty {
+        try prepareRevocation(cookie: value.value, response: data)
         try saveCookie(value.value)
+      }
+      // Also enroll an existing session when a user upgrades from an older build.
+      if original.url?.path == "/api/auth/me", let cookie {
+        try prepareRevocation(cookie: cookie, response: data)
       }
     }
     return data
@@ -199,25 +296,32 @@ struct FleetError: LocalizedError {
     upload.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
     return try JSONDecoder().decode(PhotoResult.self, from: await perform(upload)).photo
   }
-  static var privateFiles: URL {
-    FileManager.default.temporaryDirectory.appendingPathComponent("FleetPrivate", isDirectory: true)
-  }
-  func file(_ path: String, name: String) async throws -> URL {
-    guard path.hasPrefix("/api/") else { throw FleetError(message: "Invalid file address.") }
-    let data = try await perform(URLRequest(url: URL(string: path, relativeTo: baseURL)!))
-    guard data.count <= 120 * 1024 * 1024 else {
-      throw FleetError(message: "File is too large to preview.")
+  static var privateFiles: URL { FleetDocument.directory }
+
+  func file(_ path: String, name: String, title: String, maximumBytes: Int = 120 * 1024 * 1024)
+    async throws -> FleetDocument
+  {
+    guard path.hasPrefix("/api/"), let url = URL(string: path, relativeTo: baseURL),
+      url.host == baseURL.host
+    else { throw FleetError(message: "Invalid file address.") }
+    let started = epoch
+    var request = URLRequest(url: url)
+    if let cookie { request.setValue("fleet_session=\(cookie)", forHTTPHeaderField: "Cookie") }
+    let document = try FleetDocument(name: name, title: title)
+    do {
+      try await FleetPreviewTransfer.download(
+        request, with: session, to: document.url, maximumBytes: maximumBytes)
+    } catch let error as FleetError {
+      if error.status == 401 && started == epoch && !csrf.isEmpty {
+        clear()
+        NotificationCenter.default.post(name: .fleetSessionExpired, object: self)
+      }
+      throw error
     }
-    let root = Self.privateFiles.appendingPathComponent(UUID().uuidString, isDirectory: true)
-    try FileManager.default.createDirectory(
-      at: root, withIntermediateDirectories: true,
-      attributes: [.protectionKey: FileProtectionType.complete])
-    let safeName = name.replacingOccurrences(
-      of: "[^a-zA-Z0-9_.-]", with: "_", options: .regularExpression)
-    let output = root.appendingPathComponent(
-      safeName.isEmpty || safeName == "." || safeName == ".." ? "Fleet-document" : safeName)
-    try data.write(to: output, options: [.atomic, .completeFileProtection])
-    return output
+    guard started == epoch else {
+      throw FleetError(message: "This session ended. Please sign in again.", status: 401)
+    }
+    return document
   }
 }
 extension Notification.Name {
@@ -231,7 +335,7 @@ final class FleetRedirectGuard: NSObject, URLSessionTaskDelegate {
     willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest,
     completionHandler: @escaping (URLRequest?) -> Void
   ) {
-    guard request.url?.scheme == "https" else {
+    guard request.url?.scheme == "https", response.url?.path != "/api/auth/revoke-session" else {
       completionHandler(nil)
       return
     }

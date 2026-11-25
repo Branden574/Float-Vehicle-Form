@@ -35,6 +35,7 @@ import {
   type Booking,
 } from './components/VehicleCalendar';
 import { Workflow } from './components/Workflow';
+import { VehicleInspectionForm, type VehicleInspection } from './components/VehicleInspection';
 import { TripView } from './components/TripView';
 import { Admin } from './components/Admin';
 
@@ -398,6 +399,7 @@ export default function App() {
     ),
     [vehicles, setVehicles] = useState<Vehicle[]>([]),
     [trips, setTrips] = useState<Trip[]>([]),
+    [vehicleInspections, setVehicleInspections] = useState<VehicleInspection[]>([]),
     [pendingReturns, setPendingReturns] = useState<Trip[]>([]),
     [search, setSearch] = useState(''),
     [filter, setFilter] = useState('all');
@@ -421,6 +423,7 @@ export default function App() {
     setDetail(null);
     setTrips([]);
     setPendingReturns([]);
+    setVehicleInspections([]);
     setVehicles([]);
     setSearch('');
     setPage('fleet');
@@ -444,11 +447,14 @@ export default function App() {
     try {
       const [v, t] = await Promise.all([
         api<{ vehicles: Vehicle[] }>('/vehicles'),
-        api<{ trips: Trip[]; pendingReturns?: Trip[] }>('/trips'),
+        api<{ trips: Trip[]; pendingReturns?: Trip[]; vehicleInspections?: VehicleInspection[] }>(
+          '/trips',
+        ),
       ]);
       setVehicles(v.vehicles);
       setTrips(t.trips);
       setPendingReturns(t.pendingReturns || []);
+      setVehicleInspections(t.vehicleInspections || []);
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -802,6 +808,23 @@ export default function App() {
             />
           ) : page === 'fleet' ? (
             <section className="page-enter">
+              {vehicleInspections.length > 0 && (
+                <section className="my-checkouts">
+                  <h2>Vehicles needing a physical inspection</h2>
+                  {vehicleInspections.map((task) => (
+                    <VehicleInspectionForm
+                      key={task.id}
+                      task={task}
+                      onResolved={() => {
+                        setVehicleInspections((current) =>
+                          current.filter((item) => item.id !== task.id),
+                        );
+                        void refresh();
+                      }}
+                    />
+                  ))}
+                </section>
+              )}
               {pendingReturns.length > 0 && (
                 <section className="my-checkouts">
                   <h2>Returns awaiting your review</h2>

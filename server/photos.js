@@ -5,7 +5,7 @@ import { PHOTO_STAMP_HEIGHT } from './photo-layout.js';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { hash, now } from './store.js';
-import { fail, validate } from './validation.js';
+import { fail, requiredVehicleViews, validate } from './validation.js';
 import { requireAdmin, requireTripAccess } from './auth.js';
 
 const upload = multer({
@@ -401,13 +401,7 @@ export async function validatePhotos(
       'A photo does not belong to this employee, vehicle, or inspection draft. Upload it again.',
     );
   const required = [
-    ...new Set([
-      'front',
-      'rear',
-      'driver',
-      'passenger',
-      ...(await store.getSettings()).requiredPhotoViews,
-    ]),
+    ...new Set([...requiredVehicleViews, ...(await store.getSettings()).requiredPhotoViews]),
   ];
   if (required.some((view) => !photos.some((p) => p.view === view)))
     fail(
