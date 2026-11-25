@@ -173,6 +173,12 @@ function InspectionForm({
   const [discrepancyReason, setDiscrepancyReason] = useState('');
   const submission = useRef<{ key: string; body: unknown } | null>(initial?.pending ?? null);
   const heading = useRef<HTMLHeadingElement>(null);
+  const errorNotice = useRef<HTMLDivElement>(null);
+  function showError(message: string) {
+    if (message === error) errorNotice.current?.focus();
+    else setError(message);
+  }
+
   const employee = trip?.employeeSnapshot || user;
   const start = trip?.startingMileage ?? vehicle.currentMileage;
   const odometer = trip?.odometerReplacement;
@@ -224,6 +230,9 @@ function InspectionForm({
   useEffect(() => {
     heading.current?.focus();
   }, [step]);
+  useEffect(() => {
+    if (error) errorNotice.current?.focus();
+  }, [error]);
   function validateStep(index: number) {
     if (index === 0) {
       if (!Number.isSafeInteger(Number(mileage)) || Number(mileage) < 0 || mileage === '')
@@ -253,7 +262,7 @@ function InspectionForm({
   function next() {
     const issue = validateStep(step);
     if (issue) {
-      setError(issue);
+      showError(issue);
       return;
     }
     setError('');
@@ -265,20 +274,20 @@ function InspectionForm({
         const issue = validateStep(i);
         if (issue) {
           setStep(i);
-          setError(issue);
+          showError(issue);
           return;
         }
       }
       if (!Object.values(ack).every(Boolean)) {
-        setError('Read and accept all acknowledgments.');
+        showError('Read and accept all acknowledgments.');
         return;
       }
       if (odometer && !replacementAcknowledged) {
-        setError('Acknowledge the documented odometer replacement.');
+        showError('Acknowledge the documented odometer replacement.');
         return;
       }
       if (!signature) {
-        setError('Add your signature before submitting.');
+        showError('Add your signature before submitting.');
         return;
       }
       submission.current = {
@@ -322,7 +331,7 @@ function InspectionForm({
       await vault.remove().catch(() => {});
       onComplete(result.trip);
     } catch (error) {
-      setError(errorMessage(error));
+      showError(errorMessage(error));
       if (error instanceof ApiError && error.status > 0 && error.status < 500) {
         submission.current = null;
         await vault.save(snapshot()).catch((e) => setSaveStatus(errorMessage(e)));
@@ -339,7 +348,7 @@ function InspectionForm({
       Number(observed) < 0 ||
       !discrepancyReason.trim()
     ) {
-      setError('Enter the actual mileage and a reason for review.');
+      showError('Enter the actual mileage and a reason for review.');
       return;
     }
     setBusy(true);
@@ -352,7 +361,7 @@ function InspectionForm({
       await vault.remove().catch(() => {});
       onClose();
     } catch (error) {
-      setError(errorMessage(error));
+      showError(errorMessage(error));
     } finally {
       setBusy(false);
     }
@@ -386,7 +395,7 @@ function InspectionForm({
             await vault.save(snapshot());
             onClose();
           } catch (e) {
-            setError(errorMessage(e));
+            showError(errorMessage(e));
           }
         }}
       >
@@ -424,7 +433,7 @@ function InspectionForm({
             {steps[step]}
           </h2>
           {error && (
-            <div className="notice error" role="alert">
+            <div className="notice error" role="alert" ref={errorNotice} tabIndex={-1}>
               {error}
             </div>
           )}
@@ -986,11 +995,11 @@ function InspectionForm({
             <li>Sign and wait for confirmation.</li>
           </ol>
           <div className="aside-bottom">
-            <span className="small-dot" /> Your draft stays in this open session.
+            <span className="small-dot" /> Your draft is saved on this device.
           </div>
           <p className="fine">
-            Keep this page open during connection problems. Reloading, signing out or session expiry
-            clears unfinished form details. Background syncing is not used.
+            Choose Save &amp; exit to continue later. Sign back in with the same account on this
+            browser within 24 hours of your last change.
           </p>
         </aside>
       </div>

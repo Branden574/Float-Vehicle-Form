@@ -22,9 +22,11 @@ export function Profile({
     department: session.user.department || '',
     manager: session.user.manager || '',
   });
-  const [busy, setBusy] = useState(false),
+  const [operation, setOperation] = useState<'saving' | 'deleting' | null>(null),
     [error, setError] = useState('');
+  const [deletionError, setDeletionError] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const busy = operation !== null;
   const [confirmation, setConfirmation] = useState('');
   return (
     <main className="profile-page">
@@ -44,14 +46,14 @@ export function Profile({
       <form
         onSubmit={async (e) => {
           e.preventDefault();
-          setBusy(true);
+          setOperation('saving');
           setError('');
           try {
             onSaved(await patch<Session>('/auth/profile', form));
           } catch (e) {
             setError(errorMessage(e));
           } finally {
-            setBusy(false);
+            setOperation(null);
           }
         }}
       >
@@ -88,7 +90,7 @@ export function Profile({
         </p>
         <div className="action-group">
           <button className="button primary" disabled={busy}>
-            {busy ? 'Saving…' : 'Save my details'}
+            {operation === 'saving' ? 'Saving…' : 'Save my details'}
           </button>
           {onCancel && (
             <button className="button secondary" type="button" onClick={onCancel}>
@@ -125,8 +127,8 @@ export function Profile({
           <form
             onSubmit={async (e) => {
               e.preventDefault();
-              setBusy(true);
-              setError('');
+              setOperation('deleting');
+              setDeletionError('');
               try {
                 const result = await post<{ receipt: string }>('/auth/delete-account', {
                   confirmation,
@@ -135,8 +137,8 @@ export function Profile({
                 clearPrivateState();
                 window.location.replace('/deletion-status#' + result.receipt);
               } catch (e) {
-                setError(errorMessage(e));
-                setBusy(false);
+                setDeletionError(errorMessage(e));
+                setOperation(null);
               }
             }}
           >
@@ -152,9 +154,16 @@ export function Profile({
                 autoComplete="off"
               />
             </label>
+            {deletionError && (
+              <p className="notice error" role="alert">
+                {deletionError}
+              </p>
+            )}
             <div className="action-group">
               <button className="button primary" disabled={busy || confirmation !== 'DELETE'}>
-                {busy ? 'Requesting deletion…' : 'Permanently delete my account'}
+                {operation === 'deleting'
+                  ? 'Requesting deletion…'
+                  : 'Permanently delete my account'}
               </button>
               <button
                 className="button secondary"
@@ -163,6 +172,7 @@ export function Profile({
                 onClick={() => {
                   setDeleting(false);
                   setConfirmation('');
+                  setDeletionError('');
                 }}
               >
                 Keep my account

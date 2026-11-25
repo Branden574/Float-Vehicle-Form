@@ -563,6 +563,13 @@ fieldset {
   gap: 24px;
   margin-bottom: 32px;
 }
+.page-heading > div,
+.trip-row > div,
+.active-banner > div,
+.review-summary > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .page-heading p {
   font-size: 0.867rem;
   margin-bottom: 0;
@@ -739,6 +746,10 @@ fieldset {
   font-size: 1.133rem;
   letter-spacing: -0.4px;
   margin: 0 0 4px;
+}
+.vehicle-identity > div:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .vehicle-identity p {
   font-size: 0.733rem;
@@ -1023,6 +1034,9 @@ figcaption {
 .notification-row small {
   width: 100%;
 }
+.editor-panel {
+  scroll-margin-block-start: 12px;
+}
 .action-form,
 .editor-panel {
   padding: 26px;
@@ -1079,6 +1093,7 @@ figcaption {
   min-width: 0;
 }
 .admin-row strong {
+  overflow-wrap: anywhere;
   font-size: 0.933rem;
 }
 .admin-row p {
@@ -1138,7 +1153,15 @@ figcaption {
   grid-template-columns: 1fr 1fr;
   gap: 20px;
 }
+.audit-values > div {
+  min-width: 0;
+}
+#admin-panel {
+  overflow-wrap: anywhere;
+}
 .audit-values pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   max-height: 300px;
   overflow: auto;
   background: white;
@@ -2037,16 +2060,16 @@ figcaption {
   }
   .sidebar nav {
     flex-direction: row;
+    flex-wrap: wrap;
     gap: 8px;
     margin-top: 16px;
-    overflow: auto;
   }
   .nav-link {
     flex: 1;
     font-size: 0.733rem;
     justify-content: center;
     min-height: 47px;
-    white-space: nowrap;
+    white-space: normal;
     border-radius: 5px 5px 0 0;
   }
   .nav-link b {
@@ -2110,6 +2133,7 @@ figcaption {
     gap: 12px;
   }
   .segmented {
+    flex-wrap: wrap;
     width: 100%;
     gap: 8px;
   }
@@ -2180,7 +2204,7 @@ figcaption {
     font-size: 0.667rem;
   }
   .form-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 0;
   }
   .photo-grid {
@@ -2227,13 +2251,19 @@ figcaption {
     font-size: 0.8rem;
   }
   .workflow-layout {
+    grid-template-columns: minmax(0, 1fr);
     gap: 10px;
+  }
+  .workflow-main input,
+  .form-grid label {
+    min-width: 0;
   }
   .identity-strip {
     flex-wrap: wrap;
+    overflow-wrap: anywhere;
   }
   .identity-strip > div {
-    min-width: 100px;
+    min-width: min(100%, 7rem);
   }
   .question {
     font-size: 0.867rem;
@@ -2542,6 +2572,7 @@ figcaption {
 }
 .notification-admin,
 .my-checkouts,
+.workflow > p,
 .profile-page {
   overflow-wrap: anywhere;
 }
@@ -2573,6 +2604,29 @@ figcaption {
 }
 
 /* Follow the device live, without a separate saved theme or a reload. */
+@media (max-width: 420px) {
+  .vehicle-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .vehicle-identity {
+    grid-column: 1 / -1;
+  }
+  .vehicle-mileage {
+    grid-column: 1;
+    grid-row: 2;
+    text-align: left;
+  }
+  .vehicle-row > .status {
+    grid-column: 2;
+    margin-left: 0;
+    white-space: normal;
+  }
+  .vehicle-row > .button {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --ink: #e4ede7;
@@ -2965,6 +3019,20 @@ figcaption {
   text-align: center;
   gap: 0.16rem;
 }
+.schedule-surface {
+  container-type: inline-size;
+}
+.weekday-narrow {
+  display: none;
+}
+@container (max-width: 22em) {
+  .weekday-short {
+    display: none;
+  }
+  .weekday-narrow {
+    display: inline;
+  }
+}
 .weekday {
   font-size: 0.8rem;
   color: var(--muted);
@@ -3128,6 +3196,7 @@ figcaption {
   min-height: 44px;
 }
 .booking-dialog {
+  overflow-wrap: anywhere;
   width: min(36rem, calc(100% - 1.5rem));
   max-height: calc(100dvh - 2rem);
   overflow: auto;
@@ -3210,9 +3279,13 @@ figcaption {
 
 @media (max-width: 360px) {
   .schedule-surface {
+    margin-inline: -12px;
     padding-inline: 6px;
   }
   .schedule-dates {
     column-gap: 1px;
+  }
+  .calendar-date {
+    border-width: 1px;
   }
 }

@@ -605,7 +605,12 @@ export function VehicleCalendar({
               >
                 {Array.from({ length: 7 }, (_, i) => (
                   <span key={i} aria-hidden="true" className="weekday">
-                    {dateText(first.add({ days: i }), { weekday: 'short' })}
+                    <span className="weekday-short">
+                      {dateText(first.add({ days: i }), { weekday: 'short' })}
+                    </span>
+                    <span className="weekday-narrow">
+                      {dateText(first.add({ days: i }), { weekday: 'narrow' })}
+                    </span>
                   </span>
                 ))}
                 {Array.from({ length: days }, (_, i) => {
@@ -796,7 +801,7 @@ export function VehicleCalendar({
               </form>
               {result && (
                 <section className="calendar-results" aria-label="Availability results">
-                  <h3>Results</h3>
+                  <h3 data-step-focus>Results</h3>
                   <p>
                     {interval(result.start, result.end)} · {friendlyZone}
                   </p>
@@ -842,6 +847,7 @@ export function VehicleCalendar({
       {detail && (
         <WorkspaceDialog
           key={detail.id}
+          step={cancel ? 'cancel' : 'details'}
           close={() => {
             if (!busy) {
               setDetail(null);

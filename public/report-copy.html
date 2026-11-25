@@ -15,15 +15,17 @@
       }
       body {
         margin: 0;
-        padding: clamp(1.5rem, 7vw, 5rem);
+        padding: clamp(16px, 7vw, 5rem);
         background: Canvas;
         color: CanvasText;
       }
       main {
+        overflow-wrap: anywhere;
         max-width: 32rem;
         margin: auto;
       }
       h1 {
+        font-size: clamp(1.5rem, 1.25rem + 3vw, 2rem);
         line-height: 1.2;
       }
       label,
@@ -33,6 +35,8 @@
       }
       input,
       button {
+        box-sizing: border-box;
+        max-width: 100%;
         min-height: 44px;
         font: inherit;
         border-radius: 0.45rem;

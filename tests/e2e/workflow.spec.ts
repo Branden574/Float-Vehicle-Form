@@ -100,7 +100,7 @@ test('administrator setup, staff checkout/return, photos, signatures, PDF and sh
   await login(page);
   await page.getByRole('button', { name: 'Administration', exact: false }).click();
   await page.getByRole('button', { name: 'Add vehicle', exact: true }).click();
-  const name = `QA pool ${testInfo.project.name}`;
+  const name = `QA pool NorthCampusFleetOperationsTransitUnit17 ${testInfo.project.name}`;
   await page.getByLabel('Display name', { exact: true }).fill(name);
   await page.getByLabel('Make', { exact: true }).fill('Toyota');
   await page.getByLabel('Model', { exact: true }).fill('RAV4');
@@ -132,6 +132,13 @@ test('administrator setup, staff checkout/return, photos, signatures, PDF and sh
   await expect(page.getByLabel('Starting odometer reading', { exact: true })).toHaveValue('42500');
   await page.getByLabel('Projected return date and time', { exact: true }).fill('2030-01-01T12:00');
   await checkControls(page, 'Odometer');
+  const continueButton = page.getByRole('button', { name: 'Continue', exact: true });
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await continueButton.click();
+    const validation = page.locator('.workflow-main [role=alert]');
+    await expect(validation).toBeFocused();
+    await expect(validation).toBeInViewport();
+  }
   // Use the browser local clock rather than assuming the machine's timezone.
   const due = await page.evaluate(() => {
     const d = new Date(Date.now() + 3600000);
@@ -263,7 +270,12 @@ test('administrator setup, staff checkout/return, photos, signatures, PDF and sh
   expect(download.suggestedFilename()).toMatch(
     /_Out-\d{4}-\d{2}-\d{2}_In-\d{4}-\d{2}-\d{2}_Checkout-and-Check-in\.pdf$/,
   );
-  expect(download.suggestedFilename()).toContain(name.replace(/[^a-zA-Z0-9]+/g, '-'));
+  // The PDF reserves 60 characters for the vehicle component.
+  const vehicleFilename = name
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .slice(0, 60)
+    .replace(/-$/, '');
+  expect(download.suggestedFilename()).toContain('_' + vehicleFilename + '_Out-');
   await signOut(page);
   await login(page);
   await page.getByLabel('Search vehicles', { exact: true }).fill(name);
@@ -340,9 +352,14 @@ test('denied camera access and offline sign-out do not expose a previous draft',
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await inspect(page);
   await page.evaluate(() => {
-    navigator.mediaDevices.getUserMedia = async () => {
-      throw new DOMException('Denied', 'NotAllowedError');
-    };
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: async () => {
+          throw new DOMException('Denied', 'NotAllowedError');
+        },
+      },
+    });
   });
   await page.getByRole('button', { name: 'Take photo', exact: true }).first().click();
   await expect(page.getByText('Camera access was not granted.', { exact: false })).toBeVisible();
@@ -506,10 +523,19 @@ test('touch diagram marks can be moved, removed, undone and saved with exact pos
   const svg = page.getByRole('application', { name: 'Vehicle damage diagram' });
   const place = async (x: number, y: number) => {
     await svg.scrollIntoViewIfNeeded();
-    const b = (await svg.boundingBox())!;
-    const options = { position: { x: b.width * x, y: b.height * y } };
-    if (testInfo.project.use.hasTouch) await svg.tap(options);
-    else await svg.click(options);
+    const point = await svg.evaluate(
+      (element: SVGSVGElement, target) => {
+        const box = element.viewBox.baseVal;
+        const point = new DOMPoint(
+          box.x + target.x * box.width,
+          box.y + target.y * box.height,
+        ).matrixTransform(element.getScreenCTM()!);
+        return { x: point.x, y: point.y };
+      },
+      { x, y },
+    );
+    if (testInfo.project.use.hasTouch) await page.touchscreen.tap(point.x, point.y);
+    else await page.mouse.click(point.x, point.y);
   };
   await place(0.2, 0.5);
   await expect(page.locator('.damage-row')).toHaveCount(1);
@@ -807,6 +833,19 @@ test('page controls have usable spacing across the staff workspace and public pa
     await checkControls(page, 'Profile');
     await page.getByRole('button', { name: 'Delete my account…' }).click();
     await checkControls(page, 'Account deletion confirmation');
+    await page.route('**/api/auth/delete-account', (route) =>
+      route.fulfill({
+        status: 409,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'Assign a replacement administrator first.' }),
+      }),
+    );
+    await page.getByLabel('Type DELETE to confirm').fill('DELETE');
+    await page.getByRole('button', { name: 'Permanently delete my account' }).click();
+    const deletionError = page.getByRole('region', { name: 'Delete account' }).getByRole('alert');
+    await expect(deletionError).toHaveText('Assign a replacement administrator first.');
+    await expect(deletionError).toBeInViewport();
+    await page.unroute('**/api/auth/delete-account');
     await page.getByRole('button', { name: 'Keep my account' }).click();
     await page.getByRole('button', { name: 'Sign out', exact: true }).click();
   }

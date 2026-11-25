@@ -1,5 +1,5 @@
 import { uploadPhoto } from '../api';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Plus, Save, ShieldCheck, Upload, X } from 'lucide-react';
 import { api, errorMessage, formatDate, humanize, miles, patch, post } from '../api';
 import type { Overview, Settings, User, Vehicle } from '../types';
@@ -7,6 +7,7 @@ import { Status } from '../App';
 
 type VehicleDraft = Omit<Vehicle, 'id'> & { id?: string };
 type UserDraft = Omit<User, 'id'> & { id?: string };
+const adminTabs = ['vehicles', 'staff', 'reviewers', 'settings', 'notifications', 'audit'];
 const emptyUser: UserDraft = {
   email: '',
   name: '',
@@ -29,6 +30,7 @@ export function Admin({
   const [overview, setOverview] = useState<Overview | null>(null),
     [tab, setTab] = useState('vehicles'),
     [error, setError] = useState(''),
+    [loadError, setLoadError] = useState(''),
     [notice, setNotice] = useState(''),
     [busy, setBusy] = useState(false);
   const [vehicle, setVehicle] = useState<VehicleDraft | null>(null),
@@ -46,11 +48,37 @@ export function Admin({
       settings.notificationRecipients.length ? settings.notificationRecipients : [''],
     ),
     [employeeCopy, setEmployeeCopy] = useState(settings.employeeCopy);
+  const editorTrigger = useRef<HTMLButtonElement | null>(null);
+  const editorTitle = useRef<HTMLHeadingElement>(null);
+  const editorId = vehicle
+    ? 'vehicle:' + (vehicle.id || 'new')
+    : staff
+      ? 'staff:' + (staff.id || 'new')
+      : null;
+  function focusEditor() {
+    const heading = editorTitle.current;
+    heading?.focus({ preventScroll: true });
+    heading?.closest('form')?.scrollIntoView({ block: 'start' });
+  }
+  useEffect(() => {
+    if (editorId) focusEditor();
+  }, [editorId]);
+  function rememberEditorTrigger(button: HTMLButtonElement) {
+    if (editorTrigger.current === button) focusEditor();
+    editorTrigger.current = button;
+  }
+  function closeEditor() {
+    setVehicle(null);
+    setStaff(null);
+    editorTrigger.current?.focus();
+    editorTrigger.current = null;
+  }
   async function load() {
+    setLoadError('');
     try {
       setOverview(await api<Overview>('/admin/overview'));
     } catch (e) {
-      setError(errorMessage(e));
+      setLoadError(errorMessage(e));
     }
   }
   useEffect(() => {
@@ -70,7 +98,8 @@ export function Admin({
       setBusy(false);
     }
   }
-  function newVehicle() {
+  function newVehicle(e: React.MouseEvent<HTMLButtonElement>) {
+    rememberEditorTrigger(e.currentTarget);
     setReason('');
     setReplacement(false);
     setVehicle({
@@ -96,7 +125,7 @@ export function Admin({
       if (id)
         await patch(`/admin/vehicles/${id}`, { ...body, reason, odometerReplacement: replacement });
       else await post('/admin/vehicles', body);
-      setVehicle(null);
+      closeEditor();
       setNotice('Vehicle record saved. Historical trip identities are unchanged.');
     });
   }
@@ -116,7 +145,7 @@ export function Admin({
         const result = await post<{ inviteToken: string }>('/admin/users', body);
         setInvitation(`${location.origin}/#invite=${result.inviteToken}`);
       }
-      setStaff(null);
+      closeEditor();
       setNotice('Staff access saved. Share new invitations privately with the intended employee.');
     });
   }
@@ -164,11 +193,27 @@ export function Admin({
         </div>
         <ShieldCheck size={32} strokeWidth={1.4} />
       </div>
-      <div className="admin-tabs" role="tablist">
-        {['vehicles', 'staff', 'reviewers', 'settings', 'notifications', 'audit'].map((value) => (
+      <div className="admin-tabs" role="tablist" aria-label="Administration">
+        {adminTabs.map((value, index) => (
           <button
             key={value}
             role="tab"
+            id={'admin-tab-' + value}
+            tabIndex={tab === value ? 0 : -1}
+            aria-controls="admin-panel"
+            onKeyDown={(e) => {
+              const targets: Record<string, number> = {
+                ArrowLeft: (index + adminTabs.length - 1) % adminTabs.length,
+                ArrowRight: (index + 1) % adminTabs.length,
+                Home: 0,
+                End: adminTabs.length - 1,
+              };
+              if (!(e.key in targets)) return;
+              e.preventDefault();
+              const next = document.getElementById('admin-tab-' + adminTabs[targets[e.key]]);
+              next?.focus();
+              next?.click();
+            }}
             aria-selected={tab === value}
             className={tab === value ? 'selected' : ''}
             onClick={() => {
@@ -183,6 +228,16 @@ export function Admin({
           </button>
         ))}
       </div>
+      {loadError && (
+        <div className="notice error" role="alert">
+          <div>
+            <p>{loadError}</p>
+            <button type="button" className="button secondary" onClick={() => void load()}>
+              Retry loading administration
+            </button>
+          </div>
+        </div>
+      )}
       {error && (
         <div className="notice error" role="alert">
           {error}
@@ -214,9 +269,11 @@ export function Admin({
         </div>
       )}
       {!overview ? (
-        <p>Loading administration…</p>
+        <div role="tabpanel" id="admin-panel" aria-labelledby={'admin-tab-' + tab}>
+          {!loadError && <p role="status">Loading administration…</p>}
+        </div>
       ) : (
-        <>
+        <div role="tabpanel" id="admin-panel" aria-labelledby={'admin-tab-' + tab}>
           {tab === 'vehicles' && (
             <>
               <div className="section-heading">
@@ -243,7 +300,8 @@ export function Admin({
                   <Status value={v.status} />
                   <button
                     className="button secondary compact"
-                    onClick={() => {
+                    onClick={(e) => {
+                      rememberEditorTrigger(e.currentTarget);
                       const { id, ...rest } = v;
                       setVehicle({ ...rest, id });
                       setReason('');
@@ -262,12 +320,14 @@ export function Admin({
               {vehicle && (
                 <form className="editor-panel" onSubmit={saveVehicle}>
                   <div className="section-heading">
-                    <h2>{vehicle.id ? 'Edit vehicle' : 'Add vehicle'}</h2>
+                    <h2 ref={editorTitle} tabIndex={-1}>
+                      {vehicle.id ? 'Edit vehicle' : 'Add vehicle'}
+                    </h2>
                     <button
                       type="button"
                       className="icon-button"
                       aria-label="Close vehicle editor"
-                      onClick={() => setVehicle(null)}
+                      onClick={closeEditor}
                     >
                       <X />
                     </button>
@@ -414,7 +474,7 @@ export function Admin({
                               await post(`/admin/vehicles/${vehicle.id}/physical-inspection`, {
                                 reason,
                               });
-                              setVehicle(null);
+                              closeEditor();
                               setNotice(
                                 'Physical inspection requested. The vehicle remains on hold for a reviewer.',
                               );
@@ -549,7 +609,8 @@ export function Admin({
                 </div>
                 <button
                   className="button primary"
-                  onClick={() => {
+                  onClick={(e) => {
+                    rememberEditorTrigger(e.currentTarget);
                     setStaff({ ...emptyUser });
                     setReason('');
                     setInvitation('');
@@ -612,7 +673,8 @@ export function Admin({
                   </span>
                   <button
                     className="button secondary compact"
-                    onClick={() => {
+                    onClick={(e) => {
+                      rememberEditorTrigger(e.currentTarget);
                       setStaff(u);
                       setReason('');
                       setInvitation('');
@@ -625,12 +687,14 @@ export function Admin({
               {staff && (
                 <form className="editor-panel" onSubmit={saveStaff}>
                   <div className="section-heading">
-                    <h2>{staff.id ? 'Staff access' : 'Invite a staff member'}</h2>
+                    <h2 ref={editorTitle} tabIndex={-1}>
+                      {staff.id ? 'Staff access' : 'Invite a staff member'}
+                    </h2>
                     <button
                       type="button"
                       className="icon-button"
                       aria-label="Close staff editor"
-                      onClick={() => setStaff(null)}
+                      onClick={closeEditor}
                     >
                       <X />
                     </button>
@@ -888,7 +952,11 @@ export function Admin({
                 <button
                   type="button"
                   className="text-button"
-                  onClick={() => setTab('notifications')}
+                  onClick={() => {
+                    const emailsTab = document.getElementById('admin-tab-notifications');
+                    emailsTab?.focus();
+                    emailsTab?.click();
+                  }}
                 >
                   Form emails tab
                 </button>
@@ -1148,7 +1216,7 @@ export function Admin({
               budget; existing evidence is retained. Backups require separate capacity.
             </p>
           </div>
-        </>
+        </div>
       )}
     </section>
   );
