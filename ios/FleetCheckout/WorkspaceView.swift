@@ -36,7 +36,12 @@ struct FleetView: View {
   var body: some View {
     List {
       Section { NavigationLink("Vehicle calendar & availability") { ReservationCalendar() } }
-      if !store.error.isEmpty { Text(store.error).foregroundStyle(Color("FleetError")) }
+      if !store.error.isEmpty {
+        Text(store.error).foregroundStyle(Color("FleetError"))
+        Button("Retry loading fleet") { Task { await store.refresh() } }
+      } else if !store.hasLoadedSchedule {
+        ProgressView("Loading fleet…")
+      }
       if !store.vehicleInspections.isEmpty {
         Section("Vehicles needing a physical inspection") {
           ForEach(store.vehicleInspections) { task in
@@ -67,7 +72,9 @@ struct FleetView: View {
           $0.employeeId == store.session?.user.id
             && ["active", "pending_checkout"].contains($0.status)
         }
-        if current.isEmpty { Text("You have no vehicle checked out.").foregroundStyle(.secondary) }
+        if current.isEmpty && store.hasLoadedSchedule && store.error.isEmpty {
+          Text("You have no vehicle checked out.").foregroundStyle(.secondary)
+        }
         ForEach(current) { trip in
           NavigationLink {
             TripView(tripID: trip.id)
@@ -133,6 +140,7 @@ struct FleetView: View {
 }
 private struct VehicleInspectionView: View {
   @EnvironmentObject var store: FleetStore
+  @Environment(\.dynamicTypeSize) private var textSize
   @Environment(\.dismiss) private var dismiss
   let task: VehicleInspection
   @State private var inspected = false
@@ -149,10 +157,15 @@ private struct VehicleInspectionView: View {
       }
       Section {
         Toggle("I physically inspected this vehicle and was not the driver for this return", isOn: $inspected)
-        Picker("Inspection decision", selection: $decision) {
+        let decisionPicker = Picker("Inspection decision", selection: $decision) {
           Text("Choose a decision").tag("")
           Text("Make available for checkout").tag("approve")
           Text("Take out of service").tag("hold")
+        }
+        if textSize.isAccessibilitySize {
+          decisionPicker.pickerStyle(.inline)
+        } else {
+          decisionPicker
         }
         FleetTextField("Inspection notes", text: $reason, axis: .vertical)
         if !error.isEmpty { Text(error).foregroundStyle(Color("FleetError")) }
@@ -170,7 +183,7 @@ private struct VehicleInspectionView: View {
           }
         }.disabled(busy || !inspected || decision.isEmpty || reason.trimmingCharacters(in: .whitespacesAndNewlines).count < 5)
       }
-    }.navigationTitle("Physical inspection")
+    }.navigationTitle("Physical inspection").navigationBarTitleDisplayMode(.inline)
   }
 }
 struct VehicleView: View {
@@ -247,8 +260,12 @@ struct HistoryView: View {
   @EnvironmentObject var store: FleetStore
   var body: some View {
     List {
-      if !store.error.isEmpty { Text(store.error).foregroundStyle(Color("FleetError")) }
-      if store.trips.isEmpty {
+      if !store.error.isEmpty {
+        Text(store.error).foregroundStyle(Color("FleetError"))
+        Button("Retry loading trips") { Task { await store.refresh() } }
+      } else if !store.hasLoadedSchedule {
+        ProgressView("Loading trips…")
+      } else if store.trips.isEmpty {
         ContentUnavailableView(
           "No trips yet", systemImage: "list.clipboard",
           description: Text("Your signed checkout and return forms appear here."))
@@ -387,8 +404,10 @@ struct TripView: View {
             Text(review.reason)
           }
         }
-      } else {
+      } else if error.isEmpty {
         ProgressView("Loading trip…")
+      } else {
+        Button("Retry loading trip") { Task { await load() } }
       }
     }.navigationTitle("Trip record").task { await load() }.refreshable { await load() }
       .sheet(item: $preview) { DocumentPreview(document: $0) }
@@ -409,6 +428,7 @@ struct TripView: View {
       }
   }
   func load() async {
+    error = ""
     do {
       detail = try await store.api.request("/api/trips/\(tripID)")
       hasReturnDraft = NativeDraftVault.hasDraft(
@@ -684,7 +704,7 @@ struct CorrectionAcknowledgment: View {
           } catch { self.error = error.localizedDescription }
         }
       }.disabled(busy || !reviewed || signature.isEmpty)
-    }.navigationTitle("Mileage acknowledgment")
+    }.navigationTitle("Mileage acknowledgment").navigationBarTitleDisplayMode(.inline)
       .toolbar { Button("Cancel") { dismiss() }.disabled(busy) }
       .interactiveDismissDisabled(busy)
   }

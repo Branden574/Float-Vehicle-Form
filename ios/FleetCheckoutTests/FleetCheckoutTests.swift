@@ -421,6 +421,8 @@ final class FleetCheckoutTests: XCTestCase {
         return (404, [:], Data())
       }
     }
+    await store.refresh()
+    XCTAssertFalse(store.hasLoadedSchedule, "A failed initial fetch must not produce empty fleet or trip states.")
     do {
       try await store.applyWorkspaceUpdate(copy)
       XCTFail("Expected refresh failure")
@@ -428,6 +430,8 @@ final class FleetCheckoutTests: XCTestCase {
     XCTAssertEqual(store.session?.settings.appName, "Earlier")
     XCTAssertEqual(store.workspaceContent, WorkspaceContent.bundled)
     failTrips = false
+    await store.refresh()
+    XCTAssertTrue(store.hasLoadedSchedule, "A successfully loaded empty schedule is ready to display.")
     try await store.applyWorkspaceUpdate(copy)
     XCTAssertEqual(store.session?.settings.appName, "Refreshed")
     XCTAssertEqual(store.workspaceContent, copy)
@@ -446,6 +450,8 @@ final class FleetCheckoutTests: XCTestCase {
       } catch {}
       XCTAssertEqual(store.workspaceContent, copy)
     }
+    store.clear()
+    XCTAssertFalse(store.hasLoadedSchedule)
   }
   static let tripJSON = """
     {"id":"trip","vehicleId":"vehicle","employeeId":"staff","status":"active","checkoutAt":"2026-11-09T12:00:00.000Z","projectedReturnAt":"2026-11-09T18:00:00.000Z","startingMileage":43000,"employeeSnapshot":{"id":"staff","email":"driver@example.test","name":"Test Driver","department":"Testing","charter":"Testing","manager":"Test Manager","role":"staff","authorizedDriver":true,"active":true},"vehicleSnapshot":{"id":"vehicle","name":"Test Vehicle","make":"Ford","model":"Escape","year":2024,"plate":"TEST-01","vinLast4":"1234","site":"Testing","currentMileage":43000,"status":"checked_out","photoUrl":"","notes":"","archived":false},"checkoutInspection":{"fuelFull":true,"interiorClean":true,"gasCard":true,"windshield":"clear","damage":[],"notes":""},"flags":[],"overdue":false}

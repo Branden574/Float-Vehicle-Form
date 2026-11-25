@@ -3,6 +3,7 @@ import SwiftUI
 struct AdminView: View {
   @EnvironmentObject var store: FleetStore
   @State private var overview: AdminOverview?
+  @State private var overviewError: String?
   @State private var recipients = ""
   @State private var bookingManagers = ""
   @State private var reviewers = ""
@@ -13,54 +14,14 @@ struct AdminView: View {
   var body: some View {
     Form {
       if !message.isEmpty { Text(message) }
-      Section {
-        TextField("assistant@school.org", text: $recipients, axis: .vertical)
-          .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.emailAddress)
-          .lineLimit(3...8)
-        Toggle("Send employee a copy", isOn: $employeeCopy)
-        Button(busy ? "Saving…" : "Save form recipients") { Task { await saveRecipients() } }
-          .disabled(busy)
-      } header: {
-        Text("Completed-form email copies")
-      } footer: {
-        Text(
-          "Enter one email per line, up to 20. These recipients receive the checkout and check-in PDF forms, including front, back and photos, after any required representative review."
-        )
-      }
-      Section {
-        TextField("Reviewer email addresses", text: $reviewers, axis: .vertical)
-          .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.emailAddress)
-          .lineLimit(3...8)
-        Button(busy ? "Saving…" : "Save return reviewers") { Task { await saveReviewers() } }
-          .disabled(busy)
-      } header: {
-        Text("Return reviewers")
-      } footer: {
-        Text(
-          "One email per line, up to 20. Assigned reviewers receive a review request and approve or hold returns without full admin access. Every new return waits for their signed approval. Nobody can approve their own return; assign at least two reviewers if they also drive. Clearing this list restores administrator review under the existing inspection policy."
-        )
-      }
-      Section("Reservation managers") {
-        TextField("Manager emails, one per line", text: $bookingManagers, axis: .vertical)
-          .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.emailAddress)
-        Text(
-          "Assigned staff can manage reservations and receive cancellation emails. An empty list uses assigned return reviewers."
-        ).font(.footnote)
-        Button("Save reservation managers") { Task { await saveBookingManagers() } }.disabled(busy)
-      }
-      Section {
-        TextField("Staff email to approve", text: $approvedEmail)
-          .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.emailAddress)
-        Button("Approve email") { Task { await approveEmail() } }
-          .disabled(busy || approvedEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-      } header: {
-        Text("Approve staff email")
-      } footer: {
-        Text(
-          "Approved staff can sign in to the fleet workspace. Open their record below to authorize driving or deactivate their account."
-        )
+      if let overviewError {
+        Section {
+          Text(overviewError)
+          Button("Retry loading administration") { Task { await load() } }
+        }
       }
       if let overview {
+        settingsSections
         Section("Form emails") {
           NavigationLink("Email delivery history") {
             EmailDeliveryView(notices: overview.notifications ?? [])
@@ -103,16 +64,69 @@ struct AdminView: View {
             VehicleEditor(vehicle: nil, onSave: { Task { await load() } })
           }
         }
+      } else if overviewError == nil {
+        ProgressView("Loading administration…")
       }
       Section("Additional administration") {
-        Link("Open complete web administration", destination: FleetAPI.origin)
+        Link("Open complete web administration", destination: store.api.baseURL)
         Text(
           "Use the web dashboard for mileage corrections, odometer replacement documentation, audit exports and organization settings."
         ).font(.footnote).foregroundStyle(.secondary)
       }
     }.navigationTitle("Administration").task { await load() }.refreshable { await load() }
   }
+  @ViewBuilder private var settingsSections: some View {
+    Section {
+      TextField("assistant@school.org", text: $recipients, axis: .vertical)
+        .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.emailAddress)
+        .lineLimit(3...8)
+      Toggle("Send employee a copy", isOn: $employeeCopy)
+      Button(busy ? "Saving…" : "Save form recipients") { Task { await saveRecipients() } }
+        .disabled(busy)
+    } header: {
+      Text("Completed-form email copies")
+    } footer: {
+      Text(
+        "Enter one email per line, up to 20. These recipients receive the checkout and check-in PDF forms, including front, back and photos, after any required representative review."
+      )
+    }
+    Section {
+      TextField("Reviewer email addresses", text: $reviewers, axis: .vertical)
+        .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.emailAddress)
+        .lineLimit(3...8)
+      Button(busy ? "Saving…" : "Save return reviewers") { Task { await saveReviewers() } }
+        .disabled(busy)
+    } header: {
+      Text("Return reviewers")
+    } footer: {
+      Text(
+        "One email per line, up to 20. Assigned reviewers receive a review request and approve or hold returns without full admin access. Every new return waits for their signed approval. Nobody can approve their own return; assign at least two reviewers if they also drive. Clearing this list restores administrator review under the existing inspection policy."
+      )
+    }
+    Section("Reservation managers") {
+      TextField("Manager emails, one per line", text: $bookingManagers, axis: .vertical)
+        .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.emailAddress)
+      Text(
+        "Assigned staff can manage reservations and receive cancellation emails. An empty list uses assigned return reviewers."
+      ).font(.footnote)
+      Button("Save reservation managers") { Task { await saveBookingManagers() } }.disabled(busy)
+    }
+    Section {
+      TextField("Staff email to approve", text: $approvedEmail)
+        .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.emailAddress)
+      Button("Approve email") { Task { await approveEmail() } }
+        .disabled(busy || approvedEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    } header: {
+      Text("Approve staff email")
+    } footer: {
+      Text(
+        "Approved staff can sign in to the fleet workspace. Open their record below to authorize driving or deactivate their account."
+      )
+    }
+  }
+
   func load() async {
+    overviewError = nil
     do {
       let result: AdminOverview = try await store.api.request("/api/admin/overview")
       overview = result
@@ -120,7 +134,7 @@ struct AdminView: View {
       bookingManagers = (result.settings.reservationManagerEmails ?? []).joined(separator: "\n")
       employeeCopy = result.settings.employeeCopy
       reviewers = (result.settings.returnReviewerEmails ?? []).joined(separator: "\n")
-    } catch { message = error.localizedDescription }
+    } catch { overviewError = error.localizedDescription }
   }
   func approveEmail() async {
     busy = true
@@ -310,7 +324,8 @@ struct StaffEditor: View {
     Form {
       Section(user.name) {
         Text(user.email)
-        Text("\(user.charter) · \(user.manager)")
+        if !user.charter.isEmpty { LabeledContent("Charter / school", value: user.charter) }
+        if !user.manager.isEmpty { LabeledContent("Manager", value: user.manager) }
       }
       Toggle("Approved staff email", isOn: $approved).disabled(role == "admin")
         .onChange(of: approved) { _, approved in if !approved { authorized = false } }
@@ -444,6 +459,7 @@ struct VehicleEditor: View {
 }
 struct ReviewView: View {
   @EnvironmentObject var store: FleetStore
+  @Environment(\.dynamicTypeSize) private var textSize
   @Environment(\.dismiss) private var dismiss
   let trip: Trip
   @State private var initials = ""
@@ -458,9 +474,14 @@ struct ReviewView: View {
       Text(
         "Review \(trip.vehicleSnapshot.name) for \(trip.employeeSnapshot.name). Your authenticated signature is recorded with this decision."
       )
-      Picker("Decision", selection: $decision) {
+      let decisionPicker = Picker("Decision", selection: $decision) {
         Text("Approve / release").tag("approve")
         Text("Take out of service").tag("out_of_service")
+      }
+      if textSize.isAccessibilitySize {
+        decisionPicker.pickerStyle(.inline)
+      } else {
+        decisionPicker
       }
       FleetTextField("Initials", text: $initials)
       FleetTextField("Reason", text: $reason, axis: .vertical)
@@ -486,7 +507,7 @@ struct ReviewView: View {
           } catch { self.error = error.localizedDescription }
         }
       }.disabled(busy || initials.isEmpty || reason.count < 5 || signature.isEmpty)
-    }.navigationTitle("Representative review").toolbar {
+    }.navigationTitle("Representative review").navigationBarTitleDisplayMode(.inline).toolbar {
       Button("Cancel") { dismiss() }.disabled(busy)
     }.interactiveDismissDisabled(busy)
   }

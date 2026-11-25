@@ -58,6 +58,7 @@ private enum SignInNotice {
   @Published var session: FleetSession?
   @Published var vehicles: [Vehicle] = []
   @Published var trips: [Trip] = []
+  @Published private(set) var hasLoadedSchedule = false
   @Published var pendingReturns: [Trip] = []
   @Published var vehicleInspections: [VehicleInspection] = []
   @Published var error = ""
@@ -128,6 +129,7 @@ private enum SignInNotice {
       let snapshot = try await schedule(for: session)
       guard started == revision else { return }
       (vehicles, trips, pendingReturns, vehicleInspections) = snapshot
+      hasLoadedSchedule = true
       error = ""
     } catch { if started == revision { self.error = error.localizedDescription } }
   }
@@ -144,6 +146,7 @@ private enum SignInNotice {
     try content.persist(for: api.baseURL.absoluteString, defaults: defaults)
     accept(latest)
     (vehicles, trips, pendingReturns, vehicleInspections) = snapshot
+    hasLoadedSchedule = true
     workspaceContent = content
     error = ""
   }
@@ -157,6 +160,7 @@ private enum SignInNotice {
     idleTask = nil
     api.clear()
     session = nil
+    hasLoadedSchedule = false
     vehicles = []
     trips = []
     pendingReturns = []
@@ -361,7 +365,7 @@ struct SignInView: View {
               .emailAddress
             ).textInputAutocapitalization(.never).autocorrectionDisabled().disabled(
               !challenge.isEmpty || busy
-            ).textFieldStyle(.roundedBorder).accessibilityIdentifier("email")
+            ).textFieldStyle(.roundedBorder).controlSize(.large).accessibilityIdentifier("email")
             if challenge.isEmpty {
               Toggle("Notify me when my code is sent", isOn: $wantsCodeAlerts)
                 .font(.subheadline).disabled(busy)
@@ -369,7 +373,7 @@ struct SignInView: View {
             if !challenge.isEmpty {
               TextField("6-digit code", text: $code).keyboardType(.numberPad).textContentType(
                 .oneTimeCode
-              ).textFieldStyle(.roundedBorder).accessibilityIdentifier("code")
+              ).textFieldStyle(.roundedBorder).controlSize(.large).accessibilityIdentifier("code")
                 .focused($codeFocused)
                 .onAppear { codeFocused = true }
                 .onChange(of: code) { _, value in
@@ -383,7 +387,9 @@ struct SignInView: View {
               if alertsDenied,
                 let url = URL(string: UIApplication.openNotificationSettingsURLString)
               {
-                Link("Enable Fleet Checkout alerts in Settings", destination: url).font(.footnote)
+                Link(destination: url) {
+                  Text("Enable Fleet Checkout alerts in Settings").frame(minHeight: 44)
+                }.font(.footnote)
               }
             }
             if !message.isEmpty {
@@ -412,15 +418,20 @@ struct SignInView: View {
                 .large
               ).disabled(unavailable)
               if !challenge.isEmpty {
-                Button(remaining > 0 ? "Resend code in \(remaining)s" : "Resend code") {
+                Button {
                   Task { await sendCode(resend: true) }
+                } label: {
+                  Text(remaining > 0 ? "Resend code in \(remaining)s" : "Resend code")
+                    .frame(minHeight: 44).contentShape(Rectangle())
                 }.disabled(busy || remaining > 0)
-                Button("Change email") {
+                Button {
                   clearNotice()
                   challenge = ""
                   code = ""
                   message = ""
                   error = ""
+                } label: {
+                  Text("Change email").frame(minHeight: 44).contentShape(Rectangle())
                 }.disabled(busy)
               } else if remaining > 0 {
                 Text("You can request another code in \(remaining)s.").font(.footnote)

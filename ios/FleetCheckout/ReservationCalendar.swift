@@ -202,7 +202,7 @@ struct ReservationCalendar: View {
                 .foregroundStyle(.secondary)
               primary(checking ? "Checking…" : "Check availability", icon: "magnifyingglass") {
                 Task { await check() }
-              }.disabled(checking)
+              }.accessibilityIdentifier("runAvailabilityCheck").disabled(checking)
               if !error.isEmpty { Text(error).foregroundStyle(Color("FleetError")) }
               if let checked {
                 Divider()
@@ -279,6 +279,7 @@ struct ReservationCalendar: View {
     Button(action: action) {
       Label(name, systemImage: icon).font(.headline).multilineTextAlignment(.center)
         .frame(maxWidth: .infinity, minHeight: 46).padding(.horizontal, 8)
+        .contentShape(Rectangle())
     }.buttonStyle(.plain).foregroundStyle(Color(uiColor: .systemBackground))
       .background(Color("FleetAccent"), in: RoundedRectangle(cornerRadius: 12))
   }
@@ -315,6 +316,7 @@ struct ReservationCalendar: View {
         error = ""
         panel = true
       }
+      .accessibilityIdentifier("openAvailabilityPanel")
       .frame(maxWidth: size == .regular ? 280 : .infinity, alignment: .leading)
       if !site.isEmpty || !vehicle.isEmpty {
         Button("Reset filters") {
@@ -416,7 +418,10 @@ struct ReservationCalendar: View {
       } label: {
         Image(systemName: "chevron.left").frame(width: 44, height: 44)
       }.accessibilityLabel("Previous")
-      Button("Today") { day = Date() }.font(.subheadline.weight(.semibold)).frame(minHeight: 44)
+      Button { day = Date() } label: {
+        Text("Today").font(.subheadline.weight(.semibold)).frame(minHeight: 44)
+          .contentShape(Rectangle())
+      }
       Button {
         move(1)
       } label: {
